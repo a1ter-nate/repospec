@@ -1,0 +1,36 @@
+{
+  "observability": [
+    "@sentry/",
+    "sentry",
+    "@opentelemetry/",
+    "opentelemetry",
+    "tracing",
+    "pino",
+    "winston",
+    "serilog",
+    "posthog"
+  ],
+  "transports": [
+    "axios",
+    "node-fetch",
+    "undici",
+    "got",
+    "ky",
+    "superagent",
+    "reqwest",
+    "hyper",
+    "restsharp",
+    "flurl",
+    "system.net.http"
+  ],
+  "sdks": [
+    { "pattern": "^(?:@?stripe|braintree|adyen|paypal|square)", "category": "payments", "label": "Payments SDK" },
+    { "pattern": "^(?:resend|@sendgrid/|sendgrid|postmark|nodemailer|lettre|mailgun)", "category": "email", "label": "Email SDK" },
+    { "pattern": "^(?:@google-cloud/storage|@aws-sdk/client-s3|awssdk\\.s3|aws_sdk_s3|@azure/storage)", "category": "files", "label": "Object Storage" },
+    { "pattern": "^(?:@google-cloud/pubsub|@aws-sdk/client-sqs|@aws-sdk/client-sns|kafkajs|amqplib|lapin|rdkafka)", "category": "messaging", "label": "Messaging" },
+    { "pattern": "^(?:twilio|@twilio/|telnyx|vonage)", "category": "communications", "label": "Communications" },
+    { "pattern": "^(?:@googlemaps/|mapbox)", "category": "geocoding", "label": "Geocoding" },
+    { "pattern": "^(?:openai|async_openai|@anthropic-ai/|anthropic|@google/generative-ai)", "category": "ai", "label": "AI Provider" },
+    { "pattern": "^(?:@octokit/|octocrab)", "category": "scm", "label": "SCM API" }
+  ]
+}

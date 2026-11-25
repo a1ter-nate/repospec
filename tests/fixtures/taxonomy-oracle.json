@@ -1,0 +1,46 @@
+{
+  "layerSemantics": [
+    { "rawLayer": "routes", "canonical": "transport", "axis": "pipeline", "rank": 0, "laneId": "entry" },
+    { "rawLayer": "middleware", "canonical": "transport", "axis": "pipeline", "rank": 0, "laneId": "entry" },
+    { "rawLayer": "routePolicy", "canonical": "transport", "axis": "pipeline", "rank": 0, "laneId": "entry" },
+    { "rawLayer": "controller", "canonical": "transport", "axis": "pipeline", "rank": 1, "laneId": "controllers" },
+    { "rawLayer": "handlers", "canonical": "transport", "axis": "pipeline", "rank": 1, "laneId": "controllers" },
+    { "rawLayer": "pages", "canonical": "ui", "axis": "pipeline", "rank": 0, "laneId": "entry" },
+    { "rawLayer": "components", "canonical": "ui", "axis": "pipeline", "rank": 1, "laneId": "controllers" },
+    { "rawLayer": "service", "canonical": "orchestration", "axis": "pipeline", "rank": 2, "laneId": "logic" },
+    { "rawLayer": "application", "canonical": "orchestration", "axis": "pipeline", "rank": 2, "laneId": "logic" },
+    { "rawLayer": "dao", "canonical": "persistence", "axis": "pipeline", "rank": 3, "laneId": "adapters" },
+    { "rawLayer": "repositories", "canonical": "persistence", "axis": "pipeline", "rank": 3, "laneId": "adapters" },
+    { "rawLayer": "client", "canonical": "integration", "axis": "integration", "rank": 3, "laneId": "adapters" },
+    { "rawLayer": "adapters", "canonical": "integration", "axis": "integration", "rank": 3, "laneId": "adapters" },
+    { "rawLayer": "dto", "canonical": "support", "axis": "foundation", "rank": 5, "laneId": "lateral" },
+    { "rawLayer": "errors", "canonical": "support", "axis": "foundation", "rank": 5, "laneId": "lateral" },
+    { "rawLayer": "util", "canonical": "support", "axis": "foundation", "rank": 5, "laneId": "lateral" },
+    { "rawLayer": "domain", "canonical": "domain", "axis": "foundation", "rank": 5, "laneId": "lateral" }
+  ],
+  "externalPackages": [
+    { "pkg": "axios", "expectedKind": "transport", "expectedCategory": "http_client", "expectedLabel": "Axios" },
+    { "pkg": "node-fetch", "expectedKind": "transport", "expectedCategory": "http_client", "expectedLabel": "Node Fetch" },
+    { "pkg": "reqwest", "expectedKind": "transport", "expectedCategory": "http_client", "expectedLabel": "Reqwest" },
+    { "pkg": "@sentry/node", "expectedKind": "observability", "expectedCategory": "observability", "expectedLabel": "Sentry" },
+    { "pkg": "@opentelemetry/api", "expectedKind": "observability", "expectedCategory": "observability", "expectedLabel": "Opentelemetry" },
+    { "pkg": "twilio", "expectedKind": "service", "expectedCategory": "communications", "expectedLabel": "Twilio" },
+    { "pkg": "@googlemaps/google-maps-services-js", "expectedKind": "service", "expectedCategory": "geocoding", "expectedLabel": "Google Maps" },
+    { "pkg": "@google-cloud/pubsub", "expectedKind": "service", "expectedCategory": "messaging", "expectedLabel": "Pubsub" },
+    { "pkg": "@aws-sdk/client-s3", "expectedKind": "service", "expectedCategory": "files", "expectedLabel": "S3" },
+    { "pkg": "zod", "expectedKind": null, "expectedCategory": null, "expectedLabel": null }
+  ],
+  "gitRemotes": [
+    { "raw": "https://x-access-token:secret@github.com/org/repo.git", "expected": "https://github.com/org/repo" },
+    { "raw": "git@github.com-work:org/repo.git", "expected": "https://github.com/org/repo" },
+    { "raw": "git@gitlab.com:team/sub/proj.git", "expected": "https://gitlab.com/team/sub/proj" },
+    { "raw": "/Users/dev/local-repo", "expected": null },
+    { "raw": "file:///tmp/repo", "expected": null }
+  ],
+  "featurePaths": [
+    { "relFile": "apps/api/functions/dao/orders.ts", "unitDir": "apps/api", "rawLayer": "dao", "canonicalLayer": "persistence", "inferredDomain": null },
+    { "relFile": "apps/api/functions/service/billing/invoice.ts", "unitDir": "apps/api", "rawLayer": "service", "canonicalLayer": "orchestration", "inferredDomain": "billing" },
+    { "relFile": "apps/api/src/modules/payments/repositories/ledger.ts", "unitDir": "apps/api", "rawLayer": "repositories", "canonicalLayer": "persistence", "inferredDomain": "payment" },
+    { "relFile": "apps/web/src/components/nav/Header.tsx", "unitDir": "apps/web", "rawLayer": "components", "canonicalLayer": "ui", "inferredDomain": "nav" }
+  ]
+}

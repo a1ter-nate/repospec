@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "rules": {
+    "max-exports-per-module": 7,
+    "max-file-lines": 10
+  }
+}

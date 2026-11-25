@@ -1,0 +1,46 @@
+{
+  "name": "repospec",
+  "version": "4.1.0",
+  "type": "module",
+  "description": "Deterministic canonical RepoSpec IR (OpenAPI for architecture, tests, CI, IaC, governance, and code-quality rules) with SQLite graph index and interactive visual studio.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/a1ter-nate/repospec.git"
+  },
+  "bin": {
+    "repospec": "./src/cli.ts"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "format": "bunx oxfmt src tests",
+    "format:check": "bunx oxfmt --check src tests",
+    "lint:oxlint": "bunx oxlint -c .oxlintrc.json src tests",
+    "lint:no-comments": "bunx vstack no-comments . --fail",
+    "lint:state-machines": "bunx vstack state-machines . --fail",
+    "lint:diff-cheats": "bunx vstack diff-cheats . --base HEAD --fail",
+    "check:vstack": "bun run lint:oxlint && bun run lint:no-comments && bun run lint:state-machines && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats",
+    "generate": "bun src/cli.ts generate",
+    "schema": "bun src/cli.ts schema",
+    "check": "bun run typecheck && bun test && bun run check:vstack"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.1.4",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/dagre": "^0.7.54",
+    "@types/js-yaml": "^4.0.9",
+    "fast-check": "^4.11.0",
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0",
+    "typescript": "^5.8.2",
+    "veristack": "github:a1ter-nate/veristack"
+  }
+}

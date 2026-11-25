@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "ignorePatterns": ["out/**", "node_modules/**"],
+  "rules": {
+    "no-empty": "error",
+    "no-console": "off",
+    "unicorn/no-array-sort": "off",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-non-null-assertion": "warn"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "service": "repospec",
+  "controls": [
+    {
+      "id": "CP-001",
+      "seam": "canonical taxonomy & layer rank resolver",
+      "failureMode": "Layer axis/rank or external vendor classification drifts between extractors, SQL rules, and layout",
+      "severity": 9,
+      "maxAllowedRung": "R2",
+      "controlRef": "tests/taxonomy.table.test.ts",
+      "reqId": "REQ-TAXONOMY-01"
+    },
+    {
+      "id": "CP-002",
+      "seam": "fixed-lane diagram layout & edge router",
+      "failureMode": "Layout produces overlapping nodes, non-deterministic coordinates, or unrouted/dangling edges",
+      "severity": 9,
+      "maxAllowedRung": "R2",
+      "controlRef": "tests/layout.pbt.test.ts",
+      "reqId": "REQ-LAYOUT-01"
+    },
+    {
+      "id": "CP-003",
+      "seam": "SQLite index & contract-first surface reconciliation",
+      "failureMode": "Unmounted sub-router fragments pollute OpenAPI endpoint surfaces or SQL invariants fail to project onto graph edges",
+      "severity": 9,
+      "maxAllowedRung": "R3",
+      "controlRef": "tests/pipeline.mbt.test.ts",
+      "reqId": "REQ-PIPELINE-01"
+    },
+    {
+      "id": "CP-004",
+      "seam": "HTML visual studio & client JS projection",
+      "failureMode": "Generated standalone or inline HTML contains JS syntax errors, viewport vh loops, or unescaped script tags",
+      "severity": 8,
+      "maxAllowedRung": "R2",
+      "controlRef": "tests/layout.pbt.test.ts",
+      "reqId": "REQ-RENDER-01"
+    },
+    {
+      "id": "CP-005",
+      "seam": "static hygiene & anti-cheat verification",
+      "failureMode": "Prose comments, quadratic extractor loops, or test cheats regress into main",
+      "severity": 8,
+      "maxAllowedRung": "R0",
+      "controlRef": "lefthook.yml",
+      "reqId": "REQ-HYGIENE-01"
+    }
+  ],
+  "formalChecks": []
+}
