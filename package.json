@@ -69,6 +69,6 @@
     "fast-check": "^4.11.0",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
-    "veristack": "^0.1.0"
+    "veristack": "^0.1.1"
   }
 }
