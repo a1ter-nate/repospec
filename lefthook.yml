@@ -7,6 +7,8 @@ pre-commit:
       run: bun run lint:no-comments
     state-machines:
       run: bun run lint:state-machines
+    laws:
+      run: bun run lint:laws
     diff-cheats:
       run: bun run lint:diff-cheats
 

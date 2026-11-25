@@ -953,7 +953,7 @@ export function projectInvariantsToGraph(
     if (map && map.size > 0) {
       node.findings = Array.from(map.entries())
         .map(([ruleId, info]) => ({ ruleId, severity: info.severity, count: info.count }))
-        .sort((a, b) => b.count - a.count || a.ruleId.localeCompare(b.ruleId));
+        .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.ruleId.localeCompare(b.ruleId)));
     }
   }
 

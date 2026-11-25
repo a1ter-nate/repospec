@@ -60,7 +60,7 @@ export function buildOverlayBundle(
     maxYByLane.set(key, Math.max(maxYByLane.get(key) ?? 40, n.y + n.h / 2));
   }
   const laneXById = new Map((primary.lanes ?? []).map((l) => [l.id, l.x + l.w / 2]));
-  let maxBottom = primary.height;
+  let overlayHeight = primary.height;
 
   for (const bn of baseDiag?.nodes ?? []) {
     if (headNodesById.has(bn.id)) continue;
@@ -70,7 +70,7 @@ export function buildOverlayBundle(
     const prevBottom = maxYByLane.get(laneKey) ?? bn.y;
     const placeY = prevBottom + 18 + bn.h / 2;
     maxYByLane.set(laneKey, placeY + bn.h / 2);
-    maxBottom = Math.max(maxBottom, placeY + bn.h / 2 + 44);
+    overlayHeight = Math.max(overlayHeight, placeY + bn.h / 2 + 44);
     overlayNodes.push({
       ...bn,
       x: placeX,
@@ -133,7 +133,7 @@ export function buildOverlayBundle(
     label,
     overlay: {
       ...primary,
-      height: Math.max(primary.height, maxBottom),
+      height: overlayHeight,
       lanes: adjustedLanes,
       nodes: overlayNodes,
       edges: overlayEdges,

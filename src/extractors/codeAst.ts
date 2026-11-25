@@ -986,7 +986,7 @@ export const codeAstExtractor: ExtractorPlugin = {
 
     const domainCountsSorted = Array.from(domainFileCounts.entries())
       .filter(([, v]) => v.count >= 2)
-      .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]));
+      .sort((a, b) => (b[1].count !== a[1].count ? b[1].count - a[1].count : a[0].localeCompare(b[0])));
 
     const validDomainIds = new Set<string>();
     for (const [dom, info] of domainCountsSorted) {

@@ -379,8 +379,9 @@ export const csharpAstExtractor: ExtractorPlugin = {
         for (const m of text.matchAll(/public\s+abstract\s+record\s+([A-Za-z0-9_]+)/g)) {
           const baseName = m[1];
           if (!baseName) continue;
+          const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const variants = Array.from(
-            text.matchAll(new RegExp(`sealed\\s+record\\s+([A-Za-z0-9_]+)(?:\\([^)]*\\))?\\s*:\\s*${baseName}\\b`, "g")),
+            text.matchAll(new RegExp(`sealed\\s+record\\s+([A-Za-z0-9_]+)(?:\\([^)]*\\))?\\s*:\\s*${escapedBase}\\b`, "g")),
           )
             .map((vm) => vm[1] ?? "")
             .filter(Boolean);
@@ -388,7 +389,7 @@ export const csharpAstExtractor: ExtractorPlugin = {
           if (variants.length >= 2 && /(?:State|Status|Phase|Stage)$/i.test(baseName)) {
             const transitions: Array<{ from: string; event: string; to: string; guard?: string }> = [];
             const pattern = new RegExp(
-              `\\(\\s*${baseName}\\.(\\w+)(?:\\s+\\w+)?\\s*,\\s*\\w+\\.(\\w+)(?:\\s+\\w+)?\\s*\\)(?:\\s+when\\s+([^=]+?))?\\s*=>[\\s\\S]{0,180}?(?:Accepted\\(\\s*)?new\\s+${baseName}\\.(\\w+)`,
+              `\\(\\s*${escapedBase}\\.(\\w+)(?:\\s+\\w+)?\\s*,\\s*\\w+\\.(\\w+)(?:\\s+\\w+)?\\s*\\)(?:\\s+when\\s+([^=]+?))?\\s*=>[\\s\\S]{0,180}?(?:Accepted\\(\\s*)?new\\s+${escapedBase}\\.(\\w+)`,
               "g",
             );
             for (const tm of text.matchAll(pattern)) {

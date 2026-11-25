@@ -67,11 +67,13 @@ function lineOf(text: string, index: number): number {
 }
 
 function extractTopLevelStringAttr(body: string, attrName: string): string | null {
+  const escapedAttr = attrName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const attrRe = new RegExp(`^${escapedAttr}\\s*=\\s*"([^"]+)"`);
   let depth = 0;
   for (const line of body.split("\n")) {
     const trimmed = line.trim();
     if (depth === 0) {
-      const m = trimmed.match(new RegExp(`^${attrName}\\s*=\\s*"([^"]+)"`));
+      const m = trimmed.match(attrRe);
       if (m?.[1]) return m[1];
     }
     for (const ch of trimmed) {
