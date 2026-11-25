@@ -131,7 +131,7 @@ function buildSubsystemDiagram(params: {
       role: "module",
       domain: "arch",
       shape: "box",
-      ...(inTangle ? { ambientBadges: ["cycle"] } : {}),
+      ambientBadges: inTangle ? ["cycle"] : undefined,
       provenance: { file: grp.files[0]?.file ?? grp.relPath, line: 1 },
     };
   });
@@ -385,8 +385,8 @@ export function buildModuleArchitecture(params: {
         role: "module",
         domain: "arch",
         shape: card.role === "foundation" ? "hex" : card.role === "entry" ? "pill" : "box",
-        ...(card.kind === "file" || card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2) ? { expandable: true } : {}),
-        ...(badges.length > 0 ? { ambientBadges: badges } : {}),
+        expandable: card.kind === "file" || card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2) ? true : undefined,
+        ambientBadges: badges.length > 0 ? badges : undefined,
         provenance: { file: card.files[0]?.file ?? card.relPath, line: 1 },
       };
     });

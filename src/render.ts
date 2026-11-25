@@ -42,9 +42,9 @@ function buildCompactRenderPayload(
     summary: spec.summary,
     verification: spec.verification,
     diagnostics: spec.diagnostics,
-    ...(compactDrilldown ? { drilldown: compactDrilldown } : {}),
-    ...(commitDiff ? { commitDiff } : {}),
-    ...(timeline ? { timeline } : {}),
+    drilldown: compactDrilldown,
+    commitDiff,
+    timeline,
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,

@@ -151,6 +151,18 @@ export function aggregateRepoSpecs(params: {
       repoFindings.push({ ruleId: `repo:${r.slug}:warn`, severity: "warn", count: r.spec.verification.invariantsWarned });
     }
 
+    const meta: Record<string, string | number | boolean | string[] | null> = {
+      ecosystem: r.spec.repo.ecosystem,
+      commitSha: r.spec.repo.commitSha,
+      files: r.spec.verification.totalSourceFiles,
+      coveragePct: r.spec.verification.directTestCoveragePct,
+      endpoints: r.spec.summary.httpEndpoints,
+    };
+    if (r.diff) {
+      meta.prRange = r.diff.range;
+      meta.prVerdict = r.diff.verdict;
+    }
+
     nodes.push({
       id: r.nodeId,
       domain: "arch",
@@ -159,15 +171,8 @@ export function aggregateRepoSpecs(params: {
       label: r.spec.repo.name,
       provenance: { file: r.spec.repo.scopeRootRel || "." },
       tags: [r.spec.repo.ecosystem, ...r.spec.repo.languages.slice(0, 3), ...(r.diff ? [`pr:${r.diff.verdict}`] : [])],
-      ...(repoFindings.length > 0 ? { findings: repoFindings } : {}),
-      meta: {
-        ecosystem: r.spec.repo.ecosystem,
-        commitSha: r.spec.repo.commitSha,
-        files: r.spec.verification.totalSourceFiles,
-        coveragePct: r.spec.verification.directTestCoveragePct,
-        endpoints: r.spec.summary.httpEndpoints,
-        ...(r.diff ? { prRange: r.diff.range, prVerdict: r.diff.verdict } : {}),
-      },
+      findings: repoFindings.length > 0 ? repoFindings : undefined,
+      meta,
     });
 
     for (const extNode of r.spec.nodes.filter((n) => n.kind === "external_service")) {
@@ -481,7 +486,7 @@ export function aggregateRepoSpecs(params: {
   return {
     spec,
     digest,
-    ...(commitDiff ? { commitDiff } : {}),
+    commitDiff,
     stats: {
       repos: repos.length,
       crossRepoServiceEdges: serviceEdges.length,

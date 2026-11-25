@@ -398,7 +398,7 @@ export const csharpAstExtractor: ExtractorPlugin = {
                   from: tm[1],
                   event: tm[2],
                   to: tm[4],
-                  ...(tm[3]?.trim() ? { guard: tm[3].trim() } : {}),
+                  guard: tm[3]?.trim() || undefined,
                 });
               }
             }

@@ -4,12 +4,47 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "ignorePatterns": ["out/**", "node_modules/**"],
+  "ignorePatterns": ["out/**", "node_modules/**", "tools/**"],
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    },
+    {
+      "name": "anti-slop",
+      "specifier": "./tools/oxlint/anti-slop.ts"
+    }
+  ],
   "rules": {
     "no-empty": "error",
     "no-console": "off",
     "unicorn/no-array-sort": "off",
-    "typescript/no-explicit-any": "warn",
-    "typescript/no-non-null-assertion": "warn"
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/ban-ts-comment": "error",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "landmines/no-clipboard-read-text": "error",
+    "landmines/no-cold-import-in-test": "error",
+    "landmines/no-cold-start-in-test": "error",
+    "landmines/no-conditional-expect": "error",
+    "landmines/no-elapsed-time-bound": "error",
+    "landmines/no-fixed-sleep": "error",
+    "landmines/no-flake-masking": "error",
+    "landmines/no-imported-mutation": "error",
+    "landmines/no-parameter-branch": "error",
+    "landmines/no-project-max-workers": "error",
+    "landmines/no-self-container-query": "error",
+    "landmines/no-shared-signal": "error",
+    "landmines/no-silent-catch": "error",
+    "landmines/no-stale-render-assertion": "error",
+    "landmines/no-styling-class-assertion": "error",
+    "landmines/no-test-doubles": "error",
+    "landmines/no-unsignaled-poll": "error",
+    "landmines/strict-msw": "error"
   }
 }

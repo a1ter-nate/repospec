@@ -92,9 +92,9 @@ export function mergeFragments(fragments: GraphFragment[]): {
           ...existing,
           weight: Math.max(existing.weight ?? 1, edge.weight ?? 1),
           violation: Boolean(existing.violation || edge.violation),
-          ...(mergedRules.length > 0 ? { ruleIds: mergedRules } : {}),
+          ruleIds: mergedRules.length > 0 ? mergedRules : undefined,
           confidence: existing.confidence === "observed" || edge.confidence === "observed" ? "observed" : "inferred",
-          ...(mergedEvidence.length > 0 ? { evidence: mergedEvidence } : {}),
+          evidence: mergedEvidence.length > 0 ? mergedEvidence : undefined,
         });
       }
     }

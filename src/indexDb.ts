@@ -829,11 +829,11 @@ export function runSqlInvariants(
         subject: String(row.subject ?? "unknown"),
         detail: String(row.detail ?? meta.statement),
         file: String(row.file ?? "."),
-        ...(line ? { line } : {}),
-        ...(targetNodeId ? { targetNodeId } : {}),
-        ...(edgeFromId ? { edgeFromId } : {}),
-        ...(edgeToId ? { edgeToId } : {}),
-        ...(edgeKind ? { edgeKind } : {}),
+        line,
+        targetNodeId,
+        edgeFromId,
+        edgeToId,
+        edgeKind,
       };
     });
 

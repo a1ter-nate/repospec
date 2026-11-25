@@ -43,11 +43,13 @@
     "format": "bunx oxfmt src tests",
     "format:check": "bunx oxfmt --check src tests",
     "lint:oxlint": "bunx oxlint -c .oxlintrc.json src tests",
+    "lint:privacy": "bun -e 'import { execSync } from \"node:child_process\"; const out = execSync(\"git grep -nE \\\"(/Users/[A-Za-z0-9._-]+|C:\\\\\\\\Users\\\\\\\\[A-Za-z0-9._-]+|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\\\" -- src tests rules config skills README.md :!tests/fixtures/ || true\", { encoding: \"utf8\" }).trim(); if (out) { console.error(\"Privacy audit failed:\\n\" + out); process.exit(1); }'",
+    "lint:ts-only": "bun -e 'import { Glob } from \"bun\"; const bad = [...new Glob(\"{src,tests}/**/*.{js,mjs,cjs,jsx}\").scanSync(\".\")]; if (bad.length > 0) { console.error(\"Non-TypeScript files found:\\n\" + bad.join(\"\\n\")); process.exit(1); }'",
     "lint:no-comments": "bunx vstack no-comments . --fail",
     "lint:state-machines": "bunx vstack state-machines . --fail",
     "lint:laws": "bunx vstack laws . --fail",
     "lint:diff-cheats": "bunx vstack diff-cheats . --base HEAD --fail",
-    "check:vstack": "bun run lint:oxlint && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats",
+    "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats",
     "generate": "bun src/cli.ts generate",
     "schema": "bun src/cli.ts schema",
     "check": "bun run typecheck && bun test && bun run check:vstack"
@@ -59,6 +61,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@interfere/landmines": "^0.3.1",
+    "@oxlint/plugins": "1.95.0",
     "@types/bun": "latest",
     "@types/dagre": "^0.7.54",
     "@types/js-yaml": "^4.0.9",

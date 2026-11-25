@@ -471,7 +471,7 @@ async function main(): Promise<void> {
             ids: path.resolve(idsOut),
             sdk: path.resolve(sdkOut),
             html: path.resolve(htmlOut),
-            ...(inlineOut ? { inlineHtml: path.resolve(inlineOut) } : {}),
+            inlineHtml: inlineOut ? path.resolve(inlineOut) : undefined,
           },
         },
         null,

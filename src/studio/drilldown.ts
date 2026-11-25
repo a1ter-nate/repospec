@@ -114,7 +114,9 @@ export function buildDrilldownIndex(
       v: Array.from(envByFile.get(f.file) ?? []).sort().slice(0, 10),
       tc: testedProdFiles.has(f.file) ? 1 : 0,
       ch: churnByFile.get(f.file) ?? 0,
-      ...(callGraph && callGraph.m.length > 0 ? { m: callGraph.m, k: callGraph.k, o: callGraph.o } : {}),
+      m: callGraph && callGraph.m.length > 0 ? callGraph.m : undefined,
+      k: callGraph && callGraph.m.length > 0 ? callGraph.k : undefined,
+      o: callGraph && callGraph.m.length > 0 ? callGraph.o : undefined,
     });
   }
 
@@ -134,5 +136,5 @@ export function buildDrilldownIndex(
   }
 
   const sourcesGzipBase64 = repoRoot && sourceTexts.length > 0 ? packSourceArchiveBase64(sourceTexts) : undefined;
-  return { files, edges, ...(sourcesGzipBase64 ? { sourcesGzipBase64 } : {}) };
+  return { files, edges, sourcesGzipBase64 };
 }

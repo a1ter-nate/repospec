@@ -295,7 +295,7 @@ export function buildCommitArchDiff(params: {
       unitSlug: unitSlug || "repo",
       moduleId: matchedMod?.id ?? null,
       blastRadius: matchedMod?.fanIn ?? 0,
-      ...(hunk ? { hunk } : {}),
+      hunk,
     };
   });
 

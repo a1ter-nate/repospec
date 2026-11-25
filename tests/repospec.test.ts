@@ -114,10 +114,11 @@ describe("RepoSpec v5 polyglot suite [REQ-HYGIENE-01]", () => {
     try {
       const passport = buildFilePassport(db, "apps/api/functions/dao/orders.ts");
       expect("found" in passport).toBe(false);
-      if (!("found" in passport)) {
-        expect(passport.signal.advisory).toBe("observed");
-        expect(passport.facts.envNames).toContain("PAY_API_KEY");
+      if ("found" in passport) {
+        throw new Error("Expected file passport to be found");
       }
+      expect(passport.signal.advisory).toBe("observed");
+      expect(passport.facts.envNames).toContain("PAY_API_KEY");
       const prec = buildPrecedentsReport(db, { path: "apps/api/functions/new-area/foo.ts" });
       expect(prec.destination).toBeNull();
     } finally {

@@ -53,6 +53,8 @@ export function renderDiffClientScript(): string {
       out.push(sig + " " + f.path + " (+" + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? ", " + f.blastRadius + " callers" : "") + ")");
     }
     out.push(fence);
+    out.push("");
+    out.push("_Generated deterministically by RepoSpec from static diff facts. Review **Special Things to Note** before posting._");
     return out.join("\\n");
   }
 

@@ -3,6 +3,10 @@ pre-commit:
   commands:
     oxlint:
       run: bun run lint:oxlint
+    privacy:
+      run: bun run lint:privacy
+    ts-only:
+      run: bun run lint:ts-only
     no-comments:
       run: bun run lint:no-comments
     state-machines:
