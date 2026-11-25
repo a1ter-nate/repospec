@@ -1295,7 +1295,7 @@ function buildDeliveryDiagram(nodes: SpecNode[], edges: SpecEdge[]): DiagramLayo
   const rawNodes: RawDiagramNode[] = [
     ...keptWfs.map((w) => ({
       id: w.id,
-      label: w.label.length > 26 ? `${w.label.slice(0, 24)}…` : w.label,
+      label: [...w.label].length > 26 ? `${[...w.label].slice(0, 24).join("")}…` : w.label,
       sublabel: `${String(w.meta.jobCount ?? 0)} jobs`,
       group: "ci",
       kind: w.kind,
@@ -1319,7 +1319,7 @@ function buildDeliveryDiagram(nodes: SpecNode[], edges: SpecEdge[]): DiagramLayo
     })),
     ...keptIac.map((r) => ({
       id: r.id,
-      label: r.label.length > 26 ? `${r.label.slice(0, 24)}…` : r.label,
+      label: [...r.label].length > 26 ? `${[...r.label].slice(0, 24).join("")}…` : r.label,
       sublabel: String(r.meta.plane ?? "iac"),
       group: "iac",
       kind: r.kind,
