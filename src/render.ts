@@ -260,7 +260,7 @@ export function renderVisualHtml(
     const hasAnchor = Boolean(shownEv.some((e) => e.anchors && e.anchors.length > 0) || inv.evidence.some((e) => e.anchors && e.anchors.length > 0));
     const tone = inv.status === "fail" ? "fail" : inv.status === "warn" ? "warn" : "pass";
     const evRows = shownEv.map((ev) => {
-      const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" title="Open file in Folder Context Map">Inspect file</button>' : "";
+      const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" data-open-file-line="' + (ev.line || 1) + '" title="Open source code at this exact line">Inspect code</button>' : "";
       return '<div class="ev-item"><div>' + esc(ev.detail) + '</div><div class="links-row">' + provenanceLinksHtml(ev.file, ev.line) + openFileBtn + "</div></div>";
     }).join("");
     const bodyHtml =
@@ -445,10 +445,10 @@ export function renderVisualHtml(
             (extSet.size > 0 ? '<div class="row"><span class="muted">External APIs</span><span class="mono">' + esc(Array.from(extSet).slice(0, 6).join(", ")) + "</span></div>" : "") +
             (envSet.size > 0 ? '<div class="row"><span class="muted">Env Vars</span><span class="mono">' + esc(Array.from(envSet).slice(0, 6).join(", ")) + "</span></div>" : "") + "</div>"
           : "") +
-        '<div class="sec"><div class="sec-title"><span>Largest Files (click to inspect)</span></div>' +
+        '<div class="sec"><div class="sec-title"><span>Largest Files (click for code)</span></div>' +
         biggest.map((i) => {
           const f = DD_FILES[i];
-          return '<div class="row"><span class="row-link mono" data-select-node="' + esc("file:" + f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
+          return '<div class="row"><span class="row-link mono" data-open-file-graph="' + esc(f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
         }).join("") + "</div>"
       );
     }
@@ -499,7 +499,7 @@ export function renderVisualHtml(
 
     const drawerHeading = scopedUnitSlug ? scopedUnitSlug + " Briefing" : "Architecture Briefing";
     const drawerSub = scopedUnitSlug
-      ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click any folder with ›"
+      ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click any module or folder"
       : DATA.repo.name + " · " + DATA.repo.languages.join(", ");
 
     return (
@@ -563,12 +563,16 @@ export function renderVisualHtml(
       (mod.inTangle ? '<span class="badge b-fail">⚠ ' + esc(mod.tangleId || "cycle") + "</span>" : "") +
       "</div>";
 
+    const singleFilePath = mod.files.length === 1 && ddIdxByPath.has(mod.files[0].file) ? mod.files[0].file : "";
+    const singleFileSyms = singleFilePath ? (DD_FILES[ddIdxByPath.get(singleFilePath)]?.m || []).length : 0;
     const actions = [
-      ddFolderCount > 0
-        ? '<button class="action-btn" data-open-folder="' + esc(mod.unitSlug + "::" + mod.name) + '">Open ' + esc(mod.name) + "/ (" + ddFolderCount + " files) →</button>"
-        : subDiag
-          ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>"
-          : "",
+      singleFilePath
+        ? '<button class="action-btn" data-open-file-graph="' + esc(singleFilePath) + '">Symbol Callstack & Code (' + singleFileSyms + ") →</button>"
+        : ddFolderCount > 0
+          ? '<button class="action-btn" data-open-folder="' + esc(mod.unitSlug + "::" + mod.name) + '">Open ' + esc(mod.name) + "/ (" + ddFolderCount + " files) →</button>"
+          : subDiag
+            ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>"
+            : "",
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
       '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
     ].filter(Boolean).join(" ");
@@ -578,11 +582,17 @@ export function renderVisualHtml(
       (mod.topExports.length === 0
         ? '<div class="muted" style="font-size:11px">No public symbols exported (entry script or internal helper).</div>'
         : mod.topExports.map((sym) => {
+            const canJump = ddIdxByPath.has(sym.file);
             const gh = githubUrl(sym.file, sym.line);
-            const loc = gh
-              ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">:' + sym.line + " ↗</a>"
-              : '<span class="mono muted">:' + sym.line + "</span>";
-            return '<div class="api-row"><span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sym.name) + '</span><span style="display:flex;gap:5px;align-items:center;flex-shrink:0"><span class="badge b-na">' + esc(sym.kind) + "</span>" + loc + "</span></div>";
+            const loc = canJump
+              ? '<button class="tbtn" data-open-file="' + esc(sym.file) + '" data-open-file-line="' + sym.line + '" title="Open code at line ' + sym.line + '">:' + sym.line + "</button>"
+              : gh
+                ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">:' + sym.line + " ↗</a>"
+                : '<span class="mono muted">:' + sym.line + "</span>";
+            const nameSpan = canJump
+              ? '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-open-file="' + esc(sym.file) + '" data-open-file-line="' + sym.line + '">' + esc(sym.name) + "</span>"
+              : '<span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sym.name) + "</span>";
+            return '<div class="api-row">' + nameSpan + '<span style="display:flex;gap:5px;align-items:center;flex-shrink:0"><span class="badge b-na">' + esc(sym.kind) + "</span>" + loc + "</span></div>";
           }).join("")) +
       "</div>";
 
@@ -1089,7 +1099,7 @@ export function renderVisualHtml(
         : "";
 
       const wireToggleHtml = !inMatrix && detailCount > 0
-        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Spine hides low-weight wires until hover; click to show all wires">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Spine (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
+        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Showing key spine wires only — hover any card for its full neighborhood, or click to toggle all wires">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Key wires (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
         : "";
 
       const canStepUp = Boolean(state.activeFileGraph || state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
@@ -1248,6 +1258,7 @@ export function renderVisualHtml(
       return true;
     }
     const mod = moduleById.get(id);
+    if (mod && mod.files.length === 1 && openFileCodeView(mod.files[0].file, 1, -1)) return true;
     if (mod && mod.kind === "directory") {
       if (unitHasFolderFiles(mod.unitSlug, mod.name) > 0) {
         state.tab = "map";
@@ -1297,6 +1308,11 @@ export function renderVisualHtml(
   appEl.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    if (state.search && !target.closest(".search-wrap")) {
+      state.search = "";
+      const dd = document.getElementById("search-dd");
+      if (dd) dd.classList.remove("open");
+    }
 
     const tabBtn = target.closest("[data-tab]");
     if (tabBtn) {
@@ -1316,6 +1332,7 @@ export function renderVisualHtml(
       state.mapMode = mapModeBtn.getAttribute("data-map-mode") || "runtime";
       state.activeLayerDiagId = null;
       state.activeFolder = null;
+      state.activeFileGraph = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
@@ -1394,24 +1411,9 @@ export function renderVisualHtml(
     const openFileGraphBtn = target.closest("[data-open-file-graph]");
     if (openFileGraphBtn) {
       const fPath = openFileGraphBtn.getAttribute("data-open-file-graph") || "";
-      if (ddIdxByPath.has(fPath)) {
-        state.tab = "map";
-        state.activeFileGraph = fPath;
-        state.focusMode = false;
-        state.selectedEdgeId = null;
-        const jumpSym = openFileGraphBtn.getAttribute("data-jump-sym");
-        if (jumpSym) {
-          const p = jumpSym.split(":");
-          state.selectedNodeId = "sym:" + p[0] + ":" + p[1];
-          state.codeFocusLine = Number(p[2]) || 1;
-        } else {
-          state.selectedNodeId = null;
-          state.codeFocusLine = 1;
-        }
-        state.codeFullFile = false;
-        ensureFileSourcesLoaded();
-        render();
-      }
+      const jumpSym = openFileGraphBtn.getAttribute("data-jump-sym");
+      const p = jumpSym ? jumpSym.split(":") : [];
+      openFileCodeView(fPath, p.length >= 3 ? Number(p[2]) : 1, p.length >= 3 ? Number(p[1]) : -1);
       return;
     }
 
@@ -1474,23 +1476,8 @@ export function renderVisualHtml(
     const openFileBtn = target.closest("[data-open-file]");
     if (openFileBtn) {
       const fPath = openFileBtn.getAttribute("data-open-file") || "";
-      const fIdx = ddIdxByPath.get(fPath);
-      if (fIdx !== undefined) {
-        const f = DD_FILES[fIdx];
-        const peel = ddUnitPeelPrefix(f.u);
-        const logical = ddLogicalRel(f, peel);
-        const parts = logical.split("/");
-        const parentFolder = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
-        const prevReturn = state.activeFolder?.returnDiagId || state.activeLayerDiagId;
-        state.tab = "map";
-        if (parentFolder) {
-          state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: prevReturn };
-        }
-        state.selectedNodeId = "file:" + f.p;
-        state.selectedEdgeId = null;
-        state.focusMode = false;
-        render();
-      }
+      const fLine = Number(openFileBtn.getAttribute("data-open-file-line")) || 1;
+      openFileCodeView(fPath, fLine, -1);
       return;
     }
 
@@ -1667,19 +1654,13 @@ export function renderVisualHtml(
       const act = searchItem.getAttribute("data-search-action");
       const id = searchItem.getAttribute("data-search-id") || "";
       state.search = "";
-      if (act === "file") {
-        const fIdx = ddIdxByPath.get(id);
-        if (fIdx !== undefined) {
-          const f = DD_FILES[fIdx];
-          const peel = ddUnitPeelPrefix(f.u);
-          const logical = ddLogicalRel(f, peel);
-          const parts = logical.split("/");
-          const parentFolder = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
-          state.tab = "map";
-          if (parentFolder) state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: "modules:" + f.u };
-          state.selectedNodeId = "file:" + f.p;
-          state.selectedEdgeId = null;
-        }
+      if (act === "sym") {
+        const p = id.split("::");
+        if (p.length >= 3) openFileCodeView(p[0], Number(p[2]) || 1, Number(p[1]));
+        return;
+      } else if (act === "file") {
+        openFileCodeView(id, 1, -1);
+        return;
       } else if (act === "module") {
         const mod = moduleById.get(id);
         state.tab = "map";
@@ -1900,11 +1881,21 @@ export function renderVisualHtml(
 
   document.addEventListener("keydown", (ev) => {
     const activeTag = document.activeElement?.tagName;
+    if (ev.key === "Enter" && document.activeElement?.id === "global-search") {
+      const firstHit = document.querySelector("#search-dd [data-search-action]");
+      if (firstHit instanceof HTMLElement) {
+        ev.preventDefault();
+        firstHit.click();
+      }
+      return;
+    }
     if (ev.key === "Escape") {
       state.selectedNodeId = null;
       state.selectedEdgeId = null;
       state.focusMode = false;
       state.activeTraceId = null;
+      state.showGuide = false;
+      aiConfigOpen = false;
       state.search = "";
       render();
       return;

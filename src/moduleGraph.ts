@@ -385,7 +385,7 @@ export function buildModuleArchitecture(params: {
         role: "module",
         domain: "arch",
         shape: card.role === "foundation" ? "hex" : card.role === "entry" ? "pill" : "box",
-        ...(card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2) ? { expandable: true } : {}),
+        ...(card.kind === "file" || card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2) ? { expandable: true } : {}),
         ...(badges.length > 0 ? { ambientBadges: badges } : {}),
         provenance: { file: card.files[0]?.file ?? card.relPath, line: 1 },
       };

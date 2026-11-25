@@ -230,7 +230,8 @@ export function renderSvgClientScript(): string {
         ? '<circle cx="' + (leftX + n.w - 6) + '" cy="' + (topY + 6) + '" r="9.5" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
           '<text x="' + (leftX + n.w - 6) + '" y="' + (topY + 9.8) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
         : statusDot;
-      const nodeTip = n.label + (cleanSub ? " — " + cleanSub : "") + (n.expandable ? " (Double-click or press Enter to drill in)" : "") + (totalFindings > 0 ? " · " + totalFindings + " active finding" + (totalFindings === 1 ? "" : "s") : "");
+      const drillHint = n.expandable ? (n.kind === "file" ? " (Double-click or press Enter for callstack & code)" : " (Double-click or press Enter to drill in)") : "";
+      const nodeTip = n.label + (cleanSub ? " — " + cleanSub : "") + drillHint + (totalFindings > 0 ? " · " + totalFindings + " active finding" + (totalFindings === 1 ? "" : "s") : "");
       return (
         '<g class="' + cls + '" tabindex="0" role="button" aria-label="' + esc(n.label) + '" data-node="' + esc(n.id) + '">' +
         "<title>" + esc(nodeTip) + "</title>" +

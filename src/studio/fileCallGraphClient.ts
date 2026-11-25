@@ -366,6 +366,34 @@ export function renderFileCallGraphClientScript(): string {
     );
   }
 
+  function openFileCodeView(filePath, focusLine, symIdx) {
+    const idx = ddIdxByPath.get(filePath);
+    if (idx === undefined) return false;
+    const f = DD_FILES[idx];
+    const peel = ddUnitPeelPrefix(f.u);
+    const logical = ddLogicalRel(f, peel);
+    const parts = logical.split("/");
+    const parentFolder = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
+    const lineNum = Number(focusLine) || 1;
+    let resolvedSym = typeof symIdx === "number" ? symIdx : -1;
+    if (resolvedSym < 0 && lineNum > 1 && Array.isArray(f.m)) {
+      resolvedSym = f.m.findIndex((s) => lineNum >= s[3] && lineNum <= s[4]);
+    }
+    state.tab = "map";
+    if (parentFolder) {
+      state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId || ("modules:" + f.u) };
+    }
+    state.activeFileGraph = f.p;
+    state.focusMode = false;
+    state.selectedEdgeId = null;
+    state.selectedNodeId = resolvedSym >= 0 ? "sym:" + idx + ":" + resolvedSym : null;
+    state.codeFocusLine = lineNum;
+    state.codeFullFile = resolvedSym < 0;
+    ensureFileSourcesLoaded();
+    render();
+    return true;
+  }
+
   function renderFileCallGraphDrawer(filePath, diag) {
     const idx = ddIdxByPath.get(filePath);
     if (idx === undefined) return renderBriefingDrawer();
@@ -373,6 +401,24 @@ export function renderFileCallGraphClientScript(): string {
     const syms = f.m || [];
     const calls = f.k || [];
     const extCalls = f.o || [];
+
+    if (state.selectedNodeId && state.selectedNodeId.startsWith("symext:")) {
+      const extName = state.selectedNodeId.slice(7);
+      const extSites = extCalls.filter((o) => o[1] === extName);
+      const firstLine = state.codeFocusLine && extSites.some((o) => o[2] === state.codeFocusLine)
+        ? state.codeFocusLine
+        : (extSites[0]?.[2] || 1);
+      const sitesHtml = extSites.length > 0
+        ? '<div class="sec"><div class="sec-title"><span>Called From (' + extSites.length + ')</span><span class="muted">click to jump to call line</span></div><div class="pill-row">' +
+          extSites.map((o) => '<button class="tray-chip" data-jump-sym="' + idx + ":" + o[0] + ":" + o[2] + '">← ' + esc(formatSymDisplayName(syms[o[0]])) + " :" + o[2] + "</button>").join("") +
+          "</div></div>"
+        : "";
+      return (
+        '<div class="drawer-head"><div><div class="drawer-title">' + esc(extName) + '</div><div class="drawer-sub">EXTERNAL CALL TARGET · ' + esc(f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-info">EXTERNAL</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
+        sitesHtml +
+        renderCodeBlockHtml(idx, f.p, Math.max(1, firstLine - 6), Math.min(f.l, firstLine + 24), firstLine, state.codeFullFile, true)
+      );
+    }
 
     let selSymIdx = -1;
     let focusLine = state.codeFocusLine || 1;
@@ -432,7 +478,7 @@ export function renderFileCallGraphClientScript(): string {
       '<div class="sec"><div class="sec-title"><span>Private / Internal Surface (' + privs.length + ')</span><span class="muted">click for code</span></div>' +
       (privs.length === 0 ? '<div class="muted">No private helpers detected.</div>' : '<div class="pill-row">' + privs.map((x) => '<button class="tray-chip" style="border-color:rgba(245,194,107,0.32);color:#f5c26b" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
       "</div>" +
-      renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false)
+      renderCodeBlockHtml(idx, f.p, 1, f.l, focusLine, true, false)
     );
   }
 `;

@@ -85,8 +85,9 @@ export function renderDiffClientScript(): string {
       const titleStr = n.label.length > maxChars ? n.label.slice(0, maxChars - 1) + "…" : n.label;
       const subMax = Math.max(12, Math.floor((n.w - 58) / 6.7));
       const subStr = cleanSub.length > subMax ? cleanSub.slice(0, subMax - 1) + "…" : cleanSub;
+      const diffTip = n.label + (cleanSub ? " — " + cleanSub : "") + (ds !== "unchanged" ? " (" + ds.toUpperCase() + " — click for changed files)" : "");
       return (
-        '<g class="svg-node' + (isSel ? " selected" : "") + '" style="opacity:' + op + '" data-node="' + esc(n.id) + '">' +
+        '<g class="svg-node' + (isSel ? " selected" : "") + '" tabindex="0" role="button" aria-label="' + esc(n.label) + '" style="opacity:' + op + '" data-node="' + esc(n.id) + '"><title>' + esc(diffTip) + "</title>" +
         '<rect class="node-shape" x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="10" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (ds !== "unchanged" || isSel ? 1.8 : 1.1) + '"' + dash + " />" +
         '<rect x="' + (x + 11) + '" y="' + (n.y - 13) + '" width="26" height="26" rx="6" fill="' + tone.bg + '" />' +
         renderGlyphPath(tone.glyph, x + 24, n.y, tone.stroke) +
@@ -164,16 +165,34 @@ export function renderDiffClientScript(): string {
 
     const filesSec =
       '<div class="sec"><div class="sec-title"><span>Changed Files (' + cd.changedFiles.length + ')</span><span class="mono muted">+' + cd.kpis.files.insertions + "/-" + cd.kpis.files.deletions + "</span></div>" +
-      cd.changedFiles.slice(0, 24).map((f) =>
-        '<div class="row">' +
-        '<span class="row-link mono" ' + (f.moduleId ? 'data-select-node="' + esc(f.moduleId) + '"' : 'data-open-file="' + esc(f.path) + '"') + ' title="' + esc(f.path) + '">' +
-        (f.status === "added" ? "+ " : f.status === "deleted" ? "− " : "~ ") + esc(f.path.split("/").slice(-2).join("/")) +
-        '</span><span class="mono muted">+' + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? " · " + f.blastRadius + " callers" : "") + "</span></div>"
-      ).join("") +
+      cd.changedFiles.slice(0, 24).map((f) => {
+        const canCode = f.status !== "deleted" && ddIdxByPath.has(f.path);
+        const attr = canCode ? 'data-open-file-graph="' + esc(f.path) + '"' : (f.moduleId ? 'data-select-node="' + esc(f.moduleId) + '"' : "");
+        return '<div class="row">' +
+          '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ' + attr + ' title="' + esc(f.path + (canCode ? " — click to inspect symbol callstack & code" : "")) + '">' +
+          (f.status === "added" ? "+ " : f.status === "deleted" ? "− " : "~ ") + esc(f.path.split("/").slice(-2).join("/")) +
+          '</span><span class="mono muted" style="flex-shrink:0;white-space:nowrap">+' + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? " · " + f.blastRadius + "c" : "") + "</span></div>";
+      }).join("") +
       "</div>";
 
+    const bundle = activeDiffBundle();
+    const selDiffNode = state.selectedNodeId && bundle ? bundle.overlay.nodes.find((n) => n.id === state.selectedNodeId) : null;
+    const selFiles = selDiffNode ? cd.changedFiles.filter((f) => f.moduleId === selDiffNode.id) : [];
+    const selDiffSec = selDiffNode
+      ? '<div class="ev-box" style="border-left-color:' + (selDiffNode.diffStatus === "added" ? "#10b981" : selDiffNode.diffStatus === "removed" ? "#ef4444" : "#f59e0b") + '">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong style="color:var(--text-1)">' + esc(selDiffNode.label) + '</strong><div style="display:flex;gap:6px;align-items:center"><span class="badge ' + (selDiffNode.diffStatus === "added" ? "b-pass" : selDiffNode.diffStatus === "removed" ? "b-fail" : selDiffNode.diffStatus === "modified" ? "b-warn" : "b-na") + '">' + esc((selDiffNode.diffStatus || "unchanged").toUpperCase()) + '</span><button class="tbtn" data-clear-sel="1">✕</button></div></div>' +
+        (selFiles.length > 0
+          ? selFiles.slice(0, 8).map((f) => {
+              const canCode = f.status !== "deleted" && ddIdxByPath.has(f.path);
+              return '<div class="row"><span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ' + (canCode ? 'data-open-file-graph="' + esc(f.path) + '"' : "") + ">" + esc(f.path.split("/").slice(-2).join("/")) + '</span><span class="mono muted" style="flex-shrink:0;white-space:nowrap">+' + f.insertions + "/-" + f.deletions + (canCode ? " →" : "") + "</span></div>";
+            }).join("")
+          : '<div class="muted">No direct file edits inside this node (context neighbor).</div>') +
+        "</div>"
+      : "";
+
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">Commit Architecture Diff</div><div class="drawer-sub">' + esc(cd.baseSha + " → " + cd.headSha + " · " + cd.author + " · " + cd.date) + '</div></div><span class="badge ' + vCls + '">' + esc(cd.verdict.toUpperCase()) + "</span></div>" +
+      '<div class="drawer-head"><div><div class="drawer-title">Commit Architecture Diff</div><div class="drawer-sub">' + esc(cd.baseSha + " → " + cd.headSha + " · " + cd.author) + ' · <span style="white-space:nowrap">' + esc(cd.date) + '</span></div></div><span class="badge ' + vCls + '">' + esc(cd.verdict.toUpperCase()) + "</span></div>" +
+      selDiffSec +
       '<div class="story-box" style="border-left-color:' + (cd.verdict === "risk" ? "#ef4444" : cd.verdict === "caution" ? "#f59e0b" : "#10b981") + '"><strong>' + esc(cd.commitSubject) + "</strong><br/>" + esc(cd.verdictSummary) + "</div>" +
       '<div class="sec"><div class="sec-title">Before → After State</div>' +
       '<div class="row"><span class="muted">Invariant Failures</span><span class="mono">' + cd.kpis.failures.before + " → " + cd.kpis.failures.after + " (" + kpiDelta(cd.kpis.failures.delta, true) + ")</span></div>" +
@@ -211,7 +230,11 @@ export function renderDiffClientScript(): string {
         '<table class="data-tbl"><thead><tr><th>Status</th><th>File</th><th>Unit</th><th>Lines</th><th>Blast Radius</th></tr></thead><tbody>' +
         cd.changedFiles.map((f) => {
           const bCls = f.status === "added" ? "b-pass" : f.status === "deleted" ? "b-fail" : "b-warn";
-          return '<tr><td><span class="badge ' + bCls + '">' + esc(f.status) + '</span></td><td class="mono">' + esc(f.path) + '</td><td class="mono muted">' + esc(f.unitSlug) + '</td><td class="mono"><span class="status-pass">+' + f.insertions + '</span> <span class="status-fail">-' + f.deletions + '</span></td><td class="mono">' + (f.blastRadius > 0 ? f.blastRadius + " callers" : "—") + "</td></tr>";
+          const canCode = f.status !== "deleted" && ddIdxByPath.has(f.path);
+          const pathCell = canCode
+            ? '<span class="row-link mono" data-open-file-graph="' + esc(f.path) + '" title="Open symbol callstack & code">' + esc(f.path) + " →</span>"
+            : '<span class="mono">' + esc(f.path) + "</span>";
+          return '<tr><td><span class="badge ' + bCls + '">' + esc(f.status) + "</span></td><td>" + pathCell + '</td><td class="mono muted">' + esc(f.unitSlug) + '</td><td class="mono"><span class="status-pass">+' + f.insertions + '</span> <span class="status-fail">-' + f.deletions + '</span></td><td class="mono">' + (f.blastRadius > 0 ? f.blastRadius + " callers" : "—") + "</td></tr>";
         }).join("") +
         "</tbody></table></div>";
     } else if (state.diffMode === "split" && bundle) {

@@ -127,15 +127,16 @@ export function renderExplainClientScript(): string {
     const startIdx = Math.max(0, sym[3] - 1);
     const endIdx = Math.min(allLines.length - 1, sym[4] - 1);
     const slice = allLines.slice(startIdx, endIdx + 1).join("\\n");
+    const codeOnly = slice.replace(/"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|\\/\\/[^\\n]*/g, " ");
     const sigLine = (allLines[startIdx] || "").trim() + " " + (allLines[startIdx + 1] || "").trim();
     const doc = extractLeadingDoc(allLines, sym[3]);
 
-    const isAsync = /\\basync\\b|\\bawait\\b/.test(slice);
-    const hasHttp = /\\b(axios|fetch|http|https|got|ky)\\b|https?:\\/\\//.test(slice);
-    const hasDb = /\\b(firestore|collection|query|select|insert|update|delete|prisma|drizzle|sql|dao)\\b/i.test(slice);
-    const hasVal = /\\b(validate|schema|zod|joi|parse|assert|sanitize)\\b/i.test(slice);
-    const hasEnv = /process\\.env|import\\.meta\\.env|os\\.environ|std::env/.test(slice);
-    const hasErr = /\\b(try\\s*\\{|catch\\s*\\(|throw\\s+new|captureException|captureProviderFailure)\\b/.test(slice);
+    const isAsync = /\\basync\\b|\\bawait\\b/.test(codeOnly);
+    const hasHttp = /\\b(axios|fetch|got|ky)\\b|\\bhttps?\\.(?:get|post|request)\\b/.test(codeOnly);
+    const hasDb = /\\b(firestore|collection|prisma|drizzle|dao)\\b|\\b(?:db|sql)\\.(?:query|exec|run|all)\\b/i.test(codeOnly);
+    const hasVal = /\\b(validate|schema|zod|joi|parse|assert|sanitize)\\b/i.test(codeOnly);
+    const hasEnv = /process\\.env|import\\.meta\\.env|os\\.environ|std::env/.test(codeOnly);
+    const hasErr = /\\b(try\\s*\\{|catch\\s*\\(|throw\\s+new|captureException|captureProviderFailure)\\b/.test(codeOnly);
 
     if (isAsync) tags.push("Async");
     if (hasVal) tags.push("Validation");

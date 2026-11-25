@@ -41,9 +41,13 @@ export function renderTablesClientScript(): string {
       if (f.p.toLowerCase().includes(q)) {
         hits.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
       } else {
-        const symHit = (f.m || []).find((s) => s[0].toLowerCase().includes(q));
-        if (symHit) {
-          hits.push({ kind: (symHit[1] === "pub" ? "pub " : "priv ") + symHit[2], label: formatSymDisplayName(symHit) + " (" + f.p.split("/").pop() + ")", action: "file", id: f.p });
+        const syms = f.m || [];
+        for (let si = 0; si < syms.length; si += 1) {
+          const symHit = syms[si];
+          if (symHit[0].toLowerCase().includes(q)) {
+            hits.push({ kind: (symHit[1] === "pub" ? "pub " : "priv ") + symHit[2], label: formatSymDisplayName(symHit) + " (" + f.p.split("/").pop() + ")", action: "sym", id: f.p + "::" + si + "::" + symHit[3] });
+            break;
+          }
         }
       }
       if (hits.length >= 10) break;
@@ -268,22 +272,25 @@ export function renderTablesClientScript(): string {
       '</div><button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="What do these checks mean?">?</button></div>' +
       renderInfoPopoverHtml() +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
-      invs.map((inv) => {
-        if (inv.status === "pass" || inv.status === "na") {
-          return renderDisclosure({
-            title: inv.name,
-            meta: inv.id + " · " + inv.rung,
-            badge: inv.status.toUpperCase(),
-            badgeClass: inv.status === "pass" ? "b-pass" : "b-na",
-            tone: inv.status === "pass" ? "pass" : "",
-            open: false,
-            bodyHtml:
-              '<div class="muted">' + esc(inv.statement) + "</div>" +
-              (inv.applicabilityReason ? '<div class="mono muted">N/A: ' + esc(inv.applicabilityReason) + "</div>" : ""),
-          });
-        }
-        return renderFindingDisclosure(inv, { open: inv.status === "fail", hideChecksLink: true });
-      }).join("") +
+      (invs.length === 0
+        ? '<div class="ev-box" style="border-left-color:#5fd9a0;padding:14px 16px;gap:8px"><strong style="color:#6ee7b0;font-size:14px">All applicable architectural checks pass</strong><div class="muted">0 blockers and 0 warnings for the current filter (' + passCount + " passed, " + naCount + ' N/A).</div>' +
+          (passCount > 0 && state.checksFilter !== "pass" ? '<div><button class="tbtn" data-checks-filter="pass">View Passed (' + passCount + ")</button></div>" : "") + "</div>"
+        : invs.map((inv) => {
+            if (inv.status === "pass" || inv.status === "na") {
+              return renderDisclosure({
+                title: inv.name,
+                meta: inv.id + " · " + inv.rung,
+                badge: inv.status.toUpperCase(),
+                badgeClass: inv.status === "pass" ? "b-pass" : "b-na",
+                tone: inv.status === "pass" ? "pass" : "",
+                open: false,
+                bodyHtml:
+                  '<div class="muted">' + esc(inv.statement) + "</div>" +
+                  (inv.applicabilityReason ? '<div class="mono muted">N/A: ' + esc(inv.applicabilityReason) + "</div>" : ""),
+              });
+            }
+            return renderFindingDisclosure(inv, { open: inv.status === "fail", hideChecksLink: true });
+          }).join("")) +
       "</div></div>"
     );
   }
