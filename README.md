@@ -8,6 +8,32 @@ RepoSpec is a deterministic, zero-AI, polyglot **architecture compiler (`v5.0.0`
 
 ---
 
+## Live Visual Studio (RepoSpec on RepoSpec)
+
+Every screenshot below is RepoSpec compiling and visualizing **its own repository** (`a1ter-nate/repospec`).
+
+### 1. Levelized Module Atlas (`L0 Entry → L4 Foundation`)
+Automatic Tarjan SCC cycle detection + Kahn longest-path layering (`cli` → `orchestration` → `extractors/layout` → `taxonomy` → `schema`), Architecture Briefing drawer, Spine vs. DSM toggle, and `?` Graph Guide popovers.
+
+![RepoSpec Levelized Module Atlas](docs/screenshots/01-module-atlas.png)
+
+### 2. Folder Context Drill-Down (`studio/`)
+Double-click any folder to inspect its exact boundary: **Callers** on the left, **Files inside** in the center, and **Dependencies & External APIs** on the right.
+
+![RepoSpec Folder Context Drill-Down](docs/screenshots/02-folder-context.png)
+
+### 3. End-Node Public/Private Symbol Callstack, Code Viewer & Opt-In Local AI
+Double-click any source file to see its **Public Surface → Private Helpers (by call depth) → External Calls** callstack canvas, WCAG-AA syntax-highlighted source code, and the **"What This Does"** info box — instant deterministic analysis out of the box, plus an opt-in **`✦ Ask Local AI`** button (tested live below with local Ollama `qwen3.5:9b`, never run during `repospec generate`).
+
+![RepoSpec Symbol Callstack, Syntax-Highlighted Code Drawer & Local AI Explain](docs/screenshots/03-symbol-callstack-ai.png)
+
+### 4. PR / Commit Architecture Diff (`Current State → New State`)
+Run `repospec diff-view` on any git range to see added/modified/removed modules and edges overlaid directly on the architecture map, side-by-side `Before → After` comparison, and new invariant regressions.
+
+![RepoSpec Commit Architecture Diff View](docs/screenshots/04-commit-diff.png)
+
+---
+
 ## Why This Exists
 
 Prose `AGENTS.md` files, hand-drawn C4 diagrams, and wiki pages silently rot the moment a refactor lands. Coding agents then guess where to put new modules, miss blast radius across CI/IaC/database cascades, and introduce subtle layer inversions or vendor leaks.
@@ -39,6 +65,9 @@ bun run check
 
 # Compile any TypeScript, JavaScript, Rust, Python, or C#/.NET repository
 bun src/cli.ts generate /path/to/repo --out ./out/my-repo --mode artifact --inline
+
+# Browse live with zero-CORS opt-in local AI explanations (Ollama / OpenAI-compatible)
+bun src/cli.ts serve ./out/my-repo --port 4173
 
 # Visual PR / Commit Architecture Diff (Current State -> New State overlay + Before/After split)
 bun src/cli.ts diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
