@@ -1,6 +1,6 @@
 {
   "version": 1,
   "rules": {
-    "max-file-lines": 5
+    "max-file-lines": 1
   }
 }
