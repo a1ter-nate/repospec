@@ -244,12 +244,12 @@ export function renderDrilldownClientScript(): string {
 
     cols.forEach((col, ci) => {
       laneIdxById.set(col.id, ci);
-      const widths = col.items.map((it) => Math.max(152, Math.min(256, Math.max(it.label.length, (it.sublabel || "").length * 0.85) * 7.4 + 34)));
-      const colW = Math.round(Math.max(164, ...widths));
+      const widths = col.items.map((it) => Math.max(178, Math.min(286, Math.max(it.label.length, (it.sublabel || "").length * 0.85) * 7.4 + 66)));
+      const colW = Math.round(Math.max(182, ...widths));
       const laneW = colW + padX * 2;
       let curY = topY + padTop;
       for (const it of col.items) {
-        const h = 50;
+        const h = 58;
         const ln = {
           id: it.id,
           label: it.label,

@@ -1,5 +1,5 @@
-import type { AstIndexData, UnitDescriptor } from "./schema.ts";
-import { isExcludedCodePath } from "./extractors/moduleFacts.ts";
+import type { AstIndexData, UnitDescriptor } from "../schema.ts";
+import { isExcludedCodePath } from "../extractors/moduleFacts.ts";
 
 export interface DrilldownFile {
   p: string;

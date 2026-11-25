@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
-import { buildDrilldownIndex, type DrilldownIndex } from "./drilldown.ts";
+import { buildDrilldownIndex, type DrilldownIndex } from "./studio/drilldown.ts";
 import { archExtractor } from "./extractors/arch.ts";
 import { ciExtractor } from "./extractors/ci.ts";
 import { codeAstExtractor } from "./extractors/codeAst.ts";

@@ -1,6 +1,7 @@
-import type { DrilldownIndex } from "./drilldown.ts";
-import { renderDrilldownClientScript } from "./renderDrilldown.ts";
-import { renderStudioCss } from "./renderStyles.ts";
+import type { DrilldownIndex } from "./studio/drilldown.ts";
+import { renderDrilldownClientScript } from "./studio/drilldownClient.ts";
+import { renderStudioCss } from "./studio/styles.ts";
+import { renderSvgClientScript } from "./studio/svg.ts";
 import type { RepoSpecV4 } from "./schema.ts";
 
 function escapeHtml(text: string): string {
@@ -160,6 +161,7 @@ export function renderVisualHtml(
     ty: 0,
     scale: 1,
     fittedDiagId: null,
+    justNavigated: false,
   };
   ${renderDrilldownClientScript()}
 
@@ -362,204 +364,7 @@ export function renderVisualHtml(
     if (findings.some((f) => f.severity === "warn")) return "#f59e0b";
     return null;
   }
-
-  function renderShapeSvg(n, strokeColor) {
-    const x = n.x - n.w / 2;
-    const y = n.y - n.h / 2;
-    const fill = "#111827";
-    if (n.shape === "db") {
-      const ry = 6;
-      return (
-        '<path class="node-shape" d="M ' + x + " " + (y + ry) +
-        " A " + n.w / 2 + " " + ry + " 0 0 1 " + (x + n.w) + " " + (y + ry) +
-        " L " + (x + n.w) + " " + (y + n.h - ry) +
-        " A " + n.w / 2 + " " + ry + " 0 0 1 " + x + " " + (y + n.h - ry) +
-        ' Z" fill="' + fill + '" stroke="' + strokeColor + '" stroke-width="1.6" />' +
-        '<ellipse cx="' + n.x + '" cy="' + (y + ry) + '" rx="' + n.w / 2 + '" ry="' + ry +
-        '" fill="none" stroke="' + strokeColor + '" stroke-width="1.2" opacity="0.6" />'
-      );
-    }
-    if (n.shape === "hex") {
-      const cut = 11;
-      const pts = [
-        [x + cut, y],
-        [x + n.w - cut, y],
-        [x + n.w, n.y],
-        [x + n.w - cut, y + n.h],
-        [x + cut, y + n.h],
-        [x, n.y],
-      ].map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
-      return '<polygon class="node-shape" points="' + pts + '" fill="' + fill + '" stroke="' + strokeColor + '" stroke-width="1.6" />';
-    }
-    const rx = n.shape === "pill" ? Math.round(n.h / 2) : 7;
-    return '<rect class="node-shape" x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="' + rx + '" fill="' + fill + '" stroke="' + strokeColor + '" stroke-width="1.6" />';
-  }
-
-  function buildRoundedPolylinePath(pts) {
-    let d = "M " + pts[0].x + " " + pts[0].y;
-    for (let i = 1; i < pts.length - 1; i += 1) {
-      const prev = pts[i - 1];
-      const cur = pts[i];
-      const next = pts[i + 1];
-      const dx1 = cur.x - prev.x;
-      const dy1 = cur.y - prev.y;
-      const dx2 = next.x - cur.x;
-      const dy2 = next.y - cur.y;
-      const len1 = Math.hypot(dx1, dy1);
-      const len2 = Math.hypot(dx2, dy2);
-      const r = Math.min(10, len1 / 2, len2 / 2);
-      if (r < 1) {
-        d += " L " + cur.x + " " + cur.y;
-      } else {
-        const p1x = (cur.x - (dx1 / len1) * r).toFixed(1);
-        const p1y = (cur.y - (dy1 / len1) * r).toFixed(1);
-        const p2x = (cur.x + (dx2 / len2) * r).toFixed(1);
-        const p2y = (cur.y + (dy2 / len2) * r).toFixed(1);
-        d += " L " + p1x + " " + p1y + " Q " + cur.x + " " + cur.y + " " + p2x + " " + p2y;
-      }
-    }
-    const last = pts[pts.length - 1];
-    d += " L " + last.x + " " + last.y;
-    return d;
-  }
-
-  function renderDiagramSvg(diag) {
-    const activeTrace = state.activeTraceId ? DATA.traces.find((t) => t.id === state.activeTraceId && t.diagramId === diag.id) : null;
-    const traceNodeSet = new Set(activeTrace ? activeTrace.steps.map((s) => s.nodeId) : []);
-    const traceEdgeSet = new Set(activeTrace ? activeTrace.steps.map((s) => s.edgeId).filter(Boolean) : []);
-    const traceOrder = new Map(activeTrace ? activeTrace.steps.map((s, i) => [s.nodeId, i + 1]) : []);
-
-    const neighborNodes = new Set();
-    const neighborEdges = new Set();
-    if (state.selectedNodeId) {
-      neighborNodes.add(state.selectedNodeId);
-      for (const e of diag.edges) {
-        if (e.from === state.selectedNodeId || e.to === state.selectedNodeId) {
-          neighborEdges.add(e.id);
-          neighborNodes.add(e.from);
-          neighborNodes.add(e.to);
-        }
-      }
-    } else if (state.selectedEdgeId) {
-      const e = diag.edges.find((x) => x.id === state.selectedEdgeId);
-      if (e) {
-        neighborEdges.add(e.id);
-        neighborNodes.add(e.from);
-        neighborNodes.add(e.to);
-      }
-    }
-    const hasFilter = Boolean(state.selectedNodeId || state.selectedEdgeId || activeTrace);
-
-    const lanesSvg = (diag.lanes || []).map((l) => {
-      const dash = l.lateral ? ' stroke-dasharray="4 4"' : "";
-      const fill = l.lateral ? "rgba(99,102,241,0.045)" : "rgba(148,163,184,0.035)";
-      const labelSuffix = l.lateral ? " (HOVER ANY NODE TO TRACE IMPORTS)" : "";
-      return (
-        '<g class="lane">' +
-        '<rect x="' + l.x + '" y="' + l.y + '" width="' + l.w + '" height="' + l.h + '" rx="8" fill="' + fill + '" stroke="#1e293b" stroke-width="1"' + dash + " />" +
-        '<text x="' + (l.x + 12) + '" y="' + (l.y + 19) + '" font-size="10" font-weight="700" fill="#94a3b8" letter-spacing="0.06em">' + esc(l.label.toUpperCase() + labelSuffix) + "</text>" +
-        "</g>"
-      );
-    }).join("");
-
-    const edgesSvg = diag.edges.map((e) => {
-      if (!e.points || e.points.length < 2) return "";
-      const p0 = e.points[0];
-      let d = "M " + p0.x + " " + p0.y;
-      if (e.points.length === 4) {
-        d += " C " + e.points[1].x + " " + e.points[1].y + ", " + e.points[2].x + " " + e.points[2].y + ", " + e.points[3].x + " " + e.points[3].y;
-      } else if (e.points.length === 3) {
-        d += " Q " + e.points[1].x + " " + e.points[1].y + " " + e.points[2].x + " " + e.points[2].y;
-      } else if (e.points.length >= 5) {
-        d = buildRoundedPolylinePath(e.points);
-      } else {
-        for (let i = 1; i < e.points.length; i += 1) {
-          d += " L " + e.points[i].x + " " + e.points[i].y;
-        }
-      }
-      const isSelected = state.selectedEdgeId === e.id;
-      const isTrace = traceEdgeSet.has(e.id);
-      const isNeighbor = neighborEdges.has(e.id);
-      const hideDetail = !state.showAllEdges && e.tier === "detail" && !e.violation && !isSelected && !isNeighbor && !isTrace;
-      const dimmed = hasFilter && !(isTrace || isNeighbor);
-      const isOutSel = state.selectedNodeId && e.from === state.selectedNodeId;
-      const isInSel = state.selectedNodeId && e.to === state.selectedNodeId;
-      const stroke = isTrace ? "#3b82f6" : e.violation ? "#ef4444" : isOutSel ? "#38bdf8" : isInSel ? "#34d399" : "#64748b";
-      const dash = e.confidence === "inferred" ? ' stroke-dasharray="4 4"' : "";
-      const sw = e.violation ? 2.4 : isOutSel || isInSel ? 2.2 : (e.weight || 1) >= 25 ? 2.4 : (e.weight || 1) >= 5 ? 1.8 : 1.3;
-      const markerEnd = isTrace ? "url(#m-blue)" : e.violation ? "url(#m-red)" : isOutSel ? "url(#m-cyan)" : isInSel ? "url(#m-green)" : "url(#m-neutral)";
-      const markerStart = e.bidirectional ? (e.violation ? "url(#m-red-s)" : "url(#m-neutral-s)") : "";
-      const showLabel = diag.category === "behavior" || e.bidirectional || e.violation;
-      const mid = e.points.length === 4
-        ? { x: (e.points[1].x + e.points[2].x) / 2, y: (e.points[1].y + e.points[2].y) / 2 }
-        : e.points[Math.floor(e.points.length / 2)];
-      const lblHtml = showLabel && e.label
-        ? '<text x="' + mid.x.toFixed(1) + '" y="' + (mid.y - 6).toFixed(1) + '" text-anchor="middle" font-size="10" fill="' + (e.violation ? "#fca5a5" : "#cbd5e1") + '" font-family="ui-monospace, monospace">' + esc(e.label) + "</text>"
-        : "";
-      const cls =
-        "svg-edge-group" +
-        (isSelected ? " selected" : "") +
-        (dimmed ? " dimmed" : "") +
-        (hideDetail ? " edge-detail-hidden" : "");
-      return (
-        '<g class="' + cls + '" data-edge="' + esc(e.id) + '" data-from="' + esc(e.from) + '" data-to="' + esc(e.to) + '" data-viol="' + (e.violation ? "1" : "0") + '">' +
-        '<path class="svg-edge-hit" d="' + d + '" />' +
-        '<path class="svg-edge-vis" d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '"' + dash + ' marker-end="' + markerEnd + '"' + (markerStart ? ' marker-start="' + markerStart + '"' : "") + " />" +
-        lblHtml +
-        "</g>"
-      );
-    }).join("");
-
-    const nodesSvg = diag.nodes.map((n) => {
-      const isSel = state.selectedNodeId === n.id;
-      const isTrace = traceNodeSet.has(n.id);
-      const dimmed = hasFilter && !(isTrace || neighborNodes.has(n.id));
-      const hue = statusHue(n.findings, false);
-      const stroke = isSel || isTrace ? "#3b82f6" : hue || "#475569";
-      const cls = "svg-node" + (isSel ? " selected" : "") + (dimmed ? " dimmed" : "");
-      const totalFindings = (n.findings || []).reduce((s, f) => s + f.count, 0);
-      const hasError = (n.findings || []).some((f) => f.severity === "error");
-      const badgeSvg = totalFindings > 0
-        ? '<circle cx="' + (n.x + n.w / 2 - 4) + '" cy="' + (n.y - n.h / 2 + 4) + '" r="9" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
-          '<text x="' + (n.x + n.w / 2 - 4) + '" y="' + (n.y - n.h / 2 + 7.5) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
-        : "";
-      const stepNum = traceOrder.get(n.id);
-      const traceBadge = stepNum
-        ? '<circle cx="' + (n.x - n.w / 2 + 4) + '" cy="' + (n.y - n.h / 2 + 4) + '" r="9" fill="#2563eb" />' +
-          '<text x="' + (n.x - n.w / 2 + 4) + '" y="' + (n.y - n.h / 2 + 7.5) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">' + stepNum + "</text>"
-        : "";
-      const subText = n.ambientBadges && n.ambientBadges.length > 0
-        ? (n.sublabel || "") + " · ◉ " + n.ambientBadges[0]
-        : (n.sublabel || "");
-      return (
-        '<g class="' + cls + '" tabindex="0" role="button" aria-label="' + esc(n.label) + '" data-node="' + esc(n.id) + '">' +
-        renderShapeSvg(n, stroke) +
-        '<text x="' + n.x + '" y="' + (n.y - (subText ? 4 : -4)) + '" text-anchor="middle" font-size="11.5" font-weight="600" fill="#f8fafc" font-family="ui-monospace, monospace">' + esc(n.label) + "</text>" +
-        (subText ? '<text x="' + n.x + '" y="' + (n.y + 12) + '" text-anchor="middle" font-size="9.5" fill="#94a3b8" font-family="ui-monospace, monospace">' + esc(subText.slice(0, 42)) + "</text>" : "") +
-        badgeSvg +
-        traceBadge +
-        "</g>"
-      );
-    }).join("");
-
-    return (
-      '<svg id="diagram-svg" viewBox="0 0 ' + diag.width + " " + diag.height + '" preserveAspectRatio="xMidYMid meet">' +
-      "<defs>" +
-      '<marker id="m-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#64748b" /></marker>' +
-      '<marker id="m-neutral-s" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 9 1.5 L 0 5 L 9 8.5 z" fill="#64748b" /></marker>' +
-      '<marker id="m-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#ef4444" /></marker>' +
-      '<marker id="m-red-s" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M 9 1.5 L 0 5 L 9 8.5 z" fill="#ef4444" /></marker>' +
-      '<marker id="m-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#3b82f6" /></marker>' +
-      '<marker id="m-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38bdf8" /></marker>' +
-      '<marker id="m-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#34d399" /></marker>' +
-      "</defs>" +
-      '<g id="viewport-g" transform="translate(' + state.tx + "," + state.ty + ") scale(" + state.scale + ')">' +
-      lanesSvg +
-      edgesSvg +
-      nodesSvg +
-      "</g></svg>"
-    );
-  }
+  ${renderSvgClientScript()}
 
   function renderMatrixView(diag) {
     const laneIdx = new Map((diag.lanes || []).map((l, i) => [l.id, i]));
@@ -627,7 +432,7 @@ export function renderVisualHtml(
       return '<div class="legend">' + items.join("") + "</div>";
     }
     if (diag.edges.some((e) => e.confidence === "observed")) {
-      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#64748b"></span>Spine edge</span>');
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#64748b"></span>Spine</span>');
     }
     if (diag.edges.some((e) => e.confidence === "inferred")) {
       items.push('<span class="leg-item"><span class="leg-swatch" style="border-top:2px dashed #64748b;height:0"></span>Inferred</span>');
@@ -635,10 +440,10 @@ export function renderVisualHtml(
     if (diag.edges.some((e) => e.violation)) {
       items.push('<span class="leg-item"><span class="leg-swatch" style="background:#ef4444"></span>Violation</span>');
     }
-    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Hover outgoing</span>');
-    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#34d399"></span>Hover incoming</span>');
+    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Out</span>');
+    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#34d399"></span>In</span>');
     if (detailCount > 0 && !state.showAllEdges) {
-      items.push('<span class="leg-item">+' + detailCount + " detail wires on hover / Matrix</span>");
+      items.push('<span class="leg-item">+' + detailCount + " on hover</span>");
     }
     if (diag.foldedCount && diag.foldedCount > 0) {
       items.push('<span class="leg-item">+' + diag.foldedCount + " folded</span>");
@@ -1233,6 +1038,8 @@ export function renderVisualHtml(
   function applyTransform() {
     const vp = document.getElementById("viewport-g");
     if (vp) vp.setAttribute("transform", "translate(" + state.tx + "," + state.ty + ") scale(" + state.scale + ")");
+    const zp = document.getElementById("zoom-pct");
+    if (zp) zp.textContent = Math.round(state.scale * 100) + "%";
   }
 
   function clearHoverSpotlight() {
@@ -1297,21 +1104,23 @@ export function renderVisualHtml(
   function render() {
     const rawDiag = activeDiagram();
     const diag = rawDiag && state.focusMode && state.selectedNodeId ? buildBowTieLayout(rawDiag, state.selectedNodeId) : rawDiag;
-    if (diag && state.fittedDiagId !== diag.id + (state.focusMode ? ":f" : "")) {
+    const nextFitKey = diag ? diag.id + (state.focusMode ? ":f" : "") : null;
+    if (diag && state.fittedDiagId !== nextFitKey) {
+      state.justNavigated = state.fittedDiagId !== null;
       state.tx = 0;
       state.ty = 0;
       state.scale = 1;
-      state.fittedDiagId = diag.id + (state.focusMode ? ":f" : "");
+      state.fittedDiagId = nextFitKey;
+    } else {
+      state.justNavigated = false;
     }
 
     const v = DATA.verification;
     const statusHtml =
-      '<span class="' + (v.invariantsFailed > 0 ? "status-fail" : "status-pass") + '">' + v.invariantsFailed + " fail</span>" +
-      '<span class="' + (v.invariantsWarned > 0 ? "status-warn" : "muted") + '">' + v.invariantsWarned + " warn</span>" +
-      '<span class="status-pass">' + v.invariantsPassed + " pass</span>" +
+      '<span class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '">' + v.invariantsFailed + " fail</span>" +
+      (v.invariantsWarned > 0 ? '<span class="s-dot warn status-warn">' + v.invariantsWarned + " warn</span>" : "") +
       "<span>" + DATA.summary.indexedSourceFiles + " files · " + v.directTestCoveragePct + "% tested</span>" +
-      (DATA.summary.httpEndpoints > 0 ? "<span>" + DATA.summary.httpEndpoints + " endpoints</span>" : "") +
-      (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 8)) + "</span>" : "");
+      (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
 
     const tabs = [
       { id: "map", label: "Map", show: Boolean(runtimeDiag) },
@@ -1417,44 +1226,58 @@ export function renderVisualHtml(
         ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Spine (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
         : "";
 
-      const zoomControls = !inMatrix
-        ? '<button class="tbtn" data-zoom="in">+</button><button class="tbtn" data-zoom="out">−</button><button class="tbtn" data-zoom="fit">Fit</button>'
+      const canStepUp = Boolean(state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
+      const hudTopLeft = subNav ? '<div class="hud-pill hud-top-left">' + subNav + "</div>" : "";
+      const hudTopRight =
+        '<div class="hud-pill hud-top-right">' +
+        viewToggleHtml +
+        wireToggleHtml +
+        (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1">Focus <span class="keycap">F</span></button>' : "") +
+        "</div>";
+      const hudBottomLeft = !inMatrix
+        ? '<div class="hud-pill hud-bottom-left">' +
+          '<button class="tbtn" data-zoom="in" title="Zoom in">+</button>' +
+          '<div class="zoom-pct" id="zoom-pct">' + Math.round(state.scale * 100) + "%</div>" +
+          '<button class="tbtn" data-zoom="out" title="Zoom out">−</button>' +
+          '<button class="tbtn" data-zoom="fit" title="Fit view (0)">Fit</button>' +
+          (canStepUp ? '<button class="tbtn" data-step-up="1" title="Up one level (Backspace)">↑</button>' : "") +
+          "</div>"
+        : "";
+      const hudLegend = !inMatrix
+        ? '<div class="hud-pill hud-bottom-center">' + renderLegend(diag).replace('<div class="legend">', "").replace("</div>", "") + '<span class="leg-item"><span class="keycap">2×</span> Drill in</span></div>'
         : "";
 
       bodyHtml =
         '<div class="workspace">' +
         '<div class="canvas-panel">' +
-        '<div class="canvas-head">' +
-        '<div class="canvas-title">' + esc(diag.title) + "</div>" +
-        '<div class="toolbar">' +
-        viewToggleHtml +
-        wireToggleHtml +
-        (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1">Focus (F)</button>' : "") +
-        zoomControls +
-        "</div></div>" +
-        '<div class="canvas-sub">' + esc(diag.subtitle) + "</div>" +
         '<div class="canvas-shell' + (inMatrix ? " matrix-mode" : "") + '" id="canvas-shell">' +
+        hudTopLeft +
+        hudTopRight +
+        hudBottomLeft +
+        hudLegend +
+        (!inMatrix ? renderMinimapHtml(diag) : "") +
         (inMatrix ? renderMatrixView(diag) : renderDiagramSvg(diag)) +
         '<div class="edge-tooltip" id="edge-tooltip"></div>' +
-        "</div>" +
-        renderLegend(diag) +
         trayHtml +
+        "</div>" +
         "</div>" +
         '<div class="drawer" id="drawer">' + drawerHtml + "</div>" +
         "</div>";
     }
 
     document.getElementById("app").innerHTML =
-      '<div class="topbar">' +
-      '<div class="title-wrap">' +
-      '<div class="title">RepoSpec v' + esc(DATA.schemaVersion) + " · " + esc(DATA.repo.name) + "</div>" +
-      '<div class="status-line">' + statusHtml + "</div>" +
-      "</div>" +
-      '<div class="controls-right"><div class="search-wrap"><input class="search" id="global-search" placeholder="Search nodes, endpoints, tables (/)..." value="' + esc(state.search) + '" />' + renderSearchDropdown() + "</div></div>" +
-      "</div>" +
-      '<div class="nav-bar"><div class="tabs">' +
+      '<div class="studio-bar">' +
+      '<div class="bar-left">' +
+      '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + "</span></div>" +
+      '<div class="tabs">' +
       tabs.map((t) => '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-tab="' + esc(t.id) + '">' + esc(t.label) + "</button>").join("") +
-      "</div>" + subNav + "</div>" +
+      "</div>" +
+      "</div>" +
+      '<div class="bar-right">' +
+      '<div class="status-pills">' + statusHtml + "</div>" +
+      '<div class="search-wrap"><input class="search" id="global-search" placeholder="Jump to module, file, symbol..." value="' + esc(state.search) + '" /><span class="search-kbd">/</span>' + renderSearchDropdown() + "</div>" +
+      "</div>" +
+      "</div>" +
       bodyHtml;
   }
 
@@ -1471,6 +1294,12 @@ export function renderVisualHtml(
     const svgNode = target.closest("[data-node]");
     if (svgNode) {
       const nid = svgNode.getAttribute("data-node");
+      if (nid) applyNodeHoverSpotlight(nid);
+      return;
+    }
+    const drawerLink = target.closest(".drawer [data-select-node]");
+    if (drawerLink) {
+      const nid = drawerLink.getAttribute("data-select-node");
       if (nid) applyNodeHoverSpotlight(nid);
       return;
     }
@@ -1495,9 +1324,9 @@ export function renderVisualHtml(
   appEl.addEventListener("mouseout", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("[data-node]") || target.closest("g[data-edge]")) {
+    if (target.closest("[data-node]") || target.closest("g[data-edge]") || target.closest(".drawer [data-select-node]")) {
       const rel = ev.relatedTarget;
-      if (!(rel instanceof Element) || (!rel.closest("[data-node]") && !rel.closest("g[data-edge]"))) {
+      if (!(rel instanceof Element) || (!rel.closest("[data-node]") && !rel.closest("g[data-edge]") && !rel.closest(".drawer [data-select-node]"))) {
         clearHoverSpotlight();
       }
     }
@@ -1505,6 +1334,82 @@ export function renderVisualHtml(
       appEl.querySelectorAll(".dsm-row-th.hl,.dsm-col-th.hl").forEach((el) => el.classList.remove("hl"));
     }
   });
+
+  let lastNodeClickId = null;
+  let lastNodeClickAt = 0;
+
+  function drillIntoNode(id) {
+    if (!id) return false;
+    const curDiag = activeDiagram();
+    const diagNode = curDiag?.nodes.find((n) => n.id === id);
+    if (id.startsWith("folder:")) {
+      const rest = id.slice(7);
+      const colon = rest.indexOf(":");
+      const uSlug = rest.slice(0, colon);
+      const fPath = rest.slice(colon + 1);
+      state.tab = "map";
+      state.activeFolder = { unitSlug: uSlug, folderPath: fPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return true;
+    }
+    if (diagNode?.ctxMeta?.folderPath && diagNode.ctxMeta.unitSlug) {
+      state.tab = "map";
+      state.activeFolder = { unitSlug: diagNode.ctxMeta.unitSlug, folderPath: diagNode.ctxMeta.folderPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return true;
+    }
+    const mod = moduleById.get(id);
+    if (mod && mod.kind === "directory") {
+      if (unitHasFolderFiles(mod.unitSlug, mod.name) > 0) {
+        state.tab = "map";
+        state.activeFolder = { unitSlug: mod.unitSlug, folderPath: mod.name, returnDiagId: state.activeLayerDiagId };
+        state.focusMode = false;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        render();
+        return true;
+      }
+      const subId = "subsystem:" + mod.unitSlug + ":" + mod.name;
+      if (diagById.has(subId)) {
+        state.tab = "map";
+        state.activeFolder = null;
+        state.activeLayerDiagId = subId;
+        state.focusMode = false;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        render();
+        return true;
+      }
+    }
+    const specNode = nodeById.get(id);
+    if (specNode && specNode.kind === "code_layer" && specNode.group && unitHasFolderFiles(specNode.group, specNode.label) > 0) {
+      state.tab = "map";
+      state.activeFolder = { unitSlug: specNode.group, folderPath: specNode.label, returnDiagId: state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return true;
+    }
+    const targetDiag = moduleDiagByOwner.get(id) || layerDiagByOwner.get(id) || null;
+    if (targetDiag) {
+      state.tab = "map";
+      state.activeFolder = null;
+      state.activeLayerDiagId = targetDiag.id;
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return true;
+    }
+    return false;
+  }
 
   appEl.addEventListener("click", (ev) => {
     const target = ev.target;
@@ -1554,6 +1459,31 @@ export function renderVisualHtml(
       state.selectedNodeId = null;
       state.selectedEdgeId = null;
       render();
+      return;
+    }
+
+    function stepUpLevel() {
+      if (state.activeFolder) {
+        const parts = state.activeFolder.folderPath.split("/").filter(Boolean);
+        if (parts.length > 1) {
+          state.activeFolder = { ...state.activeFolder, folderPath: parts.slice(0, -1).join("/") };
+        } else {
+          const retId = state.activeFolder.returnDiagId || ("modules:" + state.activeFolder.unitSlug);
+          state.activeFolder = null;
+          state.activeLayerDiagId = diagById.has(retId) ? retId : null;
+        }
+      } else if (state.activeLayerDiagId) {
+        const cur = diagById.get(state.activeLayerDiagId);
+        state.activeLayerDiagId = cur?.parentDiagramId && diagById.has(cur.parentDiagramId) ? cur.parentDiagramId : null;
+      }
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      state.focusMode = false;
+      render();
+    }
+
+    if (target.closest("[data-step-up]")) {
+      stepUpLevel();
       return;
     }
 
@@ -1763,7 +1693,17 @@ export function renderVisualHtml(
 
     const svgNode = target.closest("[data-node]");
     if (svgNode) {
-      state.selectedNodeId = svgNode.getAttribute("data-node");
+      const id = svgNode.getAttribute("data-node");
+      const now = Date.now();
+      const isDouble = Boolean(id && (ev.detail >= 2 || (lastNodeClickId === id && now - lastNodeClickAt <= 420)));
+      lastNodeClickId = id;
+      lastNodeClickAt = now;
+      if (isDouble && drillIntoNode(id)) {
+        lastNodeClickId = null;
+        lastNodeClickAt = 0;
+        return;
+      }
+      state.selectedNodeId = id;
       state.selectedEdgeId = null;
       render();
       return;
@@ -1784,73 +1724,8 @@ export function renderVisualHtml(
     const svgNode = target.closest("[data-node]");
     if (!svgNode) return;
     const id = svgNode.getAttribute("data-node");
-    if (!id) return;
-    const curDiag = activeDiagram();
-    const diagNode = curDiag?.nodes.find((n) => n.id === id);
-    if (id.startsWith("folder:")) {
-      const rest = id.slice(7);
-      const colon = rest.indexOf(":");
-      const uSlug = rest.slice(0, colon);
-      const fPath = rest.slice(colon + 1);
-      state.tab = "map";
-      state.activeFolder = { unitSlug: uSlug, folderPath: fPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
-      state.focusMode = false;
-      state.selectedNodeId = null;
-      state.selectedEdgeId = null;
-      render();
-      return;
-    }
-    if (diagNode?.ctxMeta?.folderPath && diagNode.ctxMeta.unitSlug) {
-      state.tab = "map";
-      state.activeFolder = { unitSlug: diagNode.ctxMeta.unitSlug, folderPath: diagNode.ctxMeta.folderPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
-      state.focusMode = false;
-      state.selectedNodeId = null;
-      state.selectedEdgeId = null;
-      render();
-      return;
-    }
-    const mod = moduleById.get(id);
-    if (mod && mod.kind === "directory") {
-      if (unitHasFolderFiles(mod.unitSlug, mod.name) > 0) {
-        state.tab = "map";
-        state.activeFolder = { unitSlug: mod.unitSlug, folderPath: mod.name, returnDiagId: state.activeLayerDiagId };
-        state.focusMode = false;
-        state.selectedNodeId = null;
-        state.selectedEdgeId = null;
-        render();
-        return;
-      }
-      const subId = "subsystem:" + mod.unitSlug + ":" + mod.name;
-      if (diagById.has(subId)) {
-        state.tab = "map";
-        state.activeFolder = null;
-        state.activeLayerDiagId = subId;
-        state.focusMode = false;
-        state.selectedNodeId = null;
-        state.selectedEdgeId = null;
-        render();
-        return;
-      }
-    }
-    const specNode = nodeById.get(id);
-    if (specNode && specNode.kind === "code_layer" && specNode.group && unitHasFolderFiles(specNode.group, specNode.label) > 0) {
-      state.tab = "map";
-      state.activeFolder = { unitSlug: specNode.group, folderPath: specNode.label, returnDiagId: state.activeLayerDiagId };
-      state.focusMode = false;
-      state.selectedNodeId = null;
-      state.selectedEdgeId = null;
-      render();
-      return;
-    }
-    const targetDiag = moduleDiagByOwner.get(id) || layerDiagByOwner.get(id) || null;
-    if (targetDiag) {
-      state.tab = "map";
-      state.activeFolder = null;
-      state.activeLayerDiagId = targetDiag.id;
-      state.focusMode = false;
-      state.selectedNodeId = null;
-      state.selectedEdgeId = null;
-      render();
+    if (id && typeof window !== "undefined") {
+      ev.preventDefault();
     }
   });
 
@@ -1946,6 +1821,38 @@ export function renderVisualHtml(
       ev.preventDefault();
       const input = document.getElementById("global-search");
       if (input instanceof HTMLInputElement) input.focus();
+      return;
+    }
+    if (ev.key === "Enter" && state.selectedNodeId) {
+      if (drillIntoNode(state.selectedNodeId)) {
+        ev.preventDefault();
+        return;
+      }
+    }
+    if (ev.key === "Backspace" && (state.activeFolder || state.activeLayerDiagId)) {
+      ev.preventDefault();
+      if (state.activeFolder) {
+        const parts = state.activeFolder.folderPath.split("/").filter(Boolean);
+        if (parts.length > 1) state.activeFolder = { ...state.activeFolder, folderPath: parts.slice(0, -1).join("/") };
+        else {
+          const retId = state.activeFolder.returnDiagId || ("modules:" + state.activeFolder.unitSlug);
+          state.activeFolder = null;
+          state.activeLayerDiagId = diagById.has(retId) ? retId : null;
+        }
+      } else {
+        state.activeLayerDiagId = null;
+      }
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      state.focusMode = false;
+      render();
+      return;
+    }
+    if (ev.key === "0") {
+      state.tx = 0;
+      state.ty = 0;
+      state.scale = 1;
+      applyTransform();
       return;
     }
     if (ev.key.toLowerCase() === "f" && state.selectedNodeId) {

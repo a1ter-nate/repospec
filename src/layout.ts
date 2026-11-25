@@ -67,11 +67,11 @@ function estimateNodeSize(
 ): { width: number; height: number } {
   const fullSub =
     ambientBadges && ambientBadges.length > 0
-      ? `${sublabel ?? ""} · ◉ ${ambientBadges[0]}`
+      ? `${sublabel ?? ""} · ${ambientBadges[0]}`
       : (sublabel ?? "");
   const longest = Math.max(label.length, fullSub.length * 0.86);
-  const width = Math.max(140, Math.min(260, longest * 7.4 + 34));
-  const height = sublabel ? 52 : 38;
+  const width = Math.max(178, Math.min(286, longest * 7.4 + 66));
+  const height = sublabel ? 58 : 44;
   return { width: Math.round(width), height };
 }
 
