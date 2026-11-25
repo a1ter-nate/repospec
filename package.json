@@ -4,13 +4,36 @@
   "type": "module",
   "description": "Deterministic canonical RepoSpec IR (OpenAPI for architecture, tests, CI, IaC, governance, and code-quality rules) with SQLite graph index and interactive visual studio.",
   "license": "MIT",
+  "homepage": "https://github.com/a1ter-nate/repospec#readme",
+  "bugs": {
+    "url": "https://github.com/a1ter-nate/repospec/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/a1ter-nate/repospec.git"
   },
+  "keywords": [
+    "architecture",
+    "static-analysis",
+    "code-graph",
+    "sqlite",
+    "invariants",
+    "dependency-graph",
+    "openapi",
+    "dsm",
+    "bun"
+  ],
   "bin": {
     "repospec": "./src/cli.ts"
   },
+  "files": [
+    "src/",
+    "rules/",
+    "config/",
+    "skills/",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
     "bun": ">=1.2.0"
   },

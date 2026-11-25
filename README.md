@@ -56,22 +56,16 @@ RepoSpec replaces stale architectural prose with one compiled, queryable **Index
 Requires [Bun](https://bun.sh) `>= 1.2.0`.
 
 ```bash
+# Run directly from npm via bunx (or install globally with: bun add -g repospec)
+bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --inline
+bunx repospec serve ./out/my-repo --port 4173
+bunx repospec diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
+
+# Or develop from a local clone
 git clone https://github.com/a1ter-nate/repospec.git
 cd repospec
 bun install
-
-# Self-verify RepoSpec (strict TS, R2 tables & PBT, R3 stateful MBT, Oxlint, Veristack gates)
 bun run check
-
-# Compile any TypeScript, JavaScript, Rust, Python, or C#/.NET repository
-bun src/cli.ts generate /path/to/repo --out ./out/my-repo --mode artifact --inline
-
-# Browse live with zero-CORS opt-in local AI explanations (Ollama / OpenAI-compatible)
-bun src/cli.ts serve ./out/my-repo --port 4173
-
-# Visual PR / Commit Architecture Diff (Current State -> New State overlay + Before/After split)
-bun src/cli.ts diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
-bun src/cli.ts generate /path/to/repo --diff main..HEAD --out ./out/my-repo --inline
 ```
 
 ### Core CLI Workflows
