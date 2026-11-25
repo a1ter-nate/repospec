@@ -49,7 +49,7 @@
     "lint:state-machines": "bunx vstack state-machines . --fail",
     "lint:laws": "bunx vstack laws . --fail",
     "lint:diff-cheats": "bunx vstack diff-cheats . --base HEAD --fail",
-    "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats",
+    "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats --fail-on-errors",
     "generate": "bun src/cli.ts generate",
     "schema": "bun src/cli.ts schema",
     "check": "bun run typecheck && bun test && bun run check:vstack"
