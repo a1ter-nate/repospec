@@ -50,7 +50,9 @@ export function renderNodeInspectorClientScript(): string {
     const unitEnvs = DATA.surfaces.envBindings.filter((eb) => eb.units.includes(unitName));
     const unitGovs = DATA.surfaces.govRules.filter((g) => !g.scopePrefix || (unitDir && (unitDir === g.scopePrefix || unitDir.startsWith(g.scopePrefix + "/"))));
 
+    const provFile = node.provenance?.file && ddIdxByPath.has(node.provenance.file) ? node.provenance.file : "";
     const actions = [
+      provFile ? '<button class="action-btn" data-open-file="' + esc(provFile) + '"' + (node.provenance?.line ? ' data-open-file-line="' + node.provenance.line + '"' : "") + '>View Code & Callstack →</button>' : "",
       layerFolderCount > 0 ? '<button class="action-btn" data-open-folder="' + esc(node.group + "::" + node.label) + '">Open ' + esc(node.label) + "/ (" + layerFolderCount + " files) →</button>" : "",
       modDiag ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ")</button>" : "",
       layerDiag ? '<button class="action-btn sec-btn" data-open-layers="' + esc(layerDiag.id) + '">Layers (' + layerDiag.nodes.length + ")</button>" : "",
@@ -203,6 +205,10 @@ export function renderNodeInspectorClientScript(): string {
         "</div>"
       : "";
 
+    const sourceCodeSec = provFile
+      ? renderInlineSourceDisclosure(provFile, node.provenance?.line, { open: true })
+      : "";
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(shortPkg(node.label)) + '</div><div class="drawer-sub">' + esc(node.kind) + (node.meta?.archetype ? " · " + esc(node.meta.archetype) : "") + (node.meta?.layerAxis ? " · " + esc(node.meta.layerAxis) : "") + "</div></div></div>" +
       provenanceLinksHtml(node.provenance?.file, node.provenance?.line) +
@@ -210,6 +216,7 @@ export function renderNodeInspectorClientScript(): string {
       findingsSec +
       layerAnatomySec +
       connSec +
+      sourceCodeSec +
       surfaceSec +
       govSec
     );

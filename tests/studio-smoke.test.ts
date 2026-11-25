@@ -199,5 +199,6 @@ describe("Studio HTML runtime smoke suite", () => {
     expect(standaloneHtml).toContain("2 entities");
     expect(standaloneHtml).toContain("if (ctxFiles.length === 1 && ddIdxByPath.has(ctxFiles[0]))");
     expect(standaloneHtml).toContain("renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false)");
+    expect(standaloneHtml).toContain("renderInlineSourceDisclosure(provFile, node.provenance?.line");
   });
 });

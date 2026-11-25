@@ -285,6 +285,7 @@ export function renderInspectorClientScript(): string {
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(diagNode.label) + '</div><div class="drawer-sub">' + esc(diagNode.sublabel || "submodule") + "</div></div></div>" +
         provenanceLinksHtml(diagNode.provenance?.file, diagNode.provenance?.line) +
         '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Briefing</button></div>' +
+        renderInlineSourceDisclosure(diagNode.provenance?.file, diagNode.provenance?.line, { open: true }) +
         '<div class="sec"><div class="sec-title">Control & Data Flow</div>' +
         outEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.to) + '">→ ' + esc(nameOf(e.to)) + '</span><span class="muted mono">' + (e.weight || 1) + "</span></div>").join("") +
         inEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.from) + '">← ' + esc(nameOf(e.from)) + '</span><span class="muted mono">' + (e.weight || 1) + "</span></div>").join("") +
@@ -396,10 +397,15 @@ export function renderInspectorClientScript(): string {
       }) +
       "</div>";
 
+    const singleFileCodeSec = singleFilePath
+      ? renderInlineSourceDisclosure(singleFilePath, 1, { open: true })
+      : "";
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(mod.kind === "directory" ? mod.name + "/" : mod.name) + '</div><div class="drawer-sub">' + esc(mod.unitSlug + " · " + mod.language + " · " + mod.relPath) + "</div></div></div>" +
       pillsHtml +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
+      singleFileCodeSec +
       apiSec +
       flowSec +
       filesSec

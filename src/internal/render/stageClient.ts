@@ -192,10 +192,15 @@ export function renderStageClientScript(): string {
         : "";
 
       const selNodeObj = state.selectedNodeId && diag ? diag.nodes.find((n) => n.id === state.selectedNodeId) : null;
+      const selSpecNode = state.selectedNodeId ? nodeById.get(state.selectedNodeId) : null;
+      const selModObj = state.selectedNodeId ? moduleById.get(state.selectedNodeId) : null;
       const isSingleFileSel = Boolean(
         state.selectedNodeId &&
         (state.selectedNodeId.startsWith("file:") ||
-          (selNodeObj?.ctxMeta && Array.from(selNodeObj.ctxMeta.files || []).length === 1))
+          (selNodeObj?.ctxMeta && Array.from(selNodeObj.ctxMeta.files || []).length === 1) ||
+          (selSpecNode?.provenance?.file && ddIdxByPath.has(selSpecNode.provenance.file)) ||
+          (selModObj && selModObj.files.length === 1 && ddIdxByPath.has(selModObj.files[0].file)) ||
+          (selNodeObj?.provenance?.file && !selSpecNode && !selModObj && ddIdxByPath.has(selNodeObj.provenance.file)))
       );
       bodyHtml =
         '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel ? " code-open" : "") + '">' +
@@ -383,6 +388,9 @@ export function renderStageClientScript(): string {
       state.selectedNodeId = null;
       state.selectedEdgeId = null;
       render();
+      return true;
+    }
+    if (specNode?.provenance?.file && openFileCodeView(specNode.provenance.file, specNode.provenance.line || 1, -1)) {
       return true;
     }
     return false;

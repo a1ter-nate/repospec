@@ -240,10 +240,38 @@ export function renderGuidesClientScript(): string {
     if (!file || file === ".") return "";
     const gh = githubUrl(file, line);
     const label = esc(file + (line ? ":" + line : ""));
+    const hasLocal = typeof ddIdxByPath !== "undefined" && ddIdxByPath.has(file);
+    const fileHtml = hasLocal
+      ? '<span class="row-link mono" data-open-file="' + esc(file) + '"' + (line ? ' data-open-file-line="' + line + '"' : "") + ' title="Open file code & symbol callstack">' + label + "</span>"
+      : '<span class="mono muted">' + label + "</span>";
     if (gh) {
-      return '<span class="links-row"><span class="mono muted">' + label + '</span><a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">GitHub ↗</a></span>';
+      return '<span class="links-row">' + fileHtml + '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">GitHub ↗</a></span>';
     }
-    return '<span class="mono muted">' + label + "</span>";
+    return fileHtml;
+  }
+
+  function renderInlineSourceDisclosure(filePath, focusLine, opts) {
+    if (!filePath || typeof ddIdxByPath === "undefined" || !ddIdxByPath.has(filePath)) return "";
+    const idx = ddIdxByPath.get(filePath);
+    const f = DD_FILES[idx];
+    if (!f) return "";
+    ensureFileSourcesLoaded();
+    const base = filePath.split("/").pop() || filePath;
+    const ln = Number(focusLine) || 1;
+    const isOpen = opts && typeof opts.open === "boolean" ? opts.open : true;
+    return (
+      '<div class="sec">' +
+      renderDisclosure({
+        title: "Source Code · " + base,
+        meta: filePath,
+        badge: f.l + "L",
+        badgeClass: "b-info",
+        tone: "info",
+        open: isOpen,
+        bodyHtml: renderCodeBlockHtml(idx, f.p, 1, f.l, ln, true, false),
+      }) +
+      "</div>"
+    );
   }
 
   function renderDisclosure(opts) {
