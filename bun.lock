@@ -7,6 +7,7 @@
       "dependencies": {
         "@dagrejs/dagre": "^3.1.4",
         "js-yaml": "^4.1.0",
+        "typescript": "^5.8.2",
         "zod": "^3.24.2",
       },
       "devDependencies": {
@@ -16,8 +17,7 @@
         "fast-check": "^4.11.0",
         "oxfmt": "^0.80.0",
         "oxlint": "^1.95.0",
-        "typescript": "^5.8.2",
-        "veristack": "github:a1ter-nate/veristack",
+        "veristack": "^0.1.0",
       },
     },
   },
@@ -172,7 +172,7 @@
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
-    "veristack": ["veristack@github:a1ter-nate/veristack#a1d8f7b", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "vstack": "./bin/vstack.mjs" } }, "a1ter-nate-veristack-a1d8f7b", "sha512-Je3CDFbeRrvHQ+gXzmAQNLu7xQu6gGG4sP2bIFbtaSmILWIIBE0YS7ohc3BUvrI2uQtkdZAJby8SwDNhXaAjHw=="],
+    "veristack": ["veristack@0.1.0", "", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "vstack": "bin/vstack.mjs", "veristack": "bin/vstack.mjs" } }, "sha512-HohGqxdDH7YvKzPqT7hSYHhgPxw3dtP52uixj0+7fbzWHOZlqAonVHVsFm5vg56YYSeUygh6Iy1JNOn3tEFwHw=="],
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
   }
