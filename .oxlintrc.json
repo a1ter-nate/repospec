@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "categories": {
     "correctness": "error",
-    "suspicious": "warn"
+    "suspicious": "error"
   },
   "ignorePatterns": ["out/**", "node_modules/**", "tools/**"],
   "jsPlugins": [
@@ -21,7 +21,7 @@
     "max-lines": ["error", { "max": 500 }],
     "unicorn/no-array-sort": "off",
     "typescript/no-explicit-any": "error",
-    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-non-null-assertion": "error",
     "typescript/ban-ts-comment": "error",
     "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-unsafe-dictionary-type": "error",
