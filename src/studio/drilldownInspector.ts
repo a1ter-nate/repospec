@@ -4,6 +4,7 @@ export function renderDrilldownInspectorScript(): string {
     const idx = ddIdxByPath.get(filePath);
     if (idx === undefined) return renderBriefingDrawer();
     const f = DD_FILES[idx];
+    ensureFileSourcesLoaded();
     const inLinks = ddInByIdx.get(idx) || [];
     const outLinks = ddOutByIdx.get(idx) || [];
     const fileEndpoints = DATA.surfaces.endpoints.filter((ep) => ep.file === f.p);
@@ -96,6 +97,7 @@ export function renderDrilldownInspectorScript(): string {
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus (F)") + "</button>" +
       '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
       findingsSec +
+      renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false) +
       surfacePreviewSec +
       symsHtml +
       surfacesSec +
@@ -128,16 +130,20 @@ export function renderDrilldownInspectorScript(): string {
     }
     if (diagNode?.ctxMeta) {
       const cm = diagNode.ctxMeta;
+      const ctxFiles = Array.from(cm.files || []);
+      if (ctxFiles.length === 1 && ddIdxByPath.has(ctxFiles[0])) {
+        return renderFileInspector(ctxFiles[0]);
+      }
       const openBtn = cm.folderPath && cm.unitSlug
         ? '<button class="action-btn" data-open-folder="' + esc(cm.unitSlug + "::" + cm.folderPath) + '">Open ' + esc(cm.label) + " →</button>"
         : "";
-      const fList = Array.from(cm.files || []).slice(0, 18).map((fp) =>
-        '<div class="row"><span class="row-link mono" data-open-file="' + esc(fp) + '">' + esc(fp) + "</span></div>"
+      const fList = ctxFiles.slice(0, 18).map((fp) =>
+        '<div class="row"><span class="row-link mono" data-open-file="' + esc(fp) + '">' + esc(fp) + '</span><span class="badge b-na">Code →</span></div>'
       ).join("");
       return (
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(diagNode.label) + '</div><div class="drawer-sub">' + esc(diagNode.sublabel || "") + "</div></div></div>" +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' + openBtn + '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
-        (fList ? '<div class="sec"><div class="sec-title">Referenced Files</div>' + fList + "</div>" : "")
+        (fList ? '<div class="sec"><div class="sec-title"><span>Referenced Files (' + ctxFiles.length + ')</span><span class="muted">click for code</span></div>' + fList + "</div>" : "")
       );
     }
     return null;

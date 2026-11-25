@@ -197,5 +197,7 @@ describe("Studio HTML runtime smoke suite", () => {
     expect(standaloneHtml).toContain("buildShowMeVisualPrMarkdown");
     expect(standaloneHtml).toContain("Generated deterministically by RepoSpec");
     expect(standaloneHtml).toContain("2 entities");
+    expect(standaloneHtml).toContain("if (ctxFiles.length === 1 && ddIdxByPath.has(ctxFiles[0]))");
+    expect(standaloneHtml).toContain("renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false)");
   });
 });

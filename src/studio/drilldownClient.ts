@@ -231,7 +231,7 @@ export function renderDrilldownClientScript(): string {
     const centerCols = splitCenter ? [keptChildren.slice(0, midSplit), keptChildren.slice(midSplit)] : [keptChildren];
 
     const cols = [];
-    if (keptCallers.length > 0) cols.push({ id: "callers", label: "← Callers (" + keptCallers.length + ")", items: keptCallers.map((c) => ({ id: c.id, label: c.label, sublabel: c.files.size + " file" + (c.files.size === 1 ? "" : "s") + " · " + c.count + " refs", shape: "pill", kind: "caller_ctx", expandable: Boolean(c.folderPath), provenance: { file: c.filePath }, ctxMeta: c })) });
+    if (keptCallers.length > 0) cols.push({ id: "callers", label: "← Callers (" + keptCallers.length + ")", items: keptCallers.map((c) => ({ id: c.id, label: c.label, sublabel: c.files.size + " file" + (c.files.size === 1 ? "" : "s") + " · " + c.count + " refs", shape: "pill", kind: "caller_ctx", expandable: Boolean(c.folderPath || c.files.size === 1), provenance: { file: c.filePath }, ctxMeta: c })) });
     centerCols.forEach((arr, ci) => {
       cols.push({
         id: "inside_" + ci,
@@ -254,7 +254,7 @@ export function renderDrilldownClientScript(): string {
         }),
       });
     });
-    if (keptDeps.length > 0) cols.push({ id: "deps", label: "→ Deps & External (" + keptDeps.length + ")", items: keptDeps.map((d) => ({ id: d.id, label: d.label, sublabel: d.kind === "external_service" ? "external · " + d.count + " refs" : d.kind === "datastore" ? "datastore · " + d.count + " refs" : d.files.size + " files · " + d.count + " refs", shape: d.shape, kind: d.kind, expandable: Boolean(d.folderPath), provenance: { file: d.filePath }, ctxMeta: d })) });
+    if (keptDeps.length > 0) cols.push({ id: "deps", label: "→ Deps & External (" + keptDeps.length + ")", items: keptDeps.map((d) => ({ id: d.id, label: d.label, sublabel: d.kind === "external_service" ? "external · " + d.count + " refs" : d.kind === "datastore" ? "datastore · " + d.count + " refs" : d.files.size + " file" + (d.files.size === 1 ? "" : "s") + " · " + d.count + " refs", shape: d.shape, kind: d.kind, expandable: Boolean(d.folderPath || (d.kind === "folder_ref" && d.files.size === 1)), provenance: { file: d.filePath }, ctxMeta: d })) });
 
     const marginX = 28;
     const topY = 48;

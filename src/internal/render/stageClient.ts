@@ -191,8 +191,14 @@ export function renderStageClientScript(): string {
         ? '<div class="hud-pill hud-bottom-center">' + renderLegend(diag).replace('<div class="legend">', "").replace("</div>", "") + '<span class="leg-item"><span class="keycap">2×</span> Drill in</span></div>'
         : "";
 
+      const selNodeObj = state.selectedNodeId && diag ? diag.nodes.find((n) => n.id === state.selectedNodeId) : null;
+      const isSingleFileSel = Boolean(
+        state.selectedNodeId &&
+        (state.selectedNodeId.startsWith("file:") ||
+          (selNodeObj?.ctxMeta && Array.from(selNodeObj.ctxMeta.files || []).length === 1))
+      );
       bodyHtml =
-        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed ? " code-open" : "") + '">' +
+        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel ? " code-open" : "") + '">' +
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
@@ -320,6 +326,10 @@ export function renderStageClientScript(): string {
       state.selectedEdgeId = null;
       render();
       return true;
+    }
+    if (diagNode?.ctxMeta) {
+      const ctxFiles = Array.from(diagNode.ctxMeta.files || []);
+      if (ctxFiles.length === 1 && openFileCodeView(ctxFiles[0], 1, -1)) return true;
     }
     if (diagNode?.ctxMeta?.folderPath && diagNode.ctxMeta.unitSlug) {
       state.tab = "map";

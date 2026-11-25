@@ -20,7 +20,7 @@ export function renderFileCallGraphClientScript(): string {
       const stream = new Response(bytes).body.pipeThrough(ds);
       const text = await new Response(stream).text();
       FILE_SOURCES = JSON.parse(text);
-      if (state.activeFileGraph) render();
+      if (state.activeFileGraph || state.selectedNodeId) render();
       return FILE_SOURCES;
     })().catch(() => {
       FILE_SOURCES = [];
@@ -286,8 +286,9 @@ export function renderFileCallGraphClientScript(): string {
   }
 
   function copyCurrentCodeToClipboard(btn) {
-    if (!FILE_SOURCES || !state.activeFileGraph) return;
-    const idx = ddIdxByPath.get(state.activeFileGraph);
+    const targetPath = btn.getAttribute("data-copy-file") || state.activeFileGraph;
+    if (!FILE_SOURCES || !targetPath) return;
+    const idx = ddIdxByPath.get(targetPath);
     if (idx === undefined) return;
     const raw = FILE_SOURCES[idx];
     if (typeof raw !== "string") return;
@@ -357,7 +358,7 @@ export function renderFileCallGraphClientScript(): string {
           '<button class="seg-btn' + (fullFile ? " active" : "") + '" data-code-full="1">Full File</button>' +
           "</span>"
         : "") +
-      '<button class="tbtn" data-copy-code="' + esc(copyRange) + '" title="Copy code to clipboard">Copy</button>' +
+      '<button class="tbtn" data-copy-code="' + esc(copyRange) + '" data-copy-file="' + esc(filePath) + '" title="Copy code to clipboard">Copy</button>' +
       (gh ? '<a class="tbtn" style="text-decoration:none" href="' + esc(gh) + '" target="_blank" rel="noopener" title="Open in GitHub">GitHub ↗</a>' : "") +
       "</div></div>" +
       '<div class="code-box" id="code-viewer-box">' + rows.join("") + "</div>" +
