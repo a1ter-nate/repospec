@@ -14,6 +14,7 @@ import {
   type HttpEndpointSummary,
   type IacPlane,
   type LoopRecord,
+  type ModuleCard,
   type RepoContext,
   type RepoSpecV4,
   type SpecDiagnostic,
@@ -174,6 +175,7 @@ export function buildCanonicalSpec(params: {
   stateMachines: StateMachineRecord[];
   loops: LoopRecord[];
   catalogArtifacts: CatalogArtifact[];
+  modules?: ModuleCard[];
   traces: StaticTrace[];
   surfaces: {
     endpoints: HttpEndpointSummary[];
@@ -198,6 +200,7 @@ export function buildCanonicalSpec(params: {
     stateMachines,
     loops,
     catalogArtifacts,
+    modules = [],
     traces,
     surfaces,
     diagrams,
@@ -278,7 +281,7 @@ export function buildCanonicalSpec(params: {
   ].sort((a, b) => a.id.localeCompare(b.id));
 
   const spec: RepoSpecV4 = {
-    schemaVersion: "4.1.0",
+    schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
     repo: {
       name: ctx.repoName,
@@ -299,6 +302,7 @@ export function buildCanonicalSpec(params: {
     stateMachines,
     loops,
     catalogArtifacts,
+    modules,
     traces,
     surfaces: {
       endpoints: surfaces.endpoints,
@@ -357,6 +361,7 @@ export function hashSpec(spec: RepoSpecV4): string {
     stateMachines: spec.stateMachines,
     loops: spec.loops,
     catalogArtifacts: spec.catalogArtifacts,
+    modules: spec.modules,
     verification: spec.verification,
     diagnostics: spec.diagnostics,
   };

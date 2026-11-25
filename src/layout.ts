@@ -15,7 +15,7 @@ import type {
   StaticTrace,
 } from "./schema.ts";
 
-interface RawDiagramNode {
+export interface RawDiagramNode {
   id: string;
   label: string;
   sublabel: string;
@@ -33,7 +33,7 @@ interface RawDiagramNode {
   provenance?: { file: string; line?: number };
 }
 
-interface RawDiagramEdge {
+export interface RawDiagramEdge {
   from: string;
   to: string;
   kind: string;
@@ -46,7 +46,7 @@ interface RawDiagramEdge {
   evidence?: EdgeEvidenceItem[];
 }
 
-interface LaneDef {
+export interface LaneDef {
   id: string;
   label: string;
   lateral?: boolean;
@@ -126,7 +126,7 @@ function classifyEdgeTiers(
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const isDense = edges.length > 20;
 
-  if (category === "layers") {
+  if (category === "layers" || category === "modules" || category === "subsystem") {
     const primaryOutByNode = new Map<string, RawDiagramEdge[]>();
     for (const e of edges) {
       const k = `${e.from}|${e.to}`;
@@ -322,7 +322,7 @@ function layoutWithDagre(
   };
 }
 
-function layoutFixedLanes(
+export function layoutFixedLanes(
   id: string,
   title: string,
   subtitle: string,
@@ -332,6 +332,7 @@ function layoutFixedLanes(
   rawEdges: RawDiagramEdge[],
   opts?: {
     ownerId?: string;
+    parentDiagramId?: string;
     unconnectedNodes?: Array<{ id: string; label: string; kind: string }>;
     foldedCount?: number;
   },
@@ -649,6 +650,7 @@ function layoutFixedLanes(
     subtitle,
     category,
     ...(opts?.ownerId ? { ownerId: opts.ownerId } : {}),
+    ...(opts?.parentDiagramId ? { parentDiagramId: opts.parentDiagramId } : {}),
     rankdir: "LR",
     width: Math.max(460, round1(totalWidth)),
     height: Math.max(240, round1(totalBottom)),
@@ -1343,6 +1345,7 @@ export function buildAllDiagrams(
   nodes: SpecNode[],
   edges: SpecEdge[],
   stateMachines: StateMachineRecord[],
+  extraDiagrams: DiagramLayout[] = [],
 ): DiagramLayout[] {
   const layerNodesByOwner = new Map<string, SpecNode[]>();
   for (const n of nodes) {
@@ -1356,6 +1359,12 @@ export function buildAllDiagrams(
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const ownerDiagrams: DiagramLayout[] = [];
   const expandableOwners = new Set<string>();
+
+  for (const extra of extraDiagrams) {
+    if (extra.category === "modules" && extra.ownerId) {
+      expandableOwners.add(extra.ownerId);
+    }
+  }
 
   for (const [ownerId, layerList] of Array.from(layerNodesByOwner.entries()).sort(([a], [b]) => a.localeCompare(b))) {
     if (layerList.length < 2) continue;
@@ -1372,6 +1381,7 @@ export function buildAllDiagrams(
   const runtimeDiag = buildSystemTopologyDiagram(nodes, edges, expandableOwners);
   if (runtimeDiag.nodes.length > 0) diagrams.push(runtimeDiag);
 
+  diagrams.push(...extraDiagrams);
   diagrams.push(...ownerDiagrams);
 
   const domDiag = buildDomainCouplingDiagram(nodes, edges);
@@ -1403,7 +1413,7 @@ export function buildAllDiagrams(
 }
 
 function diagramCategoryRank(c: DiagramLayout["category"]): number {
-  return c === "layers" ? 0 : c === "domains" ? 1 : c === "runtime" ? 2 : c === "delivery" ? 3 : 4;
+  return c === "layers" ? 0 : c === "modules" ? 1 : c === "domains" ? 2 : c === "runtime" ? 3 : c === "delivery" ? 4 : 5;
 }
 
 function firstUnvisitedEdge(list: LayoutEdge[], visited: Set<string>): LayoutEdge | undefined {
@@ -1512,12 +1522,17 @@ export function buildStaticTraces(diagrams: DiagramLayout[]): StaticTrace[] {
   const disclaimer = "Static path — imports & declared wiring, not observed runtime flow." as const;
 
   for (const diag of diagrams) {
-    if (diag.category !== "layers" && diag.category !== "runtime") continue;
+    if (diag.category !== "modules" && diag.category !== "layers" && diag.category !== "runtime") continue;
     const chain = findLongestObservedChain(diag);
     if (chain.length >= 3) {
       traces.push({
         id: `trace:${diag.id}`,
-        title: diag.category === "layers" ? `${diag.id.replace(/^layers:/, "")} Layer Spine` : "Observed Unit → Store Path",
+        title:
+          diag.category === "modules"
+            ? `${diag.id.replace(/^modules:/, "")} Module Spine`
+            : diag.category === "layers"
+              ? `${diag.id.replace(/^layers:/, "")} Layer Spine`
+              : "Observed Unit → Store Path",
         disclaimer,
         diagramId: diag.id,
         steps: chain,

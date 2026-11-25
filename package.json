@@ -1,6 +1,6 @@
 {
   "name": "repospec",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "type": "module",
   "description": "Deterministic canonical RepoSpec IR (OpenAPI for architecture, tests, CI, IaC, governance, and code-quality rules) with SQLite graph index and interactive visual studio.",
   "license": "MIT",

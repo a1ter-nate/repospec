@@ -5,7 +5,7 @@ description: "Deterministic polyglot architecture compiler and SQLite codebase g
 
 # RepoSpec
 
-Compile any **TypeScript, Rust, or C# / .NET** repository into a deterministic architectural **Index** (`repospec.sqlite` + `repospec.json`), enforce SQL **Invariants**, and shepherd edits with grounded **Passports**, **Precedents**, and interactive **Spine** / **DSM** maps.
+Compile any **TypeScript, JavaScript, Rust, Python, or C# / .NET** repository into a deterministic architectural **Index** (`repospec.sqlite` + `repospec.json`), levelized **Module Atlas**, SQL **Invariants**, and grounded **Passports**, **Precedents**, and interactive **Spine** / **DSM** maps.
 
 > **Prime Directive:** Query the compiled SQLite **Index** for structural truth before editing code or reviewing boundaries. Never guess module placement, layer rules, or blast radius from memory or stale prose docs.
 
@@ -20,6 +20,7 @@ Use these exact terms across plans, reviews, and SQL rules:
 - **Invariant**: a declarative SQL rule under `rules/*.sql` evaluated against `repospec.sqlite` and projected onto graph nodes and edges with `file:line` evidence.
 - **Contract**: an authoritative interface spec (such as OpenAPI) reconciled ahead of unmounted AST sub-router fragments.
 - **Spine**: adjacent-rank forward flow plus violations drawn at rest; full dense meshes sit behind 1-hop hover ego-graphs and the zero-crossing **Matrix (DSM)** view.
+- **Module Atlas**: Tarjan-condensed, topologically levelized (`L0 Entry → Ln Foundation`) module map with per-module public API symbols, IO capabilities (`DB`/`HTTP`/`FS`/`PROC`/`ENV`/`PURE`), Ousterhout depth, and cyclic tangle flags (`module_cards` + `file_symbols`).
 
 ## Workflow (Execute in Order)
 

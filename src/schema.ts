@@ -3,8 +3,66 @@ import { z } from "zod";
 export const DomainSchema = z.enum(["arch", "ci", "test", "iac", "rules"]);
 export type Domain = z.infer<typeof DomainSchema>;
 
-export const EcosystemSchema = z.enum(["typescript", "rust", "csharp", "polyglot"]);
+export const EcosystemSchema = z.enum(["typescript", "javascript", "rust", "python", "csharp", "polyglot"]);
 export type Ecosystem = z.infer<typeof EcosystemSchema>;
+
+export const CapabilityTagSchema = z.enum(["FS", "DB", "HTTP", "PROC", "ENV", "PURE"]);
+export type CapabilityTag = z.infer<typeof CapabilityTagSchema>;
+
+export const ExportedSymbolSchema = z.object({
+  name: z.string().min(1),
+  kind: z.enum(["function", "class", "type", "const", "command", "route"]),
+  file: z.string().min(1),
+  line: z.number().int().positive(),
+});
+export type ExportedSymbol = z.infer<typeof ExportedSymbolSchema>;
+
+export const ModuleRoleSchema = z.enum([
+  "entry",
+  "orchestrator",
+  "core",
+  "adapter",
+  "foundation",
+  "standalone",
+]);
+export type ModuleRole = z.infer<typeof ModuleRoleSchema>;
+
+export const ModuleDepthSchema = z.enum(["deep", "balanced", "shallow", "contract"]);
+export type ModuleDepth = z.infer<typeof ModuleDepthSchema>;
+
+export const ModuleFileEntrySchema = z.object({
+  file: z.string().min(1),
+  lines: z.number().int().nonnegative(),
+  exports: z.number().int().nonnegative(),
+  capabilities: z.array(CapabilityTagSchema),
+});
+export type ModuleFileEntry = z.infer<typeof ModuleFileEntrySchema>;
+
+export const ModuleCardSchema = z.object({
+  id: z.string().min(1),
+  unitId: z.string().min(1),
+  unitName: z.string().min(1),
+  unitSlug: z.string().min(1),
+  name: z.string().min(1),
+  kind: z.enum(["file", "directory"]),
+  relPath: z.string().min(1),
+  language: z.string().min(1),
+  level: z.number().int().nonnegative(),
+  role: ModuleRoleSchema,
+  depth: ModuleDepthSchema,
+  fileCount: z.number().int().nonnegative(),
+  lines: z.number().int().nonnegative(),
+  exportCount: z.number().int().nonnegative(),
+  fanIn: z.number().int().nonnegative(),
+  fanOut: z.number().int().nonnegative(),
+  inTangle: z.boolean(),
+  tangleId: z.string().nullable(),
+  hasSubsystemDiagram: z.boolean(),
+  capabilities: z.array(CapabilityTagSchema),
+  topExports: z.array(ExportedSymbolSchema),
+  files: z.array(ModuleFileEntrySchema),
+});
+export type ModuleCard = z.infer<typeof ModuleCardSchema>;
 
 export const StorageModeSchema = z.enum(["artifact", "commit"]);
 export type StorageMode = z.infer<typeof StorageModeSchema>;
@@ -73,6 +131,7 @@ export const NodeRoleSchema = z.enum([
   "rule",
   "layer",
   "domain",
+  "module",
 ]);
 export type NodeRole = z.infer<typeof NodeRoleSchema>;
 
@@ -347,8 +406,9 @@ export const DiagramLayoutSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   subtitle: z.string().min(1),
-  category: z.enum(["runtime", "packages", "domains", "layers", "behavior", "delivery"]),
+  category: z.enum(["runtime", "modules", "subsystem", "packages", "domains", "layers", "behavior", "delivery"]),
   ownerId: z.string().optional(),
+  parentDiagramId: z.string().optional(),
   rankdir: z.enum(["LR", "TB"]),
   width: z.number(),
   height: z.number(),
@@ -459,7 +519,7 @@ export const GovRuleSummarySchema = z.object({
 export type GovRuleSummary = z.infer<typeof GovRuleSummarySchema>;
 
 export const RepoSpecV4Schema = z.object({
-  schemaVersion: z.literal("4.1.0"),
+  schemaVersion: z.literal("5.0.0"),
   specKind: z.literal("repospec.canonical"),
   repo: z.object({
     name: z.string().min(1),
@@ -480,6 +540,7 @@ export const RepoSpecV4Schema = z.object({
   stateMachines: z.array(StateMachineRecordSchema),
   loops: z.array(LoopRecordSchema),
   catalogArtifacts: z.array(CatalogArtifactSchema),
+  modules: z.array(ModuleCardSchema).default([]),
   traces: z.array(StaticTraceSchema),
   surfaces: z.object({
     endpoints: z.array(HttpEndpointSummarySchema),
@@ -501,7 +562,7 @@ export interface UnitDescriptor {
   dir: string;
   absDir: string;
   manifestFile: string;
-  ecosystem: "typescript" | "rust" | "csharp" | "native";
+  ecosystem: "typescript" | "javascript" | "rust" | "python" | "csharp" | "native";
   kind: "app" | "package" | "test_package" | "native_app" | "analyzer";
   archetype: UnitArchetype;
   layerPolicy: LayerPolicy;
@@ -524,6 +585,8 @@ export interface AstFileFact {
   isBarrel: boolean;
   lines: number;
   exportsCount: number;
+  exportedSymbols?: ExportedSymbol[];
+  capabilities?: CapabilityTag[];
 }
 
 export interface AstImportFact {
@@ -712,8 +775,8 @@ export function createEmptyAst(): AstIndexData {
 export function buildRepoSpecJsonSchema(): Record<string, unknown> {
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
-    $id: "https://repospec.dev/schemas/repospec.v4.schema.json",
-    title: "RepoSpec Canonical IR v4.1.0",
+    $id: "https://repospec.dev/schemas/repospec.v5.schema.json",
+    title: "RepoSpec Canonical IR v5.0.0",
     type: "object",
     required: [
       "schemaVersion",
@@ -727,6 +790,7 @@ export function buildRepoSpecJsonSchema(): Record<string, unknown> {
       "stateMachines",
       "loops",
       "catalogArtifacts",
+      "modules",
       "traces",
       "surfaces",
       "diagrams",
@@ -736,7 +800,7 @@ export function buildRepoSpecJsonSchema(): Record<string, unknown> {
     ],
     additionalProperties: false,
     properties: {
-      schemaVersion: { const: "4.1.0" },
+      schemaVersion: { const: "5.0.0" },
       specKind: { const: "repospec.canonical" },
       repo: {
         type: "object",
@@ -825,6 +889,7 @@ export function buildRepoSpecJsonSchema(): Record<string, unknown> {
       stateMachines: { type: "array", items: { type: "object" } },
       loops: { type: "array", items: { type: "object" } },
       catalogArtifacts: { type: "array", items: { type: "object" } },
+      modules: { type: "array", items: { type: "object" } },
       traces: { type: "array", items: { type: "object" } },
       surfaces: {
         type: "object",

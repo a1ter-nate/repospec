@@ -68,7 +68,7 @@ export const archExtractor: ExtractorPlugin = {
         totalFiles: relFiles.length,
       };
 
-      if (u.ecosystem === "typescript") {
+      if (u.ecosystem === "typescript" || u.ecosystem === "javascript") {
         const pkg = readJsonSafe<PackageJson>(path.join(u.absDir, "package.json"));
         const turbo = readJsonSafe<TurboConfig>(path.join(u.absDir, "turbo.json"));
         const scripts = Object.keys(pkg?.scripts ?? {}).sort();
@@ -83,6 +83,9 @@ export const archExtractor: ExtractorPlugin = {
         meta.hasOpenApi = hasOpenApi;
         meta.hasGeneratedClient = hasGeneratedClient;
         meta.turboTags = turbo?.tags ?? [];
+      } else if (u.ecosystem === "python") {
+        meta.sourceFiles = relFiles.filter((f) => f.endsWith(".py")).length;
+        tags.push("python");
       } else if (u.ecosystem === "rust") {
         meta.crateIdent = u.name.replace(/-/g, "_");
         meta.bins = u.bins;
@@ -106,17 +109,23 @@ export const archExtractor: ExtractorPlugin = {
             : u.kind === "app"
               ? "rust-bin"
               : "rust-lib"
-          : u.ecosystem === "csharp"
-            ? u.kind === "analyzer"
-              ? "dotnet-analyzer"
-              : u.kind === "test_package"
-                ? "dotnet-test"
-                : u.kind === "app"
-                  ? "dotnet-app"
-                  : "dotnet-lib"
-            : u.archetype === "frontend_app"
-              ? "frontend"
-              : u.dir.split("/")[0] ?? "packages";
+          : u.ecosystem === "python"
+            ? u.kind === "app"
+              ? "python-app"
+              : "python-lib"
+            : u.ecosystem === "csharp"
+              ? u.kind === "analyzer"
+                ? "dotnet-analyzer"
+                : u.kind === "test_package"
+                  ? "dotnet-test"
+                  : u.kind === "app"
+                    ? "dotnet-app"
+                    : "dotnet-lib"
+              : u.archetype === "frontend_app"
+                ? "frontend"
+                : u.dir === "."
+                  ? "root"
+                  : u.dir.split("/")[0] ?? "packages";
 
       nodes.push({
         id: u.id,
@@ -132,7 +141,7 @@ export const archExtractor: ExtractorPlugin = {
     }
 
     for (const u of ctx.units) {
-      if (u.ecosystem === "typescript") {
+      if (u.ecosystem === "typescript" || u.ecosystem === "javascript") {
         const pkg = readJsonSafe<PackageJson>(path.join(u.absDir, "package.json"));
         if (!pkg) continue;
         const depGroups: Array<{ deps: Record<string, string> | undefined; scope: string }> = [

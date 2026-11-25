@@ -11,6 +11,7 @@ import { codeAstExtractor } from "./extractors/codeAst.ts";
 import { buildCrossDomainLinks } from "./extractors/crossLink.ts";
 import { csharpAstExtractor } from "./extractors/csharpAst.ts";
 import { iacExtractor } from "./extractors/iac.ts";
+import { pythonAstExtractor } from "./extractors/pythonAst.ts";
 import { rustAstExtractor } from "./extractors/rustAst.ts";
 import { surfacesAndGovernanceExtractor } from "./extractors/surfacesAndGovernance.ts";
 import { testingAndRulesExtractor } from "./extractors/testingAndRules.ts";
@@ -25,6 +26,7 @@ import {
   storeDigestInDb,
 } from "./indexDb.ts";
 import { buildAllDiagrams, buildStaticTraces, resolveEvidenceAnchors } from "./layout.ts";
+import { buildModuleArchitecture } from "./moduleGraph.ts";
 import {
   buildFilePassport,
   buildImpactReport,
@@ -45,6 +47,7 @@ import { generateIdsModule, generateSqliteSdkModule } from "./sdkGen.ts";
 export const DEFAULT_EXTRACTORS: ExtractorPlugin[] = [
   archExtractor,
   codeAstExtractor,
+  pythonAstExtractor,
   rustAstExtractor,
   csharpAstExtractor,
   ciExtractor,
@@ -68,6 +71,8 @@ export async function generateRepoSpec(
   const targetDbPath =
     dbOutPath ?? path.join(os.tmpdir(), `repospec-${process.pid}-${ctx.repoName.replace(/[^a-zA-Z0-9_-]/g, "_")}.sqlite`);
 
+  const moduleArch = buildModuleArchitecture({ units: ctx.units, ast: merged.ast });
+
   const db = createAndPopulateIndexDb({
     dbPath: targetDbPath,
     repoName: ctx.repoName,
@@ -81,6 +86,7 @@ export async function generateRepoSpec(
     stateMachines: merged.stateMachines,
     loops: merged.loops,
     catalogArtifacts: merged.catalogArtifacts,
+    modules: moduleArch.modules,
   });
 
   let invariants = [];
@@ -97,13 +103,13 @@ export async function generateRepoSpec(
   }
 
   const projected = projectInvariantsToGraph(merged.nodes, merged.edges, invariants);
-  const diagrams = buildAllDiagrams(projected.nodes, projected.edges, merged.stateMachines);
+  const diagrams = buildAllDiagrams(projected.nodes, projected.edges, merged.stateMachines, moduleArch.diagrams);
   const anchoredInvariants = resolveEvidenceAnchors(invariants, diagrams);
   const traces = buildStaticTraces(diagrams);
 
   const spec = buildCanonicalSpec({
     ctx,
-    extractorIds: [...DEFAULT_EXTRACTORS.map((e) => e.id), "cross-domain.linker.v4", "sqlite.invariants.v4"],
+    extractorIds: [...DEFAULT_EXTRACTORS.map((e) => e.id), "cross-domain.linker.v4", "module-graph.v5", "sqlite.invariants.v4"],
     nodes: projected.nodes,
     edges: projected.edges,
     rules: merged.rules,
@@ -113,6 +119,7 @@ export async function generateRepoSpec(
     stateMachines: merged.stateMachines,
     loops: merged.loops,
     catalogArtifacts: merged.catalogArtifacts,
+    modules: moduleArch.modules,
     traces,
     surfaces,
     diagrams,

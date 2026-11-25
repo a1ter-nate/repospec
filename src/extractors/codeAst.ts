@@ -4,6 +4,7 @@ import ts from "typescript";
 import type {
   CanonicalLayer,
   EdgeEvidenceItem,
+  ExportedSymbol,
   ExtractorPlugin,
   GraphFragment,
   LoopRecord,
@@ -21,6 +22,7 @@ import {
   resolveFeatureOrLayerPath,
   resolveLayerSemantics,
 } from "../taxonomy.ts";
+import { detectCapabilities, isExcludedCodePath } from "./moduleFacts.ts";
 
 interface DomainsJson {
   domains?: Array<{ id: string; kind?: string; ownedPaths?: string[] }>;
@@ -169,8 +171,13 @@ function resolveTsSpecifier(
       `${base}.tsx`,
       `${base}.mts`,
       `${base}.js`,
+      `${base}.jsx`,
+      `${base}.mjs`,
+      `${base}.cjs`,
       `${base}/index.ts`,
       `${base}/index.tsx`,
+      `${base}/index.js`,
+      `${base}/index.mjs`,
       base.replace(/\.js$/, ".ts"),
       base.replace(/\.mjs$/, ".ts"),
     ];
@@ -361,10 +368,12 @@ function extractTsTransitionsFromFile(
 }
 
 export const codeAstExtractor: ExtractorPlugin = {
-  id: "arch.code-ast.v4",
+  id: "arch.code-ast.v5",
   domain: "arch",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
-    const tsFiles = ctx.allFiles.filter((f) => /\.(ts|tsx|mts|cts)$/.test(f) && !f.endsWith(".d.ts"));
+    const tsFiles = ctx.allFiles.filter(
+      (f) => /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(f) && !f.endsWith(".d.ts") && (!isExcludedCodePath(f) || isTestPath(f)),
+    );
     if (tsFiles.length === 0) {
       return { nodes: [], edges: [], rules: [] };
     }
@@ -376,8 +385,10 @@ export const codeAstExtractor: ExtractorPlugin = {
     const nodes: SpecNode[] = [];
     const edges: SpecEdge[] = [];
 
-    const tsUnits = ctx.units.filter((u) => u.ecosystem === "typescript");
+    const validUnitIds = new Set(ctx.units.map((u) => u.id));
+    const tsUnits = ctx.units.filter((u) => u.ecosystem === "typescript" || u.ecosystem === "javascript");
     const sortedUnits = [...tsUnits].sort((a, b) => b.dir.length - a.dir.length);
+    const anyRootUnit = ctx.units.find((u) => u.dir === ".") ?? null;
     const pkgNameToEntry = new Map<string, { unitName: string; entryFile: string }>();
     for (const u of tsUnits) {
       if (u.entryFile) pkgNameToEntry.set(u.name, { unitName: u.name, entryFile: u.entryFile });
@@ -436,7 +447,13 @@ export const codeAstExtractor: ExtractorPlugin = {
       } catch {
         continue;
       }
-      const scriptKind = rel.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+      const scriptKind = rel.endsWith(".tsx")
+        ? ts.ScriptKind.TSX
+        : rel.endsWith(".jsx")
+          ? ts.ScriptKind.JSX
+          : /\.(?:js|mjs|cjs)$/.test(rel)
+            ? ts.ScriptKind.JS
+            : ts.ScriptKind.TS;
       const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, scriptKind);
       sourceFileCache.set(rel, sf);
 
@@ -460,7 +477,7 @@ export const codeAstExtractor: ExtractorPlugin = {
     }
 
     const unitInfoFor = (rel: string): { unit: UnitDescriptor | null; unitDir: string; unitName: string; unitSlug: string; unitId: string } => {
-      const unit = sortedUnits.find((u) => (u.dir === "." ? true : rel.startsWith(`${u.dir}/`))) ?? null;
+      const unit = sortedUnits.find((u) => (u.dir === "." ? true : rel.startsWith(`${u.dir}/`))) ?? anyRootUnit;
       if (unit) {
         return { unit, unitDir: unit.dir, unitName: unit.name, unitSlug: unit.slug, unitId: unit.id };
       }
@@ -551,6 +568,18 @@ export const codeAstExtractor: ExtractorPlugin = {
       const isBarrel = isPureBarrelFile(sf);
 
       let exportsCount = 0;
+      const exportedSymbols: ExportedSymbol[] = [];
+      const seenExportNames = new Set<string>();
+      const pushExportSymbol = (name: string, kind: ExportedSymbol["kind"], pos: number): void => {
+        if (!name || seenExportNames.has(name) || exportedSymbols.length >= 24) return;
+        seenExportNames.add(name);
+        exportedSymbols.push({
+          name,
+          kind,
+          file: rel,
+          line: sf.getLineAndCharacterOfPosition(pos).line + 1,
+        });
+      };
       const localStateEnums = new Map<string, Set<string>>();
       const localEnumMeta = new Map<string, { values: string[]; line: number }>();
 
@@ -645,6 +674,25 @@ export const codeAstExtractor: ExtractorPlugin = {
           ts.getModifiers(node)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
         ) {
           exportsCount += 1;
+          if (!fm.isTest) {
+            const pos = node.getStart(sf);
+            if (ts.isFunctionDeclaration(node) && node.name) {
+              pushExportSymbol(node.name.text, "function", pos);
+            } else if (ts.isClassDeclaration(node) && node.name) {
+              pushExportSymbol(node.name.text, "class", pos);
+            } else if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node)) {
+              pushExportSymbol(node.name.text, "type", pos);
+            } else if (ts.isVariableStatement(node)) {
+              for (const decl of node.declarationList.declarations) {
+                if (ts.isIdentifier(decl.name)) {
+                  const isFnInit =
+                    decl.initializer &&
+                    (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer));
+                  pushExportSymbol(decl.name.text, isFnInit ? "function" : "const", pos);
+                }
+              }
+            }
+          }
         }
 
         if (
@@ -858,10 +906,11 @@ export const codeAstExtractor: ExtractorPlugin = {
         }
       }
 
+      const fileLang = /\.(?:js|jsx|mjs|cjs)$/.test(rel) ? "javascript" : "typescript";
       ast.files.push({
         file: rel,
         unit: fm.unitName,
-        language: "typescript",
+        language: fileLang,
         layer: fm.rawLayer,
         canonicalLayer: fm.canonicalLayer,
         domainArea: fm.domainArea,
@@ -871,6 +920,8 @@ export const codeAstExtractor: ExtractorPlugin = {
         isBarrel,
         lines,
         exportsCount,
+        exportedSymbols,
+        capabilities: detectCapabilities(text),
       });
 
       if (!fm.isTest && fm.canonicalLayer !== "ops_script" && fm.canonicalLayer !== "unclassified" && fm.unit?.kind === "app") {
@@ -922,13 +973,15 @@ export const codeAstExtractor: ExtractorPlugin = {
           laneLabel: sem.laneLabel,
         },
       });
-      edges.push({
-        from: info.unitId,
-        to: lid,
-        kind: "contains",
-        confidence: "observed",
-        provenance: { file: info.sampleFile },
-      });
+      if (validUnitIds.has(info.unitId)) {
+        edges.push({
+          from: info.unitId,
+          to: lid,
+          kind: "contains",
+          confidence: "observed",
+          provenance: { file: info.sampleFile },
+        });
+      }
     }
 
     const domainCountsSorted = Array.from(domainFileCounts.entries())
@@ -984,6 +1037,7 @@ export const codeAstExtractor: ExtractorPlugin = {
         });
       }
       for (const [unitId, evList] of Array.from(unitDatastoreEvidence.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+        if (!validUnitIds.has(unitId)) continue;
         edges.push({
           from: unitId,
           to: fsId,
@@ -1000,7 +1054,7 @@ export const codeAstExtractor: ExtractorPlugin = {
     const extNodesMap = new Map<string, { label: string; category: string; count: number; sampleFile: string }>();
     for (const [key, entry] of Array.from(unitExternalEvidence.entries()).sort(([a], [b]) => a.localeCompare(b))) {
       const [unitId, extId] = key.split(">");
-      if (!unitId || !extId) continue;
+      if (!unitId || !extId || !validUnitIds.has(unitId)) continue;
       const cur = extNodesMap.get(extId);
       if (cur) cur.count += entry.evidence.length;
       else {

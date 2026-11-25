@@ -16,6 +16,7 @@ import type {
 } from "../schema.ts";
 import { createEmptyAst } from "../schema.ts";
 import { classifyVendorPackage, resolveCanonicalLayer, resolveLayerSemantics } from "../taxonomy.ts";
+import { detectCapabilities, extractRustPublicSymbols, isExcludedCodePath } from "./moduleFacts.ts";
 
 function lineOf(text: string, index: number): number {
   let line = 1;
@@ -260,10 +261,11 @@ export const rustAstExtractor: ExtractorPlugin = {
   id: "arch.rust-ast.v4",
   domain: "arch",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
-    const rsFiles = ctx.allFiles.filter((f) => f.endsWith(".rs"));
+    const rsFiles = ctx.allFiles.filter((f) => f.endsWith(".rs") && !isExcludedCodePath(f));
     if (rsFiles.length === 0) {
       return { nodes: [], edges: [], rules: [] };
     }
+    const validUnitIds = new Set(ctx.units.map((u) => u.id));
 
     const rustUnits = ctx.units.filter((u) => u.ecosystem === "rust");
     const sortedUnits = [...rustUnits].sort((a, b) => b.dir.length - a.dir.length);
@@ -418,6 +420,9 @@ export const rustAstExtractor: ExtractorPlugin = {
       parsedFiles.push(rec);
       parsedByRel.set(rel, rec);
 
+      const rustExports = isIntegrationTestFile ? [] : extractRustPublicSymbols(prodText, rel);
+      const rustCaps = detectCapabilities(prodText);
+
       ast.files.push({
         file: rel,
         unit: unitName,
@@ -430,7 +435,9 @@ export const rustAstExtractor: ExtractorPlugin = {
         isTest: isIntegrationTestFile,
         isBarrel: rel.endsWith("/lib.rs") || rel.endsWith("/mod.rs"),
         lines: text.split("\n").length,
-        exportsCount: (prodText.match(/\bpub\s+(?:async\s+)?(?:fn|struct|enum|trait|type|const)\b/g) ?? []).length,
+        exportsCount: rustExports.length,
+        exportedSymbols: rustExports,
+        capabilities: rustCaps,
       });
 
       const hasInlineTests =
@@ -743,6 +750,7 @@ export const rustAstExtractor: ExtractorPlugin = {
         },
       });
       for (const [crateId, refCount] of crateTableRefs) {
+        if (!validUnitIds.has(crateId)) continue;
         edges.push({
           from: crateId,
           to: "arch:datastore:postgres",
@@ -757,6 +765,7 @@ export const rustAstExtractor: ExtractorPlugin = {
 
     const layerIdByCrateAndName = new Map<string, string>();
     for (const [, info] of Array.from(crateLayerCounts.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+      if (!validUnitIds.has(info.crateId)) continue;
       const unitObj = rustUnits.find((u) => u.id === info.crateId);
       if (unitObj && unitObj.layerPolicy === "flat_library" && info.count < 2) continue;
       const lid = `arch:layer:${info.crateName}:${info.layer}`;

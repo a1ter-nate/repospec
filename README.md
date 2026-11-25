@@ -2,7 +2,7 @@
 
 **OpenAPI for everything else in a codebase.**
 
-RepoSpec is a deterministic, zero-AI, polyglot **architecture compiler (`v4.1.0`)** for **TypeScript, Rust, and C# / .NET**. It compiles source code, tests, CI workflows, IaC, OpenAPI specs, SQL migrations, and governance files into one schema-validated **Index** (`repospec.sqlite` + `repospec.json`) — and derives zero-drift diagrams, SQL invariant checks, typed SDKs, and developer/agent shepherding reports on every commit.
+RepoSpec is a deterministic, zero-AI, polyglot **architecture compiler (`v5.0.0`)** for **TypeScript, JavaScript, Rust, Python, and C# / .NET**. It compiles source code, tests, CI workflows, IaC, OpenAPI specs, SQL migrations, and governance files into one schema-validated **Index** (`repospec.sqlite` + `repospec.json`) — and derives zero-drift **Levelized Module Maps**, **"How This Module Works" Anatomy Inspectors**, SQL invariant checks, typed SDKs, and developer/agent shepherding reports on every commit.
 
 > **Core Guarantee:** Pure commit-time static truth. Running `repospec generate` twice on the same commit produces byte-identical JSON (identical SHA-256) with zero wall-clock timestamps, zero random IDs, and zero LLM calls.
 
@@ -17,9 +17,9 @@ RepoSpec replaces stale architectural prose with one compiled, queryable **Index
 | Output | Artifact | What It Solves |
 | :--- | :--- | :--- |
 | **Canonical IR & Schema** | `repospec.json`, `repospec.schema.json` | Strict Zod + JSON Schema contract with SHA-256 drift checks and structural PR diffs (`repospec diff`) |
-| **Relational Graph DB** | `repospec.sqlite` | SQLite index of files, imports, canonical layer **Axis**/**Rank**, domains, datastores, Postgres FKs, reconciled HTTP **Contracts**, env bindings, state machines, loops, and doc-path drift |
+| **Relational Graph DB** | `repospec.sqlite` | SQLite index of files, imports, exported symbols, IO capabilities, levelized `module_cards`, canonical layer **Axis**/**Rank**, domains, datastores, Postgres FKs, reconciled HTTP **Contracts**, env bindings, state machines, loops, and doc-path drift |
 | **13 Polyglot SQL Invariants** | `rules/*.sql` | Executable architectural gates (layer inversions, datastore bypasses, vendor leaks, domain cycles, workspace cycles, untested high-fan-in modules, env drift, doc drift) projected directly onto graph nodes & edges |
-| **Interactive Visual Studio** | `repospec.html` (`--inline` embed) | Fixed-rank swimlanes showing the architectural **Spine** + red violations at rest, instant 1-hop hover ego-graphs, a zero-crossing **Design Structure Matrix (DSM)** view (`M`), Bow-Tie Focus (`F`), and a Findings-first expandable Inspector |
+| **Interactive Visual Studio** | `repospec.html` (`--inline` embed) | Adaptive **Levelized Module Atlas** (Tarjan SCC tangle detection + Kahn `L0 Entry → Ln Foundation` lanes + subsystem drill-down + 3-sentence Architecture Story), **Module Anatomy Inspector** (Public API symbols, IO capability pills, Ousterhout depth), fixed-rank layer swimlanes, 1-hop hover ego-graphs, **Design Structure Matrix (DSM)** (`M`), and Bow-Tie Focus (`F`) |
 | **Slim Typed SDK** | `repospec.ids.ts`, `repospec.sdk.ts` | Closed union node IDs + typed query helpers backed directly by `bun:sqlite` |
 | **Active Shepherding CLI** | `explain`, `impact`, `precedents` | Grounded file/unit **Passports**, git-range PR blast-radius briefs, and verified **Precedent** placement checks (refuses with `destination: null` when ungrounded) |
 
@@ -37,7 +37,7 @@ bun install
 # Self-verify RepoSpec (strict TS, R2 tables & PBT, R3 stateful MBT, Oxlint, Veristack gates)
 bun run check
 
-# Compile any TypeScript, Rust, or C#/.NET repository
+# Compile any TypeScript, JavaScript, Rust, Python, or C#/.NET repository
 bun src/cli.ts generate /path/to/repo --out ./out/my-repo --mode artifact --inline
 ```
 
@@ -54,6 +54,8 @@ bun src/cli.ts impact HEAD~5..HEAD --db ./out/my-repo/repospec.sqlite --repo /pa
 bun src/cli.ts precedents --path src/Domain/NewService.cs --db ./out/my-repo/repospec.sqlite
 
 # Named or ad-hoc SQL queries against the indexed graph
+bun src/cli.ts query ./out/my-repo/repospec.sqlite --named modules
+bun src/cli.ts query ./out/my-repo/repospec.sqlite --named tangles
 bun src/cli.ts query ./out/my-repo/repospec.sqlite --named violations
 bun src/cli.ts query ./out/my-repo/repospec.sqlite --named http_endpoints
 bun src/cli.ts query ./out/my-repo/repospec.sqlite --named fk_cascades
@@ -70,6 +72,7 @@ bun src/cli.ts diff ./out/base/repospec.json ./out/head/repospec.json
 
 ## Architectural Design
 
+- **Universal Levelized Module Atlas (`src/topoLevels.ts`, `src/moduleGraph.ts`):** Works on **any** codebase — single-package CLIs, Python packages, Rust crates, C# projects, or polyglot monorepos — without requiring `routes/`/`service/`/`dao/` folder names. Automatically peels single-root wrappers, detects cyclic **Tangles** via Tarjan SCC, levelizes the condensed DAG (`L0 Entry → Ln Foundation`) via Kahn longest-path ordering, and extracts per-module **Anatomy** (exported public API symbols, IO capabilities `DB`/`HTTP`/`FS`/`PROC`/`ENV`/`PURE`, Ousterhout depth, and drill-down subsystem maps).
 - **First-Class Layer Axis & Rank (`src/taxonomy.ts`):** Every `code_layer` carries `{ axis: "pipeline" | "integration" | "foundation", rank }` shared identically by extractors, SQL rules, and diagram layout. Clean hexagonal flow (`Entry & Routes` → `Controllers` → `Orchestration` → `Persistence & Integration` → `Stores & External`) travels strictly left-to-right across adjacent lanes while `Shared Foundation` sits underneath.
 - **Typed External Dependencies (`config/default-vendors.json`):** Separates real third-party **services** (with automatic `-js`/`-sdk`/`-client` family canonicalization) from **transport libraries** (`axios`, `node-fetch`, `reqwest`) and **observability aspects** (`Sentry`, `OpenTelemetry` badges).
 - **Contract-First Surface Reconciliation (`src/indexDb.ts`):** Reconciles OpenAPI **Contracts** ahead of unmounted Express/Axum/ASP.NET sub-router fragments and attaches AST handler `file:line` provenance when matched.

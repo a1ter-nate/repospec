@@ -18,7 +18,7 @@ function makeFixture(files: Record<string, string>): string {
   return dir;
 }
 
-describe("RepoSpec v4 polyglot suite [REQ-HYGIENE-01]", () => {
+describe("RepoSpec v5 polyglot suite [REQ-HYGIENE-01]", () => {
   test("TypeScript monorepo: domains.json object shapes, scripts ops_script, OpenAPI, slim SDK, determinism", async () => {
     const dir = makeFixture({
       "package.json": JSON.stringify({ name: "@demo/repo", workspaces: ["apps/*", "packages/*"] }),
@@ -80,9 +80,11 @@ describe("RepoSpec v4 polyglot suite [REQ-HYGIENE-01]", () => {
     const run1 = await generateRepoSpec(dir, "artifact", dbPath);
     const run2 = await generateRepoSpec(dir, "artifact", path.join(dir, "out2.sqlite"));
 
-    expect(run1.spec.schemaVersion).toBe("4.1.0");
+    expect(run1.spec.schemaVersion).toBe("5.0.0");
     expect(run1.digest).toBe(run2.digest);
     expect(run1.spec.diagnostics.filter((d) => d.severity === "error").length).toBe(0);
+    expect(run1.spec.modules.length).toBeGreaterThanOrEqual(3);
+    expect(run1.spec.diagrams.some((d) => d.category === "modules")).toBe(true);
 
     const bypass = run1.spec.invariants.find((i) => i.id === "sql:layer-bypass-datastore");
     expect(bypass?.status).toBe("pass");
@@ -122,9 +124,9 @@ describe("RepoSpec v4 polyglot suite [REQ-HYGIENE-01]", () => {
 
     const inlineHtml = renderVisualHtml(run1.spec, run1.digest, { inline: true });
     expect(inlineHtml).not.toContain("100vh");
-    expect(inlineHtml).toContain("RepoSpec v4.1.0");
+    expect(inlineHtml).toContain("RepoSpec v5.0.0");
     expect(inlineHtml).toContain("Matrix (DSM)");
-    expect(inlineHtml).toContain("renderDisclosure");
+    expect(inlineHtml).toContain("renderModuleInspector");
     const scriptMatch = inlineHtml.match(/<script>\n([\s\S]*?)<\/script>/);
     expect(scriptMatch?.[1]).toBeTruthy();
     expect(() => new Function(scriptMatch?.[1] ?? "")).not.toThrow();
@@ -239,6 +241,91 @@ describe("RepoSpec v4 polyglot suite [REQ-HYGIENE-01]", () => {
     expect(run.spec.summary.testFilesByRung.R8).toBe(2);
     expect(canonicalizeGitRemote("https://x-access-token:secret@github.com/org/repo.git")).toBe("https://github.com/org/repo");
     expect(canonicalizeGitRemote("git@github.com-work:org/repo.git")).toBe("https://github.com/org/repo");
+
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("Python + JavaScript polyglot project: pyproject.toml, single-root peeling, FastAPI routes, capabilities, module levels", async () => {
+    const dir = makeFixture({
+      "pyproject.toml": `[project]\nname = "soundlab"\nversion = "0.2.0"\ndependencies = ["fastapi", "uvicorn"]\n`,
+      "soundlab/__init__.py": `from .server import create_app\n`,
+      "soundlab/server.py": `
+import os
+from fastapi import FastAPI
+from .engine.synth import render_tone
+from .storage.store import save_preset
+
+app = FastAPI()
+
+@app.get("/api/presets")
+def list_presets():
+    key = os.getenv("AUDIO_API_KEY")
+    return save_preset(render_tone(440), key)
+`,
+      "soundlab/engine/__init__.py": `from .synth import render_tone\n`,
+      "soundlab/engine/synth.py": `
+from ..core.math_ops import normalize_wave
+
+def render_tone(freq: float) -> list[float]:
+    return normalize_wave([freq, freq * 2])
+`,
+      "soundlab/storage/store.py": `
+import sqlite3
+from ..core.math_ops import normalize_wave
+
+def save_preset(samples, key):
+    conn = sqlite3.connect(":memory:")
+    return len(normalize_wave(samples)), bool(conn), bool(key)
+`,
+      "soundlab/core/math_ops.py": `
+def normalize_wave(vals: list[float]) -> list[float]:
+    return [v / 2.0 for v in vals]
+`,
+      "web/player.mjs": `
+import { formatHz } from "./format.mjs";
+export function playTone(hz) {
+  return fetch("https://audio.example.net/v1/play?hz=" + formatHz(hz));
+}
+`,
+      "web/format.mjs": `
+export function formatHz(hz) {
+  return String(Math.round(hz)) + "Hz";
+}
+`,
+      "tests/test_synth.py": `
+from soundlab.engine.synth import render_tone
+def test_tone():
+    assert render_tone(440)
+`,
+    });
+
+    const run = await generateRepoSpec(dir, "artifact");
+    expect(run.spec.diagnostics.filter((d) => d.severity === "error").length).toBe(0);
+    expect(run.spec.repo.languages).toContain("python");
+    expect(run.spec.repo.languages).toContain("javascript");
+    expect(run.spec.summary.httpEndpoints).toBe(1);
+    expect(run.spec.surfaces.envBindings.some((e) => e.name === "AUDIO_API_KEY")).toBe(true);
+
+    const modNames = run.spec.modules.map((m) => m.name);
+    expect(modNames).toContain("server");
+    expect(modNames).toContain("engine");
+    expect(modNames).toContain("storage");
+    expect(modNames).toContain("core");
+
+    const serverMod = run.spec.modules.find((m) => m.name === "server");
+    const coreMod = run.spec.modules.find((m) => m.name === "core");
+    const storageMod = run.spec.modules.find((m) => m.name === "storage");
+    expect(serverMod).toBeTruthy();
+    expect(coreMod).toBeTruthy();
+    expect((serverMod?.level ?? 99) < (coreMod?.level ?? 0)).toBe(true);
+    expect(serverMod?.capabilities).toContain("HTTP");
+    expect(storageMod?.capabilities).toContain("DB");
+    expect(coreMod?.capabilities).toEqual(["PURE"]);
+    expect(serverMod?.topExports.some((s) => s.name === "list_presets")).toBe(true);
+
+    const modDiag = run.spec.diagrams.find((d) => d.category === "modules");
+    expect(modDiag).toBeTruthy();
+    expect((modDiag?.edges.length ?? 0)).toBeGreaterThanOrEqual(3);
 
     fs.rmSync(dir, { recursive: true, force: true });
   });

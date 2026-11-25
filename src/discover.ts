@@ -4,29 +4,27 @@ import path from "node:path";
 import type { Ecosystem, RepoContext, StorageMode } from "./schema.ts";
 import { canonicalizeGitRemote, discoverUnits } from "./taxonomy.ts";
 
+const ALLOWED_DOT_DIRS = new Set([".github", ".verification", ".husky"]);
+
 const IGNORED_DIRS = new Set([
-  ".git",
-  ".claude",
-  ".codex",
-  ".cursor",
-  ".t3",
-  ".worktrees",
   "node_modules",
   "dist",
   "build",
-  ".next",
-  ".turbo",
-  ".vercel",
   "coverage",
   "target",
   "bin",
   "obj",
   "vendor",
-  ".venv",
-  ".pytest_cache",
+  "venv",
   "Pods",
   "DerivedData",
-  ".gradle",
+  "__pycache__",
+  "out",
+  "output",
+  "corpus",
+  "reports",
+  "feature-map-runs",
+  "Claude outputs",
 ]);
 
 function readCargoExcludes(rootDir: string): Set<string> {
@@ -62,6 +60,7 @@ function walkFiles(rootDir: string, excludedPrefixes: Set<string>, relBase = "",
     const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
     if (excludedPrefixes.has(rel)) continue;
     if (entry.isDirectory()) {
+      if (entry.name.startsWith(".") && !ALLOWED_DOT_DIRS.has(entry.name)) continue;
       if (IGNORED_DIRS.has(entry.name)) continue;
       walkFiles(rootDir, excludedPrefixes, rel, out);
     } else if (entry.isFile()) {
@@ -114,33 +113,74 @@ function readGitInfo(rootDir: string): {
 }
 
 function detectEcosystemAndLanguages(allFiles: string[]): { ecosystem: Ecosystem; languages: string[] } {
-  const hasTs = allFiles.some((f) => /\.(ts|tsx|mts|cts)$/.test(f)) || allFiles.includes("package.json");
-  const hasRust = allFiles.some((f) => f.endsWith(".rs")) || allFiles.includes("Cargo.toml");
-  const hasCsharp = allFiles.some((f) => f.endsWith(".cs") || f.endsWith(".csproj") || f.endsWith(".slnx") || f.endsWith(".sln"));
+  const nonTemplateFiles = allFiles.filter((f) => !/^(?:templates|examples|fixtures)\//i.test(f));
+  const scanFiles = nonTemplateFiles.length > 0 ? nonTemplateFiles : allFiles;
+  const hasTs = scanFiles.some((f) => /\.(ts|tsx|mts|cts)$/.test(f));
+  const hasJs = scanFiles.some((f) => /\.(js|jsx|mjs|cjs)$/.test(f)) || (!hasTs && scanFiles.includes("package.json"));
+  const hasRust = scanFiles.some((f) => f.endsWith(".rs")) || scanFiles.includes("Cargo.toml");
+  const hasPython = scanFiles.some((f) => f.endsWith(".py")) || scanFiles.includes("pyproject.toml");
+  const hasCsharp = scanFiles.some((f) => f.endsWith(".cs") || f.endsWith(".csproj") || f.endsWith(".slnx") || f.endsWith(".sln"));
 
   const languages: string[] = [];
   if (hasTs) languages.push("typescript");
+  if (hasJs) languages.push("javascript");
   if (hasRust) languages.push("rust");
+  if (hasPython) languages.push("python");
   if (hasCsharp) languages.push("csharp");
-  if (allFiles.some((f) => f.endsWith(".swift"))) languages.push("swift");
-  if (allFiles.some((f) => f.endsWith(".kt"))) languages.push("kotlin");
-  if (allFiles.some((f) => f.endsWith(".tf"))) languages.push("hcl");
-  if (allFiles.some((f) => f.endsWith(".sql"))) languages.push("sql");
-  if (allFiles.some((f) => f.endsWith(".dfy") || f.endsWith(".qnt"))) languages.push("formal");
+  if (scanFiles.some((f) => f.endsWith(".swift"))) languages.push("swift");
+  if (scanFiles.some((f) => f.endsWith(".kt"))) languages.push("kotlin");
+  if (scanFiles.some((f) => f.endsWith(".tf"))) languages.push("hcl");
+  if (scanFiles.some((f) => f.endsWith(".sql"))) languages.push("sql");
+  if (scanFiles.some((f) => f.endsWith(".dfy") || f.endsWith(".qnt"))) languages.push("formal");
 
-  const primaryCount = [hasTs, hasRust, hasCsharp].filter(Boolean).length;
-  let ecosystem: Ecosystem = "typescript";
+  const hasNode = hasTs || hasJs;
+  const primaryCount = [hasNode, hasRust, hasPython, hasCsharp].filter(Boolean).length;
+  let ecosystem: Ecosystem = hasTs ? "typescript" : "javascript";
   if (primaryCount > 1) {
-    if (allFiles.includes("Cargo.toml") && !allFiles.includes("package.json")) ecosystem = "rust";
-    else if (hasCsharp && !allFiles.includes("package.json") && !allFiles.includes("Cargo.toml")) ecosystem = "csharp";
-    else ecosystem = "polyglot";
+    if (allFiles.includes("Cargo.toml") && !allFiles.includes("package.json") && !allFiles.includes("pyproject.toml")) {
+      ecosystem = "rust";
+    } else if (hasCsharp && !allFiles.includes("package.json") && !allFiles.includes("Cargo.toml") && !allFiles.includes("pyproject.toml")) {
+      ecosystem = "csharp";
+    } else if (allFiles.includes("pyproject.toml") && !allFiles.includes("package.json") && !allFiles.includes("Cargo.toml")) {
+      ecosystem = "python";
+    } else {
+      ecosystem = "polyglot";
+    }
   } else if (hasRust) {
     ecosystem = "rust";
+  } else if (hasPython) {
+    ecosystem = "python";
   } else if (hasCsharp) {
     ecosystem = "csharp";
   }
 
   return { ecosystem, languages: languages.sort() };
+}
+
+function readPyprojectName(rootDir: string): string | null {
+  const pyPath = path.join(rootDir, "pyproject.toml");
+  if (!fs.existsSync(pyPath)) return null;
+  try {
+    const text = fs.readFileSync(pyPath, "utf8");
+    const m = text.match(/\[project\][\s\S]*?^\s*name\s*=\s*["']([^"']+)["']/m);
+    if (m?.[1]) return m[1];
+    const poetry = text.match(/\[tool\.poetry\][\s\S]*?^\s*name\s*=\s*["']([^"']+)["']/m);
+    return poetry?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readCargoPackageName(rootDir: string): string | null {
+  const cargoPath = path.join(rootDir, "Cargo.toml");
+  if (!fs.existsSync(cargoPath)) return null;
+  try {
+    const text = fs.readFileSync(cargoPath, "utf8");
+    const m = text.match(/\[package\][\s\S]*?^\s*name\s*=\s*"([^"]+)"/m);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function discoverRepo(rootDir: string, storageMode: StorageMode): RepoContext {
@@ -161,8 +201,12 @@ export function discoverRepo(rootDir: string, storageMode: StorageMode): RepoCon
       repoName = path.basename(resolved);
     }
   } else {
+    const pyName = readPyprojectName(resolved);
+    const cargoName = readCargoPackageName(resolved);
     const slnx = allFiles.find((f) => f.endsWith(".slnx") || f.endsWith(".sln"));
-    if (slnx && !allFiles.includes("Cargo.toml")) {
+    if (pyName) repoName = pyName;
+    else if (cargoName) repoName = cargoName;
+    else if (slnx && !allFiles.includes("Cargo.toml")) {
       repoName = path.posix.basename(slnx).replace(/\.slnx?$/, "");
     }
   }

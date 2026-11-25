@@ -11,6 +11,7 @@ import type {
   HttpEndpointSummary,
   InvariantEvidence,
   LoopRecord,
+  ModuleCard,
   Rung,
   SpecDiagnostic,
   SpecEdge,
@@ -74,6 +75,7 @@ export function createAndPopulateIndexDb(params: {
   stateMachines: StateMachineRecord[];
   loops: LoopRecord[];
   catalogArtifacts: CatalogArtifact[];
+  modules?: ModuleCard[];
 }): Database {
   const {
     dbPath,
@@ -88,6 +90,7 @@ export function createAndPopulateIndexDb(params: {
     stateMachines,
     loops,
     catalogArtifacts,
+    modules = [],
   } = params;
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -321,6 +324,35 @@ export function createAndPopulateIndexDb(params: {
       owner_unit_id TEXT
     );
 
+    CREATE TABLE module_cards (
+      id TEXT PRIMARY KEY,
+      unit_id TEXT NOT NULL,
+      unit_name TEXT NOT NULL,
+      unit_slug TEXT NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      rel_path TEXT NOT NULL,
+      language TEXT NOT NULL,
+      level INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      depth TEXT NOT NULL,
+      file_count INTEGER NOT NULL,
+      lines INTEGER NOT NULL,
+      export_count INTEGER NOT NULL,
+      fan_in INTEGER NOT NULL,
+      fan_out INTEGER NOT NULL,
+      in_tangle INTEGER NOT NULL,
+      tangle_id TEXT,
+      capabilities TEXT NOT NULL
+    );
+
+    CREATE TABLE file_symbols (
+      file TEXT NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      line INTEGER NOT NULL
+    );
+
     CREATE TABLE invariant_results (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -526,9 +558,15 @@ export function createAndPopulateIndexDb(params: {
   const insertCatalog = db.prepare(
     "INSERT OR IGNORE INTO catalog_artifacts (id, kind, file, owner_unit_id) VALUES (?, ?, ?, ?)",
   );
+  const insertModuleCard = db.prepare(
+    "INSERT OR REPLACE INTO module_cards (id, unit_id, unit_name, unit_slug, name, kind, rel_path, language, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, tangle_id, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertFileSymbol = db.prepare(
+    "INSERT INTO file_symbols (file, name, kind, line) VALUES (?, ?, ?, ?)",
+  );
 
   db.transaction(() => {
-    insertMeta.run("schemaVersion", "4.1.0");
+    insertMeta.run("schemaVersion", "5.0.0");
     insertMeta.run("repoName", repoName);
     insertMeta.run("commitSha", commitSha ?? "");
     insertMeta.run("scopeRootRel", scopeRootRel);
@@ -594,6 +632,32 @@ export function createAndPopulateIndexDb(params: {
         f.isBarrel ? 1 : 0,
         f.lines,
         f.exportsCount,
+      );
+      for (const sym of f.exportedSymbols ?? []) {
+        insertFileSymbol.run(f.file, sym.name, sym.kind, sym.line);
+      }
+    }
+    for (const m of modules) {
+      insertModuleCard.run(
+        m.id,
+        m.unitId,
+        m.unitName,
+        m.unitSlug,
+        m.name,
+        m.kind,
+        m.relPath,
+        m.language,
+        m.level,
+        m.role,
+        m.depth,
+        m.fileCount,
+        m.lines,
+        m.exportCount,
+        m.fanIn,
+        m.fanOut,
+        m.inTangle ? 1 : 0,
+        m.tangleId,
+        m.capabilities.join(","),
       );
     }
     for (const fi of ast.fileImports) {
@@ -1236,4 +1300,6 @@ export const NAMED_QUERIES: Record<string, string> = {
   env_bindings: `SELECT env_name, GROUP_CONCAT(DISTINCT source_kind) AS sources, GROUP_CONCAT(DISTINCT unit) AS units, MAX(is_secret) AS is_secret FROM env_bindings GROUP BY env_name ORDER BY is_secret DESC, env_name ASC LIMIT 100;`,
   gov_rules: `SELECT id, kind, scope_prefix, symbol, text, rationale, file, line FROM gov_rules ORDER BY kind ASC, scope_prefix ASC LIMIT 100;`,
   doc_drift: `SELECT doc_file, line, referenced_path FROM v_doc_drift ORDER BY doc_file ASC, line ASC;`,
+  modules: `SELECT unit_slug, name, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, capabilities FROM module_cards ORDER BY unit_slug ASC, level ASC, name ASC LIMIT 200;`,
+  tangles: `SELECT unit_slug, tangle_id, name, level, fan_in, fan_out, lines FROM module_cards WHERE in_tangle = 1 ORDER BY unit_slug ASC, tangle_id ASC, name ASC;`,
 };

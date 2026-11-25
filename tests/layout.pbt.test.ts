@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import { buildAllDiagrams } from "../src/layout.ts";
+import { buildModuleArchitecture } from "../src/moduleGraph.ts";
 import { renderVisualHtml } from "../src/render.ts";
-import type { CanonicalLayer, LayoutNode, RepoSpecV4, SpecEdge, SpecNode } from "../src/schema.ts";
+import { createEmptyAst, type CanonicalLayer, type LayoutNode, type RepoSpecV4, type SpecEdge, type SpecNode, type UnitDescriptor } from "../src/schema.ts";
 import { resolveLayerSemantics } from "../src/taxonomy.ts";
+import { computeTopologicalLevels } from "../src/topoLevels.ts";
 
 const LAYER_POOL: Array<{ raw: string; canonical: CanonicalLayer }> = [
   { raw: "routes", canonical: "transport" },
@@ -184,7 +186,7 @@ describe("Layout & renderer geometric invariants (R2 PBT) [REQ-LAYOUT-01] [REQ-R
           const safeName = rawName.trim() || "demo-repo";
           const diagrams = buildAllDiagrams(nodes, edges, []);
           const spec: RepoSpecV4 = {
-            schemaVersion: "4.1.0",
+            schemaVersion: "5.0.0",
             specKind: "repospec.canonical",
             repo: {
               name: safeName,
@@ -205,6 +207,7 @@ describe("Layout & renderer geometric invariants (R2 PBT) [REQ-LAYOUT-01] [REQ-R
             stateMachines: [],
             loops: [],
             catalogArtifacts: [],
+            modules: [],
             traces: [],
             surfaces: { endpoints: [], foreignKeys: [], envBindings: [], govRules: [] },
             diagrams,
@@ -256,6 +259,109 @@ describe("Layout & renderer geometric invariants (R2 PBT) [REQ-LAYOUT-01] [REQ-R
         },
       ),
       { numRuns: 20, seed: 1337 },
+    );
+  });
+
+  test("computeTopologicalLevels enforces strict DAG monotonicity outside Tarjan tangles and deterministic module diagrams", () => {
+    const modGraphArb = fc
+      .record({
+        n: fc.integer({ min: 3, max: 12 }),
+        rawEdges: fc.array(
+          fc.record({
+            from: fc.integer({ min: 0, max: 11 }),
+            to: fc.integer({ min: 0, max: 11 }),
+          }),
+          { minLength: 2, maxLength: 28 },
+        ),
+      })
+      .map(({ n, rawEdges }) => {
+        const ids = Array.from({ length: n }, (_, i) => `m${i}`);
+        const edges = rawEdges
+          .map((e) => ({ from: `m${e.from % n}`, to: `m${e.to % n}` }))
+          .filter((e) => e.from !== e.to);
+        return { ids, edges };
+      });
+
+    fc.assert(
+      fc.property(modGraphArb, ({ ids, edges }) => {
+        const res1 = computeTopologicalLevels(ids, edges);
+        const res2 = computeTopologicalLevels(reverseCopy(ids), reverseCopy(edges));
+        expect(Array.from(res1.levels.entries())).toEqual(Array.from(res2.levels.entries()));
+        expect(Array.from(res1.inTangle.entries())).toEqual(Array.from(res2.inTangle.entries()));
+
+        for (const e of edges) {
+          const tf = res1.inTangle.get(e.from);
+          const tt = res1.inTangle.get(e.to);
+          const lf = res1.levels.get(e.from) ?? 0;
+          const lt = res1.levels.get(e.to) ?? 0;
+          const sameTangle = Boolean(tf && tf === tt);
+          expect(sameTangle ? lf === lt : lf < lt).toBe(true);
+        }
+
+        const unit: UnitDescriptor = {
+          id: "arch:app:demo",
+          name: "demo",
+          slug: "demo",
+          dir: ".",
+          absDir: "/tmp/demo",
+          manifestFile: "package.json",
+          ecosystem: "typescript",
+          kind: "app",
+          archetype: "cli_worker",
+          layerPolicy: "flat_library",
+          external: false,
+          entryFile: "src/m0.ts",
+          targetFramework: null,
+          bins: [],
+        };
+        const ast = createEmptyAst();
+        for (const id of ids) {
+          ast.files.push({
+            file: `src/${id}.ts`,
+            unit: "demo",
+            language: "typescript",
+            layer: "root",
+            canonicalLayer: "unclassified",
+            domainArea: null,
+            layerSource: "path_convention",
+            domainSource: "none",
+            isTest: false,
+            isBarrel: false,
+            lines: 60,
+            exportsCount: 2,
+            exportedSymbols: [{ name: `run_${id}`, kind: "function", file: `src/${id}.ts`, line: 1 }],
+            capabilities: ["PURE"],
+          });
+        }
+        for (const e of edges) {
+          ast.fileImports.push({
+            fromFile: `src/${e.from}.ts`,
+            toFile: `src/${e.to}.ts`,
+            fromUnit: "demo",
+            toUnit: "demo",
+            fromLayer: "root",
+            toLayer: "root",
+            fromCanonicalLayer: "unclassified",
+            toCanonicalLayer: "unclassified",
+            fromDomain: null,
+            toDomain: null,
+            line: 1,
+            typeOnly: false,
+          });
+        }
+        const arch = buildModuleArchitecture({ units: [unit], ast });
+        expect(arch.modules.length).toBe(ids.length);
+        for (const diag of arch.diagrams) {
+          for (let i = 0; i < diag.nodes.length; i += 1) {
+            for (let j = i + 1; j < diag.nodes.length; j += 1) {
+              const a = diag.nodes[i];
+              const b = diag.nodes[j];
+              expect(Boolean(a && b && boxesOverlap(a, b))).toBe(false);
+            }
+          }
+        }
+      }),
+      { numRuns: 40, seed: 50505 },
     );
   });
 });

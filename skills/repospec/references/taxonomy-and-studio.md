@@ -4,7 +4,7 @@ Consult this reference when extending polyglot extractors, configuring external 
 
 ## 1. Canonical Layer Axis & Rank Model
 
-`resolveLayerSemantics()` in `src/taxonomy.ts` is the single source of truth shared by TypeScript, Rust, and C# extractors, SQLite `files`, and `src/layout.ts`:
+`resolveLayerSemantics()` in `src/taxonomy.ts` is the single source of truth shared by TypeScript, JavaScript, Python, Rust, and C# extractors, SQLite `files`, and `src/layout.ts`:
 
 | Axis | Rank | Lane ID | Typical Layers |
 | :--- | :---: | :--- | :--- |

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type {
   CanonicalLayer,
+  ExportedSymbol,
   ExtractorPlugin,
   GraphFragment,
   LoopRecord,
@@ -14,6 +15,7 @@ import type {
 } from "../schema.ts";
 import { createEmptyAst } from "../schema.ts";
 import { classifyVendorPackage, resolveLayerSemantics } from "../taxonomy.ts";
+import { detectCapabilities, isExcludedCodePath } from "./moduleFacts.ts";
 
 function lineOf(text: string, index: number): number {
   let line = 1;
@@ -78,14 +80,17 @@ export const csharpAstExtractor: ExtractorPlugin = {
   domain: "arch",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
     const csUnits = ctx.units.filter((u) => u.ecosystem === "csharp");
-    const inTreeCs = ctx.allFiles.filter((f) => f.endsWith(".cs"));
+    const validUnitIds = new Set(ctx.units.map((u) => u.id));
+    const inTreeCs = ctx.allFiles.filter((f) => f.endsWith(".cs") && (csUnits.length > 0 || !isExcludedCodePath(f)));
     const externalCs: string[] = [];
     for (const u of csUnits) {
       if (u.external) {
         externalCs.push(...walkCsFilesInDir(u.absDir, ctx.rootDir));
       }
     }
-    const allCsFiles = Array.from(new Set([...inTreeCs, ...externalCs])).sort();
+    const allCsFiles = Array.from(new Set([...inTreeCs, ...externalCs]))
+      .filter((f) => csUnits.length > 0 ? !/^(?:templates|fixtures|corpus|reports)\//i.test(f) || csUnits.some((u) => f.startsWith(`${u.dir}/`)) : !isExcludedCodePath(f))
+      .sort();
     if (allCsFiles.length === 0) {
       return { nodes: [], edges: [], rules: [] };
     }
@@ -144,11 +149,24 @@ export const csharpAstExtractor: ExtractorPlugin = {
       const { rawLayer, canonicalLayer } = classifyCsharpLayer(rel, text, unit);
       const isTest = canonicalLayer === "tests";
 
-      const symbols = Array.from(
-        text.matchAll(/\b(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+)*(?:class|record|interface|enum|struct)\s+([A-Za-z0-9_]+)/g),
-      )
-        .map((m) => m[1] ?? "")
-        .filter(Boolean);
+      const exportedSymbols: ExportedSymbol[] = [];
+      const symbols: string[] = [];
+      for (const m of text.matchAll(
+        /\b(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(class|record|interface|enum|struct)\s+([A-Za-z0-9_]+)/g,
+      )) {
+        const rawKind = m[1];
+        const symName = m[2];
+        if (!rawKind || !symName) continue;
+        symbols.push(symName);
+        if (!isTest && exportedSymbols.length < 24) {
+          exportedSymbols.push({
+            name: symName,
+            kind: rawKind === "interface" || rawKind === "enum" ? "type" : "class",
+            file: rel,
+            line: lineOf(text, m.index ?? 0),
+          });
+        }
+      }
 
       ast.files.push({
         file: rel,
@@ -163,6 +181,8 @@ export const csharpAstExtractor: ExtractorPlugin = {
         isBarrel: false,
         lines: text.split("\n").length,
         exportsCount: symbols.length,
+        exportedSymbols,
+        capabilities: detectCapabilities(text),
       });
 
       if (ns && !isTest) {
@@ -481,6 +501,7 @@ export const csharpAstExtractor: ExtractorPlugin = {
     }
 
     for (const [, info] of Array.from(layerCounts.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+      if (!validUnitIds.has(info.projId)) continue;
       const lid = `arch:layer:${info.projName}:${info.layer}`;
       const sem = resolveLayerSemantics(info.layer, info.canonicalLayer);
       nodes.push({

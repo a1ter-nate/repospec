@@ -53,6 +53,11 @@ function buildCompactRenderPayload(spec: RepoSpecV4, digest: string, inline: boo
     entities: spec.entities.slice(0, inline ? 60 : 250),
     stateMachines: spec.stateMachines.slice(0, inline ? 20 : 40),
     loops: spec.loops.slice(0, inline ? 20 : 40),
+    modules: spec.modules.slice(0, inline ? 80 : 300).map((m) => ({
+      ...m,
+      topExports: m.topExports.slice(0, inline ? 8 : 12),
+      files: m.files.slice(0, inline ? 10 : 40),
+    })),
     traces: spec.traces,
     surfaces: {
       endpoints: spec.surfaces.endpoints.slice(0, inline ? 50 : 420),
@@ -61,13 +66,16 @@ function buildCompactRenderPayload(spec: RepoSpecV4, digest: string, inline: boo
       govRules: spec.surfaces.govRules.slice(0, inline ? 40 : 160),
     },
     diagrams: inline
-      ? spec.diagrams.map((d) => ({
-          ...d,
-          edges: d.edges.map((e) => ({
-            ...e,
-            evidence: e.violation ? e.evidence?.slice(0, 3) : e.evidence?.slice(0, 1),
-          })),
-        }))
+      ? spec.diagrams
+          .filter((d) => d.category !== "subsystem" || spec.diagrams.length <= 10)
+          .slice(0, 16)
+          .map((d) => ({
+            ...d,
+            edges: d.edges.map((e) => ({
+              ...e,
+              evidence: e.violation ? e.evidence?.slice(0, 2) : undefined,
+            })),
+          }))
       : spec.diagrams,
   };
 }
@@ -250,6 +258,12 @@ export function renderVisualHtml(
   .b-pass { background: rgba(16,185,129,0.18); color: #6ee7b7; }
   .b-na { background: rgba(148,163,184,0.14); color: #94a3b8; }
   .b-info { background: rgba(59,130,246,0.18); color: #93c5fd; }
+  .b-purple { background: rgba(139,92,246,0.2); color: #c4b5fd; }
+  .b-cyan { background: rgba(6,182,212,0.18); color: #67e8f9; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .story-box { background: rgba(30, 41, 59, 0.45); border: 1px solid var(--border, #1f2937); border-left: 3px solid var(--primary, #3b82f6); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
+  .crumb-sep { color: #64748b; font-size: 11px; margin: 0 2px; }
+  .api-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(51, 65, 85, 0.35); font-size: 11px; }
   .action-btn { background: var(--primary, #2563eb); color: #ffffff; border: 0; border-radius: 5px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; }
   .action-btn.sec-btn { background: var(--secondary, #1e293b); color: var(--foreground, #e2e8f0); border: 1px solid var(--border, #334155); }
 </style>
@@ -265,17 +279,24 @@ export function renderVisualHtml(
   const nodeById = new Map(DATA.nodes.map((n) => [n.id, n]));
   const diagById = new Map(DATA.diagrams.map((d) => [d.id, d]));
   const invById = new Map(DATA.invariants.map((i) => [i.id, i]));
+  const moduleById = new Map((DATA.modules || []).map((m) => [m.id, m]));
   const layerDiagByOwner = new Map();
+  const moduleDiagByOwner = new Map();
   for (const d of DATA.diagrams) {
     if (d.category === "layers" && d.ownerId) layerDiagByOwner.set(d.ownerId, d);
+    if (d.category === "modules" && d.ownerId) moduleDiagByOwner.set(d.ownerId, d);
   }
+  const moduleDiags = DATA.diagrams.filter((d) => d.category === "modules");
   const behaviorDiags = DATA.diagrams.filter((d) => d.category === "behavior");
   const deliveryDiag = DATA.diagrams.find((d) => d.category === "delivery") || null;
   const runtimeDiag = DATA.diagrams.find((d) => d.category === "runtime") || DATA.diagrams[0] || null;
   const packagesDiag = DATA.diagrams.find((d) => d.category === "packages") || null;
   const domainsDiag = DATA.diagrams.find((d) => d.category === "domains") || null;
 
+  const nonTestUnits = DATA.nodes.filter((n) => n.kind === "app" || n.kind === "package" || n.kind === "native_app");
+  const isSingleUnitAtlas = nonTestUnits.length <= 1 && moduleDiags.length >= 1;
   const isLibraryDefault =
+    !isSingleUnitAtlas &&
     behaviorDiags.length > 0 &&
     DATA.entities.length === 0 &&
     DATA.nodes.filter((n) => n.kind === "app").length <= 1;
@@ -285,7 +306,7 @@ export function renderVisualHtml(
     mapMode: "runtime",
     viewMode: "flow",
     showAllEdges: false,
-    activeLayerDiagId: null,
+    activeLayerDiagId: isSingleUnitAtlas ? moduleDiags[0].id : null,
     activeBehaviorId: behaviorDiags[0]?.id || null,
     selectedNodeId: null,
     selectedEdgeId: null,
@@ -399,7 +420,7 @@ export function renderVisualHtml(
   }
 
   function supportsMatrix(diag) {
-    return Boolean(diag && diag.nodes.length >= 3 && ["layers", "domains", "packages", "runtime"].includes(diag.category));
+    return Boolean(diag && diag.nodes.length >= 3 && ["modules", "subsystem", "layers", "domains", "packages", "runtime"].includes(diag.category));
   }
 
   function buildBowTieLayout(diag, centerId) {
@@ -780,6 +801,42 @@ export function renderVisualHtml(
     return '<div class="legend">' + items.join("") + "</div>";
   }
 
+  function capBadgeClass(cap) {
+    if (cap === "DB") return "b-purple";
+    if (cap === "HTTP") return "b-cyan";
+    if (cap === "FS") return "b-warn";
+    if (cap === "PROC") return "b-fail";
+    if (cap === "ENV") return "b-info";
+    return "b-pass";
+  }
+
+  function buildArchitectureStory() {
+    const mods = DATA.modules || [];
+    if (mods.length === 0) return "";
+    const curDiag = activeDiagram();
+    const scopedMods = curDiag && curDiag.ownerId
+      ? mods.filter((m) => m.unitId === curDiag.ownerId)
+      : mods;
+    const list = scopedMods.length >= 2 ? scopedMods : mods;
+    const entries = list.filter((m) => m.role === "entry" || (m.level === 0 && m.fanOut > 0)).slice(0, 3);
+    const cores = list.filter((m) => m.role === "orchestrator" || m.role === "core" || m.role === "adapter").slice(0, 4);
+    const foundations = list.filter((m) => m.role === "foundation" || (m.fanOut === 0 && m.fanIn > 0)).slice(0, 3);
+    const tangles = new Set(list.map((m) => m.tangleId).filter(Boolean));
+    const ioMods = list.filter((m) => m.capabilities.some((c) => c !== "PURE"));
+    const pureMods = list.filter((m) => m.capabilities.length === 1 && m.capabilities[0] === "PURE");
+
+    const s1 = entries.length > 0
+      ? "Execution enters through <strong>" + entries.map((m) => esc(m.name)).join(", ") + "</strong>" +
+        (cores.length > 0 ? ", flows through <strong>" + cores.map((m) => esc(m.name)).join(", ") + "</strong>" : "") +
+        (foundations.length > 0 ? ", down to foundational <strong>" + foundations.map((m) => esc(m.name)).join(", ") + "</strong>." : ".")
+      : "Organized into <strong>" + list.length + "</strong> modules across " + (new Set(list.map((m) => m.unitSlug)).size) + " unit(s).";
+    const s2 = tangles.size > 0
+      ? ' <span class="status-fail">' + tangles.size + " cyclic tangle" + (tangles.size === 1 ? "" : "s") + " detected.</span>"
+      : ' <span class="status-pass">Clean acyclic module DAG (0 cycles).</span>';
+    const s3 = " " + ioMods.length + " IO-boundary module" + (ioMods.length === 1 ? "" : "s") + " · " + pureMods.length + " pure logic module" + (pureMods.length === 1 ? "" : "s") + ".";
+    return '<div class="story-box">' + s1 + s2 + s3 + "</div>";
+  }
+
   function renderBriefingDrawer() {
     const apps = DATA.nodes.filter((n) => n.kind === "app" || n.kind === "native_app");
     const pkgs = DATA.nodes.filter((n) => n.kind === "package" || n.kind === "analyzer");
@@ -787,10 +844,11 @@ export function renderVisualHtml(
     const exts = DATA.nodes.filter((n) => n.kind === "external_service");
     const activeInvs = DATA.invariants.filter((i) => i.status === "fail" || i.status === "warn");
 
+    const storyHtml = buildArchitectureStory();
     const shapeLine =
       isLibraryDefault
         ? "A " + DATA.repo.ecosystem + " library (" + pkgs.map((p) => esc(shortPkg(p.label))).join(", ") + ") with " + DATA.stateMachines.length + " declared state machine(s)."
-        : "A " + DATA.repo.ecosystem + " system with " + apps.length + " app/binary unit(s), " + pkgs.length + " shared package(s), " + DATA.summary.datastoreEntities + " datastore entities, and " + DATA.summary.httpEndpoints + " reconciled HTTP endpoints.";
+        : "A " + DATA.repo.ecosystem + " system with " + apps.length + " app/binary unit(s), " + pkgs.length + " package(s), " + (DATA.modules || []).length + " indexed modules, and " + DATA.summary.indexedSourceFiles + " source files.";
 
     const findingsHtml =
       '<div class="sec"><div class="sec-title"><span>Needs Attention (' + activeInvs.length + ')</span><span class="muted">click to expand</span></div>' +
@@ -814,7 +872,7 @@ export function renderVisualHtml(
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">Architecture Briefing</div><div class="drawer-sub">' + esc(DATA.repo.name) + " · " + esc(DATA.repo.languages.join(", ")) + "</div></div></div>" +
-      '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>" +
+      (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
       findingsHtml +
       traceHtml +
       '<div class="sec"><div class="sec-title">System Makeup</div>' +
@@ -824,6 +882,120 @@ export function renderVisualHtml(
       (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span class="mono">' + esc(exts.slice(0, 5).map((x) => x.label).join(", ")) + (exts.length > 5 ? " +" + (exts.length - 5) : "") + "</span></div>" : "") +
       (DATA.summary.govRules > 0 ? '<div class="row"><span class="muted">Gov Rules</span><span class="mono">' + DATA.summary.govRules + " scoped rules</span></div>" : "") +
       "</div>"
+    );
+  }
+
+  function renderModuleInspector(modId) {
+    const mod = moduleById.get(modId);
+    const diag = activeDiagram();
+    if (!mod) {
+      const diagNode = diag?.nodes.find((n) => n.id === modId);
+      if (!diagNode) return renderBriefingDrawer();
+      const inEdges = (diag?.edges || []).filter((e) => e.to === modId);
+      const outEdges = (diag?.edges || []).filter((e) => e.from === modId);
+      const nameOf = (id) => diag?.nodes.find((x) => x.id === id)?.label || id;
+      return (
+        '<div class="drawer-head"><div><div class="drawer-title">' + esc(diagNode.label) + '</div><div class="drawer-sub">' + esc(diagNode.sublabel || "submodule") + "</div></div></div>" +
+        provenanceLinksHtml(diagNode.provenance?.file, diagNode.provenance?.line) +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Briefing</button></div>' +
+        '<div class="sec"><div class="sec-title">Control & Data Flow</div>' +
+        outEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.to) + '">→ ' + esc(nameOf(e.to)) + '</span><span class="muted mono">' + (e.weight || 1) + "</span></div>").join("") +
+        inEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.from) + '">← ' + esc(nameOf(e.from)) + '</span><span class="muted mono">' + (e.weight || 1) + "</span></div>").join("") +
+        "</div>"
+      );
+    }
+
+    const subDiagId = "subsystem:" + mod.unitSlug + ":" + mod.name;
+    const subDiag = mod.hasSubsystemDiagram ? diagById.get(subDiagId) : null;
+    const modDiag = diagById.get("modules:" + mod.unitSlug) || diag;
+    const outEdges = (modDiag?.edges || []).filter((e) => e.from === mod.id);
+    const inEdges = (modDiag?.edges || []).filter((e) => e.to === mod.id);
+    const labelOf = (id) => {
+      const m = moduleById.get(id);
+      return m ? (m.kind === "directory" ? m.name + "/" : m.name) : id;
+    };
+
+    const depthRatio = mod.exportCount > 0 ? Math.round(mod.lines / mod.exportCount) : mod.lines;
+    const depthBadgeCls = mod.depth === "deep" ? "b-pass" : mod.depth === "contract" ? "b-purple" : mod.depth === "shallow" ? "b-warn" : "b-info";
+    const roleBadgeCls = mod.role === "entry" ? "b-cyan" : mod.role === "foundation" ? "b-purple" : mod.role === "adapter" ? "b-warn" : "b-info";
+
+    const pillsHtml =
+      '<div class="pill-row">' +
+      '<span class="badge ' + roleBadgeCls + '">' + esc(mod.role) + " · L" + mod.level + "</span>" +
+      '<span class="badge ' + depthBadgeCls + '">' + esc(mod.depth) + " (" + mod.lines + "L / " + mod.exportCount + " exp)</span>" +
+      mod.capabilities.map((c) => '<span class="badge ' + capBadgeClass(c) + '">' + esc(c) + "</span>").join("") +
+      (mod.inTangle ? '<span class="badge b-fail">⚠ ' + esc(mod.tangleId || "cycle") + "</span>" : "") +
+      "</div>";
+
+    const actions = [
+      subDiag ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>" : "",
+      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
+      '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
+    ].filter(Boolean).join(" ");
+
+    const apiSec =
+      '<div class="sec"><div class="sec-title"><span>Public API Surface (' + mod.exportCount + ')</span><span class="muted">' + depthRatio + "L/exp</span></div>" +
+      (mod.topExports.length === 0
+        ? '<div class="muted" style="font-size:11px">No public symbols exported (entry script or internal helper).</div>'
+        : mod.topExports.map((sym) => {
+            const gh = githubUrl(sym.file, sym.line);
+            const loc = gh
+              ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">:' + sym.line + " ↗</a>"
+              : '<span class="mono muted">:' + sym.line + "</span>";
+            return '<div class="api-row"><span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sym.name) + '</span><span style="display:flex;gap:5px;align-items:center;flex-shrink:0"><span class="badge b-na">' + esc(sym.kind) + "</span>" + loc + "</span></div>";
+          }).join("")) +
+      "</div>";
+
+    const flowSec =
+      '<div class="sec"><div class="sec-title"><span>Dependencies</span><span class="muted">in ' + mod.fanIn + " · out " + mod.fanOut + "</span></div>" +
+      (inEdges.length > 0
+        ? renderDisclosure({
+            title: "Upstream Callers (←)",
+            badge: inEdges.length,
+            badgeClass: "b-pass",
+            tone: "pass",
+            open: inEdges.length <= 6,
+            bodyHtml: inEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.from) + '">← ' + esc(labelOf(e.from)) + '</span><span class="muted mono">' + (e.weight || 1) + "</span></div>").join(""),
+          })
+        : "") +
+      (outEdges.length > 0
+        ? renderDisclosure({
+            title: "Downstream Imports (→)",
+            badge: outEdges.length,
+            badgeClass: outEdges.some((e) => e.violation) ? "b-fail" : "b-info",
+            tone: outEdges.some((e) => e.violation) ? "fail" : "info",
+            open: outEdges.length <= 8,
+            bodyHtml: outEdges.map((e) => '<div class="row"><span class="row-link mono" data-select-node="' + esc(e.to) + '">→ ' + esc(labelOf(e.to)) + "</span>" + (e.violation ? '<span class="badge b-fail">cycle</span>' : '<span class="muted mono">' + (e.weight || 1) + "</span>") + "</div>").join(""),
+          })
+        : "") +
+      (inEdges.length === 0 && outEdges.length === 0 ? '<div class="muted" style="font-size:11px">Standalone module (0 internal edges).</div>' : "") +
+      "</div>";
+
+    const filesSec =
+      '<div class="sec"><div class="sec-title"><span>Files (' + mod.fileCount + ')</span><span class="muted">' + mod.lines + " lines</span></div>" +
+      renderDisclosure({
+        title: mod.fileCount === 1 ? mod.files[0]?.file || mod.relPath : mod.fileCount + " source files in " + mod.name + "/",
+        badge: mod.lines + "L",
+        badgeClass: "b-na",
+        open: mod.fileCount <= 6,
+        bodyHtml: mod.files.map((f) => {
+          const gh = githubUrl(f.file, 1);
+          const nameHtml = gh
+            ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">' + esc(f.file) + " ↗</a>"
+            : '<span class="mono">' + esc(f.file) + "</span>";
+          const io = f.capabilities.filter((c) => c !== "PURE").join(",");
+          return '<div class="row">' + nameHtml + '<span class="mono muted">' + f.lines + "L" + (io ? " · " + esc(io) : "") + "</span></div>";
+        }).join(""),
+      }) +
+      "</div>";
+
+    return (
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(mod.kind === "directory" ? mod.name + "/" : mod.name) + '</div><div class="drawer-sub">' + esc(mod.unitSlug + " · " + mod.language + " · " + mod.relPath) + "</div></div></div>" +
+      pillsHtml +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
+      apiSec +
+      flowSec +
+      filesSec
     );
   }
 
@@ -854,10 +1026,14 @@ export function renderVisualHtml(
   }
 
   function renderNodeInspector(nodeId) {
+    if (moduleById.has(nodeId) || nodeId.startsWith("mod:") || nodeId.startsWith("sub:")) {
+      return renderModuleInspector(nodeId);
+    }
     const node = nodeById.get(nodeId);
     if (!node) return renderBriefingDrawer();
     const outEdges = DATA.edges.filter((e) => e.from === nodeId);
     const inEdges = DATA.edges.filter((e) => e.to === nodeId);
+    const modDiag = moduleDiagByOwner.get(nodeId);
     const layerDiag = layerDiagByOwner.get(nodeId);
     const unitName = node.label;
     const unitSlug = shortPkg(unitName);
@@ -867,7 +1043,8 @@ export function renderVisualHtml(
     const unitGovs = DATA.surfaces.govRules.filter((g) => !g.scopePrefix || (unitDir && (unitDir === g.scopePrefix || unitDir.startsWith(g.scopePrefix + "/"))));
 
     const actions = [
-      layerDiag ? '<button class="action-btn" data-open-layers="' + esc(layerDiag.id) + '">Inspect layers (' + layerDiag.nodes.length + ")</button>" : "",
+      modDiag ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ")</button>" : "",
+      layerDiag ? '<button class="action-btn sec-btn" data-open-layers="' + esc(layerDiag.id) + '">Layers (' + layerDiag.nodes.length + ")</button>" : "",
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
       '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
     ].filter(Boolean).join(" ");
@@ -1014,8 +1191,15 @@ export function renderVisualHtml(
   function renderEdgeInspector(diag, edgeId) {
     const e = diag.edges.find((x) => x.id === edgeId);
     if (!e) return renderBriefingDrawer();
-    const fromLabel = shortPkg(nodeById.get(e.from)?.label || e.from);
-    const toLabel = shortPkg(nodeById.get(e.to)?.label || e.to);
+    const labelFor = (id) => {
+      const m = moduleById.get(id);
+      if (m) return m.kind === "directory" ? m.name + "/" : m.name;
+      const dn = diag.nodes.find((n) => n.id === id);
+      if (dn) return dn.label;
+      return shortPkg(nodeById.get(id)?.label || id);
+    };
+    const fromLabel = labelFor(e.from);
+    const toLabel = labelFor(e.to);
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(fromLabel) + (e.bidirectional ? " ⇄ " : " → ") + esc(toLabel) + '</div><div class="drawer-sub">' + esc(e.kind) + " · " + esc(e.confidence) + (e.weight ? " · weight " + e.weight : "") + "</div></div></div>" +
       '<div><button class="action-btn sec-btn" data-clear-sel="1">Briefing (Esc)</button></div>' +
@@ -1123,23 +1307,34 @@ export function renderVisualHtml(
     const q = state.search.trim().toLowerCase();
     if (!q) return '<div class="search-dropdown" id="search-dd"></div>';
     const hits = [];
+    for (const m of (DATA.modules || [])) {
+      if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
+        hits.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
+      } else {
+        const symHit = m.topExports.find((s) => s.name.toLowerCase().includes(q));
+        if (symHit) {
+          hits.push({ kind: symHit.kind, label: symHit.name + " (" + m.name + ")", action: "module", id: m.id });
+        }
+      }
+      if (hits.length >= 8) break;
+    }
     for (const n of DATA.nodes) {
       if (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) {
         hits.push({ kind: n.kind, label: shortPkg(n.label), action: "node", id: n.id });
       }
-      if (hits.length >= 8) break;
+      if (hits.length >= 14) break;
     }
     for (const ep of DATA.surfaces.endpoints) {
       if (ep.path.toLowerCase().includes(q)) {
         hits.push({ kind: ep.method, label: ep.path + " (" + (ep.authGuard || "unannotated") + ")", action: "endpoints", id: ep.path });
       }
-      if (hits.length >= 14) break;
+      if (hits.length >= 18) break;
     }
     for (const e of DATA.entities) {
       if (e.entity.toLowerCase().includes(q)) {
         hits.push({ kind: e.datastore, label: e.entity, action: "entity", id: e.entity });
       }
-      if (hits.length >= 18) break;
+      if (hits.length >= 22) break;
     }
     return (
       '<div class="search-dropdown open" id="search-dd">' +
@@ -1195,8 +1390,15 @@ export function renderVisualHtml(
     if (!tip || !shell) return;
     const e = diag.edges.find((x) => x.id === edgeId);
     if (!e) return;
-    const fromL = shortPkg(nodeById.get(e.from)?.label || e.from);
-    const toL = shortPkg(nodeById.get(e.to)?.label || e.to);
+    const labelFor = (id) => {
+      const m = moduleById.get(id);
+      if (m) return m.kind === "directory" ? m.name + "/" : m.name;
+      const dn = diag.nodes.find((n) => n.id === id);
+      if (dn) return dn.label;
+      return shortPkg(nodeById.get(id)?.label || id);
+    };
+    const fromL = labelFor(e.from);
+    const toL = labelFor(e.to);
     const parts = [fromL + (e.bidirectional ? " ⇄ " : " → ") + toL];
     if (e.weight) parts.push(e.weight + " ref" + (e.weight === 1 ? "" : "s"));
     if (e.violation && e.ruleIds?.length) parts.push("⚠ " + e.ruleIds[0]);
@@ -1238,9 +1440,31 @@ export function renderVisualHtml(
     if (state.tab === "map") {
       if (state.activeLayerDiagId) {
         const ld = diagById.get(state.activeLayerDiagId);
-        subNav = '<div class="sub-toggles"><button class="pill-btn" data-back-map="1">← Back to Map</button><span class="mono muted">' + esc(ld?.title || "") + "</span></div>";
+        const ownerModDiag = ld?.ownerId ? moduleDiagByOwner.get(ld.ownerId) : null;
+        const ownerLayerDiag = ld?.ownerId ? layerDiagByOwner.get(ld.ownerId) : null;
+        const parentDiag = ld?.parentDiagramId ? diagById.get(ld.parentDiagramId) : null;
+        const crumbs = [];
+        if (!isSingleUnitAtlas || runtimeDiag) {
+          crumbs.push('<button class="pill-btn" data-back-map="1">System</button>');
+        }
+        if (parentDiag) {
+          crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(parentDiag.id) + '">' + esc(parentDiag.id.replace(/^modules:/, "")) + "</button>");
+        }
+        if (ld) {
+          const shortTitle = ld.category === "subsystem"
+            ? ld.id.split(":").slice(2).join(":") + "/"
+            : ld.id.replace(/^(?:modules|layers):/, "");
+          crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(shortTitle) + "</span>");
+        }
+        if (ownerModDiag && ownerLayerDiag && ld && ld.category !== "subsystem") {
+          crumbs.push('<span class="crumb-sep">·</span>');
+          crumbs.push('<button class="pill-btn' + (ld.category === "modules" ? " active" : "") + '" data-open-layers="' + esc(ownerModDiag.id) + '">Modules</button>');
+          crumbs.push('<button class="pill-btn' + (ld.category === "layers" ? " active" : "") + '" data-open-layers="' + esc(ownerLayerDiag.id) + '">Layers</button>');
+        }
+        subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
       } else {
         subNav = '<div class="sub-toggles">' +
+          (moduleDiags.length === 1 ? '<button class="pill-btn" data-open-layers="' + esc(moduleDiags[0].id) + '">Modules (' + moduleDiags[0].nodes.length + ")</button>" : "") +
           '<button class="pill-btn' + (state.mapMode === "runtime" ? " active" : "") + '" data-map-mode="runtime">Runtime</button>' +
           (packagesDiag ? '<button class="pill-btn' + (state.mapMode === "packages" ? " active" : "") + '" data-map-mode="packages">Packages</button>' : "") +
           (domainsDiag ? '<button class="pill-btn' + (state.mapMode === "domains" ? " active" : "") + '" data-map-mode="domains">Domains</button>' : "") +
@@ -1481,7 +1705,7 @@ export function renderVisualHtml(
           const d = diagById.get(t.diagramId);
           if (d) {
             state.viewMode = "flow";
-            if (d.category === "layers") { state.tab = "map"; state.activeLayerDiagId = d.id; }
+            if (d.category === "layers" || d.category === "modules" || d.category === "subsystem") { state.tab = "map"; state.activeLayerDiagId = d.id; }
             else if (d.category === "behavior") { state.tab = "behavior"; state.activeBehaviorId = d.id; }
             else { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "runtime"; }
           }
@@ -1538,7 +1762,13 @@ export function renderVisualHtml(
       const act = searchItem.getAttribute("data-search-action");
       const id = searchItem.getAttribute("data-search-id") || "";
       state.search = "";
-      if (act === "node") {
+      if (act === "module") {
+        const mod = moduleById.get(id);
+        state.tab = "map";
+        state.activeLayerDiagId = mod ? "modules:" + mod.unitSlug : state.activeLayerDiagId;
+        state.selectedNodeId = id;
+        state.selectedEdgeId = null;
+      } else if (act === "node") {
         state.tab = "map";
         state.activeLayerDiagId = null;
         state.mapMode = "runtime";
@@ -1588,10 +1818,24 @@ export function renderVisualHtml(
     const svgNode = target.closest("[data-node]");
     if (!svgNode) return;
     const id = svgNode.getAttribute("data-node");
-    const ld = id ? layerDiagByOwner.get(id) : null;
-    if (ld) {
+    if (!id) return;
+    const mod = moduleById.get(id);
+    if (mod && mod.hasSubsystemDiagram) {
+      const subId = "subsystem:" + mod.unitSlug + ":" + mod.name;
+      if (diagById.has(subId)) {
+        state.tab = "map";
+        state.activeLayerDiagId = subId;
+        state.focusMode = false;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        render();
+        return;
+      }
+    }
+    const targetDiag = moduleDiagByOwner.get(id) || layerDiagByOwner.get(id) || null;
+    if (targetDiag) {
       state.tab = "map";
-      state.activeLayerDiagId = ld.id;
+      state.activeLayerDiagId = targetDiag.id;
       state.focusMode = false;
       state.selectedNodeId = null;
       state.selectedEdgeId = null;

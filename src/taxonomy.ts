@@ -523,9 +523,25 @@ function inferTsArchetypeAndPolicy(
   return { archetype: "cli_worker", layerPolicy: "flat_library" };
 }
 
+const TEMPLATE_OR_FIXTURE_PATH_RE = /^(?:templates|examples|fixtures|tests\/fixtures|corpus|reports)\//i;
+
+function isTemplateOrFixturePath(relPath: string): boolean {
+  return TEMPLATE_OR_FIXTURE_PATH_RE.test(relPath);
+}
+
+function parsePyprojectPackageName(text: string, fallback: string): string {
+  const projMatch = text.match(/\[project\][\s\S]*?^\s*name\s*=\s*["']([^"']+)["']/m);
+  if (projMatch?.[1]) return projMatch[1];
+  const poetryMatch = text.match(/\[tool\.poetry\][\s\S]*?^\s*name\s*=\s*["']([^"']+)["']/m);
+  return poetryMatch?.[1] ?? fallback;
+}
+
 export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescriptor[] {
   const units = new Map<string, UnitDescriptor>();
+  const hasRootManifest =
+    allFiles.includes("package.json") || allFiles.includes("Cargo.toml") || allFiles.includes("pyproject.toml");
 
+  const cargoDirs = new Set<string>();
   if (allFiles.includes("Cargo.toml")) {
     const rootCargo = readTextSafe(path.join(rootDir, "Cargo.toml")) ?? "";
     const wsSection = parseCargoSection(rootCargo, "workspace");
@@ -537,60 +553,74 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
       : [];
     const crateDirs = memberPatterns.length > 0 ? expandDirGlobs(rootDir, memberPatterns) : ["."];
     if (fs.existsSync(path.join(rootDir, "fuzz/Cargo.toml"))) crateDirs.push("fuzz");
+    for (const d of crateDirs) cargoDirs.add(d);
+  }
 
-    for (const relDir of Array.from(new Set(crateDirs)).sort()) {
-      const cargoRel = relDir === "." ? "Cargo.toml" : `${relDir}/Cargo.toml`;
-      const cargoText = readTextSafe(path.join(rootDir, cargoRel));
-      if (!cargoText) continue;
-      const pkgSection = parseCargoSection(cargoText, "package");
-      const nameMatch = pkgSection.match(/^\s*name\s*=\s*"([^"]+)"/m);
-      const crateName = nameMatch?.[1] ?? path.posix.basename(relDir);
-      const binDir = path.join(rootDir, relDir, "src/bin");
-      const hasBin =
-        /\[\[bin\]\]/.test(cargoText) ||
-        fs.existsSync(path.join(rootDir, relDir, "src/main.rs")) ||
-        (fs.existsSync(binDir) && fs.readdirSync(binDir).some((f) => f.endsWith(".rs")));
-      const isFuzzOrTest = relDir === "fuzz" || crateName.includes("fuzz") || crateName.includes("qa");
-      const kind: "app" | "package" | "test_package" = isFuzzOrTest ? "test_package" : hasBin ? "app" : "package";
-      const id = workspaceNodeId(kind, crateName);
-      const binNames = Array.from(cargoText.matchAll(/\[\[bin\]\][\s\S]*?name\s*=\s*"([^"]+)"/g))
-        .map((m) => m[1] ?? "")
-        .filter(Boolean);
-
-      const crateFiles = allFiles.filter((f) => (relDir === "." ? f.endsWith(".rs") : f.startsWith(`${relDir}/`) && f.endsWith(".rs")));
-      const hasAxumOrHttp = /\b(?:axum|actix-web|warp|rocket|tonic)\b/.test(cargoText);
-      const hasExplicitLayerDirs = crateFiles.some((f) => /\/src\/(?:routes|handlers|db|repositories|persistence|dao|services)\//.test(f));
-
-      const archetype: UnitArchetype = isFuzzOrTest
-        ? "test_suite"
-        : hasAxumOrHttp
-          ? "http_service"
-          : hasBin
-            ? "cli_worker"
-            : "library_crate";
-      const layerPolicy: LayerPolicy = hasExplicitLayerDirs ? "layered_backend" : "flat_library";
-
-      units.set(id, {
-        id,
-        name: crateName,
-        slug: crateName,
-        dir: relDir,
-        absDir: path.resolve(rootDir, relDir),
-        manifestFile: cargoRel,
-        ecosystem: "rust",
-        kind,
-        archetype,
-        layerPolicy,
-        external: false,
-        entryFile: crateFiles.find((f) => f.endsWith("/src/lib.rs") || f.endsWith("/src/main.rs")) ?? null,
-        targetFramework: null,
-        bins: binNames,
-      });
+  for (const rel of allFiles) {
+    if (rel.endsWith("/Cargo.toml") && !isTemplateOrFixturePath(rel)) {
+      const relDir = path.posix.dirname(rel);
+      const cargoText = readTextSafe(path.join(rootDir, rel));
+      if (cargoText && /\[package\]/.test(cargoText)) {
+        cargoDirs.add(relDir);
+      }
     }
   }
 
-  const csprojPaths = new Set<string>(allFiles.filter((f) => f.endsWith(".csproj")));
-  for (const slnx of allFiles.filter((f) => f.endsWith(".slnx"))) {
+  for (const relDir of Array.from(cargoDirs).sort()) {
+    const cargoRel = relDir === "." ? "Cargo.toml" : `${relDir}/Cargo.toml`;
+    const cargoText = readTextSafe(path.join(rootDir, cargoRel));
+    if (!cargoText) continue;
+    const pkgSection = parseCargoSection(cargoText, "package");
+    if (!pkgSection && relDir !== ".") continue;
+    const nameMatch = pkgSection.match(/^\s*name\s*=\s*"([^"]+)"/m);
+    const crateName = nameMatch?.[1] ?? path.posix.basename(relDir === "." ? rootDir : relDir);
+    const binDir = path.join(rootDir, relDir, "src/bin");
+    const hasBin =
+      /\[\[bin\]\]/.test(cargoText) ||
+      fs.existsSync(path.join(rootDir, relDir, "src/main.rs")) ||
+      (fs.existsSync(binDir) && fs.readdirSync(binDir).some((f) => f.endsWith(".rs")));
+    const isFuzzOrTest = relDir === "fuzz" || crateName.includes("fuzz") || crateName.includes("qa");
+    const kind: "app" | "package" | "test_package" = isFuzzOrTest ? "test_package" : hasBin ? "app" : "package";
+    const id = workspaceNodeId(kind, crateName);
+    const binNames = Array.from(cargoText.matchAll(/\[\[bin\]\][\s\S]*?name\s*=\s*"([^"]+)"/g))
+      .map((m) => m[1] ?? "")
+      .filter(Boolean);
+
+    const crateFiles = allFiles.filter((f) => (relDir === "." ? f.endsWith(".rs") : f.startsWith(`${relDir}/`) && f.endsWith(".rs")));
+    const hasAxumOrHttp = /\b(?:axum|actix-web|warp|rocket|tonic|tauri)\b/.test(cargoText);
+    const hasExplicitLayerDirs = crateFiles.some((f) => /\/src\/(?:routes|handlers|db|repositories|persistence|dao|services)\//.test(f));
+
+    const archetype: UnitArchetype = isFuzzOrTest
+      ? "test_suite"
+      : hasAxumOrHttp
+        ? "http_service"
+        : hasBin
+          ? "cli_worker"
+          : "library_crate";
+    const layerPolicy: LayerPolicy = hasExplicitLayerDirs ? "layered_backend" : "flat_library";
+
+    units.set(id, {
+      id,
+      name: crateName,
+      slug: crateName,
+      dir: relDir,
+      absDir: path.resolve(rootDir, relDir),
+      manifestFile: cargoRel,
+      ecosystem: "rust",
+      kind,
+      archetype,
+      layerPolicy,
+      external: false,
+      entryFile: crateFiles.find((f) => f.endsWith("/src/lib.rs") || f.endsWith("/src/main.rs") || f === "src/lib.rs" || f === "src/main.rs") ?? null,
+      targetFramework: null,
+      bins: binNames,
+    });
+  }
+
+  const csprojPaths = new Set<string>(
+    allFiles.filter((f) => f.endsWith(".csproj") && (!hasRootManifest || !isTemplateOrFixturePath(f))),
+  );
+  for (const slnx of allFiles.filter((f) => f.endsWith(".slnx") && (!hasRootManifest || !isTemplateOrFixturePath(f)))) {
     const text = readTextSafe(path.join(rootDir, slnx));
     if (!text) continue;
     for (const m of text.matchAll(/<Project\s+Path="([^"]+\.csproj)"/gi)) {
@@ -602,7 +632,7 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
       }
     }
   }
-  for (const sln of allFiles.filter((f) => f.endsWith(".sln"))) {
+  for (const sln of allFiles.filter((f) => f.endsWith(".sln") && (!hasRootManifest || !isTemplateOrFixturePath(f)))) {
     const text = readTextSafe(path.join(rootDir, sln));
     if (!text) continue;
     for (const m of text.matchAll(/,\s*"([^"]+\.csproj)"/gi)) {
@@ -692,16 +722,51 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
     units.set(u.id, u);
   }
 
+  const pyprojectFiles = allFiles.filter(
+    (f) => (f === "pyproject.toml" || f.endsWith("/pyproject.toml")) && !isTemplateOrFixturePath(f),
+  );
+  for (const pyManifest of pyprojectFiles.sort()) {
+    const relDir = pyManifest === "pyproject.toml" ? "." : path.posix.dirname(pyManifest);
+    if (relDir !== "." && relDir.split("/").length > 2) continue;
+    const text = readTextSafe(path.join(rootDir, pyManifest));
+    if (!text) continue;
+    const fallbackName = relDir === "." ? path.basename(rootDir) : path.posix.basename(relDir);
+    const pkgName = parsePyprojectPackageName(text, fallbackName);
+    const relFiles = allFiles.filter((f) => (relDir === "." ? f.endsWith(".py") : f.startsWith(`${relDir}/`) && f.endsWith(".py")));
+    const isHttp = /\b(?:fastapi|flask|django|starlette|uvicorn|aiohttp|litestar|sanic)\b/i.test(text);
+    const isCli = /\[project\.scripts\]|\[tool\.poetry\.scripts\]|\b(?:click|typer|argparse)\b/i.test(text);
+    const kind: "app" | "package" = isHttp || isCli || relDir === "." ? "app" : "package";
+    const id = workspaceNodeId(kind, pkgName);
+    if (!units.has(id)) {
+      units.set(id, {
+        id,
+        name: pkgName,
+        slug: workspaceSlug(pkgName),
+        dir: relDir,
+        absDir: path.resolve(rootDir, relDir),
+        manifestFile: pyManifest,
+        ecosystem: "python",
+        kind,
+        archetype: isHttp ? "http_service" : isCli ? "cli_worker" : "library_crate",
+        layerPolicy: isHttp ? "layered_backend" : "flat_library",
+        external: false,
+        entryFile: relFiles.find((f) => /(?:^|\/)(?:main|app|cli|__main__)\.py$/.test(f)) ?? null,
+        targetFramework: null,
+        bins: [],
+      });
+    }
+  }
+
   if (
     allFiles.some((f) => f === "package.json" || f.endsWith("/package.json")) ||
     allFiles.includes("pnpm-workspace.yaml")
   ) {
     const globs = readNpmWorkspaceGlobs(rootDir);
     const candidateDirs = new Set<string>(
-      globs.length > 0 ? expandDirGlobs(rootDir, globs) : expandDirGlobs(rootDir, ["apps/*", "packages/*", "tests/*"]),
+      globs.length > 0 ? expandDirGlobs(rootDir, globs) : expandDirGlobs(rootDir, ["apps/*", "packages/*"]),
     );
     for (const rel of allFiles) {
-      if (rel.endsWith("/package.json")) {
+      if (rel.endsWith("/package.json") && !isTemplateOrFixturePath(rel)) {
         const d = path.posix.dirname(rel);
         const depth = d.split("/").length;
         if (depth <= 3 && ["apps", "packages", "tests"].includes(d.split("/")[0] ?? "")) {
@@ -711,6 +776,7 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
     }
 
     for (const relDir of Array.from(candidateDirs).sort()) {
+      if (isTemplateOrFixturePath(`${relDir}/`)) continue;
       const absDir = path.join(rootDir, relDir);
       if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) continue;
       const pkgPath = path.join(absDir, "package.json");
@@ -733,10 +799,13 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
           const id = workspaceNodeId(kind, pkg.name);
           const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
           const { archetype, layerPolicy } = inferTsArchetypeAndPolicy(kind, allDeps, relFiles);
+          const hasTsFiles = relFiles.some((f) => /\.(ts|tsx|mts|cts)$/.test(f));
           const entryCandidates = [
             `${relDir}/src/index.ts`,
             `${relDir}/src/index.tsx`,
             `${relDir}/index.ts`,
+            `${relDir}/src/index.js`,
+            `${relDir}/index.js`,
             `${relDir}/functions/index.ts`,
           ];
           const entryFile = entryCandidates.find((c) => allFiles.includes(c)) ?? null;
@@ -747,7 +816,7 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
             dir: relDir,
             absDir,
             manifestFile: `${relDir}/package.json`,
-            ecosystem: "typescript",
+            ecosystem: hasTsFiles ? "typescript" : "javascript",
             kind,
             archetype,
             layerPolicy,
@@ -759,13 +828,12 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
         } catch {
           continue;
         }
-      } else if ((topDir === "apps" || topDir === "tests") && relFiles.length > 0) {
+      } else if (topDir === "apps" && relFiles.length > 0) {
         const hasSwift = relFiles.some((f) => /\.(swift|pbxproj)$/.test(f));
         const hasKotlin = relFiles.some((f) => /\.(kt|gradle|gradle\.kts)$/.test(f));
-        const isNative = topDir === "apps" && (hasSwift || hasKotlin);
-        const kind: "app" | "test_package" | "native_app" = isNative ? "native_app" : topDir === "tests" ? "test_package" : "app";
+        if (!hasSwift && !hasKotlin) continue;
         const baseName = path.posix.basename(relDir);
-        const id = workspaceNodeId(kind, baseName);
+        const id = workspaceNodeId("native_app", baseName);
         units.set(id, {
           id,
           name: baseName,
@@ -773,14 +841,93 @@ export function discoverUnits(rootDir: string, allFiles: string[]): UnitDescript
           dir: relDir,
           absDir,
           manifestFile: relDir,
-          ecosystem: isNative ? "native" : "typescript",
-          kind,
-          archetype: isNative ? "frontend_app" : kind === "test_package" ? "test_suite" : "cli_worker",
-          layerPolicy: isNative ? "layered_frontend" : "flat_library",
+          ecosystem: "native",
+          kind: "native_app",
+          archetype: "frontend_app",
+          layerPolicy: "layered_frontend",
           external: false,
           entryFile: null,
           targetFramework: null,
           bins: [],
+        });
+      }
+    }
+  }
+
+  const nonTestChildDirs = Array.from(units.values())
+    .filter((u) => u.dir !== "." && u.kind !== "test_package")
+    .map((u) => u.dir);
+  const hasRootUnit = Array.from(units.values()).some((u) => u.dir === ".");
+
+  const unclaimedProdCode = allFiles.filter((f) => {
+    if (!/\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|py)$/.test(f)) return false;
+    if (isTemplateOrFixturePath(f)) return false;
+    if (/^(?:tests?|__tests__|docs?|scripts)\//i.test(f)) return false;
+    if (/\.(?:test|spec|config)\.[a-zA-Z0-9]+$/i.test(f)) return false;
+    return !nonTestChildDirs.some((d) => f.startsWith(`${d}/`));
+  });
+
+  if (!hasRootUnit && (nonTestChildDirs.length === 0 || unclaimedProdCode.length >= 2)) {
+    const rootPkgText = readTextSafe(path.join(rootDir, "package.json"));
+    const rootPkg = rootPkgText
+      ? (() => {
+          try {
+            return JSON.parse(rootPkgText) as {
+              name?: string;
+              bin?: string | Record<string, string>;
+              dependencies?: Record<string, string>;
+              devDependencies?: Record<string, string>;
+            };
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
+    const rootName = rootPkg?.name ?? path.basename(rootDir);
+    const hasTs = unclaimedProdCode.some((f) => /\.(?:ts|tsx|mts|cts)$/.test(f));
+    const hasJs = unclaimedProdCode.some((f) => /\.(?:js|jsx|mjs|cjs)$/.test(f));
+    const hasPy = unclaimedProdCode.some((f) => f.endsWith(".py"));
+
+    if (rootPkg || hasTs || hasJs || hasPy) {
+      const eco: UnitDescriptor["ecosystem"] = hasTs
+        ? "typescript"
+        : hasJs
+          ? "javascript"
+          : hasPy
+            ? "python"
+            : "typescript";
+      const allDeps = { ...rootPkg?.dependencies, ...rootPkg?.devDependencies };
+      const { archetype, layerPolicy } = inferTsArchetypeAndPolicy("app", allDeps, unclaimedProdCode);
+      const entryCandidates = [
+        "src/cli.ts",
+        "src/index.ts",
+        "src/main.ts",
+        "src/index.tsx",
+        "index.ts",
+        "src/index.js",
+        "index.js",
+        "main.py",
+        "app.py",
+      ];
+      const entryFile = entryCandidates.find((c) => allFiles.includes(c)) ?? null;
+      const id = workspaceNodeId("app", rootName);
+      if (!units.has(id)) {
+        units.set(id, {
+          id,
+          name: rootName,
+          slug: workspaceSlug(rootName),
+          dir: ".",
+          absDir: rootDir,
+          manifestFile: rootPkg ? "package.json" : ".",
+          ecosystem: eco,
+          kind: "app",
+          archetype,
+          layerPolicy,
+          external: false,
+          entryFile,
+          targetFramework: null,
+          bins: rootPkg?.bin ? (typeof rootPkg.bin === "string" ? [rootName] : Object.keys(rootPkg.bin)) : [],
         });
       }
     }
