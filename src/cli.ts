@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
+import { buildDrilldownIndex, type DrilldownIndex } from "./drilldown.ts";
 import { archExtractor } from "./extractors/arch.ts";
 import { ciExtractor } from "./extractors/ci.ts";
 import { codeAstExtractor } from "./extractors/codeAst.ts";
@@ -62,7 +63,14 @@ export async function generateRepoSpec(
   repoDir: string,
   storageMode: StorageMode = "artifact",
   dbOutPath?: string,
-): Promise<{ spec: RepoSpecV4; digest: string; idsModule: string; sdkModule: string; dbPath: string }> {
+): Promise<{
+  spec: RepoSpecV4;
+  digest: string;
+  idsModule: string;
+  sdkModule: string;
+  dbPath: string;
+  drilldown: DrilldownIndex;
+}> {
   const ctx = discoverRepo(repoDir, storageMode);
   const fragments = await Promise.all(DEFAULT_EXTRACTORS.map((ext) => ext.extract(ctx)));
   const crossFragment = buildCrossDomainLinks(ctx, fragments);
@@ -131,7 +139,8 @@ export async function generateRepoSpec(
   storeDigestInDb(targetDbPath, digest);
   const idsModule = generateIdsModule(spec, digest);
   const sdkModule = generateSqliteSdkModule();
-  return { spec, digest, idsModule, sdkModule, dbPath: targetDbPath };
+  const drilldown = buildDrilldownIndex(ctx.units, merged.ast);
+  return { spec, digest, idsModule, sdkModule, dbPath: targetDbPath, drilldown };
 }
 
 function parseFlag(args: string[], flag: string): string | undefined {
@@ -330,7 +339,7 @@ async function main(): Promise<void> {
 
     fs.mkdirSync(outArg, { recursive: true });
     const sqliteOut = path.join(outArg, "repospec.sqlite");
-    const { spec, digest, idsModule, sdkModule } = await generateRepoSpec(repoDir, storageMode, sqliteOut);
+    const { spec, digest, idsModule, sdkModule, drilldown } = await generateRepoSpec(repoDir, storageMode, sqliteOut);
 
     const specOut = path.join(outArg, "repospec.json");
     const schemaOut = path.join(outArg, "repospec.schema.json");
@@ -342,12 +351,12 @@ async function main(): Promise<void> {
     fs.writeFileSync(schemaOut, `${JSON.stringify(buildRepoSpecJsonSchema(), null, 2)}\n`, "utf8");
     fs.writeFileSync(idsOut, idsModule, "utf8");
     fs.writeFileSync(sdkOut, sdkModule, "utf8");
-    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false }), "utf8");
+    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown }), "utf8");
 
     let inlineOut: string | null = null;
     if (writeInline) {
       inlineOut = path.join(outArg, "repospec.inline.html");
-      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true }), "utf8");
+      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true, drilldown }), "utf8");
     }
 
     console.log(

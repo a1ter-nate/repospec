@@ -28,7 +28,7 @@ function formatModuleSublabel(card: ModuleCard): string {
   if (ioCaps.length > 0) parts.push(ioCaps.join("+"));
   else if (card.depth === "contract") parts.push("contract");
   else parts.push("PURE");
-  if (card.hasSubsystemDiagram) parts.push("⊞");
+  if (card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2)) parts.push("⊞");
   return parts.join(" · ");
 }
 
@@ -385,7 +385,7 @@ export function buildModuleArchitecture(params: {
         role: "module",
         domain: "arch",
         shape: card.role === "foundation" ? "hex" : card.role === "entry" ? "pill" : "box",
-        ...(card.hasSubsystemDiagram ? { expandable: true } : {}),
+        ...(card.hasSubsystemDiagram || (card.kind === "directory" && card.fileCount >= 2) ? { expandable: true } : {}),
         ...(badges.length > 0 ? { ambientBadges: badges } : {}),
         provenance: { file: card.files[0]?.file ?? card.relPath, line: 1 },
       };

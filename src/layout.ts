@@ -928,10 +928,11 @@ function buildOwnerLayersDiagram(
     const laneId = typeof n.meta.laneId === "string" ? n.meta.laneId : "lateral";
     const laneLabel = typeof n.meta.laneLabel === "string" ? n.meta.laneLabel : "Shared Foundation";
     if (!laneLabels.has(laneId)) laneLabels.set(laneId, laneLabel);
+    const fileCount = Number(n.meta.fileCount ?? 0);
     return {
       id: n.id,
       label: `${n.label}/`,
-      sublabel: `${String(n.meta.fileCount ?? 0)} files · ${canonical}`,
+      sublabel: `${fileCount} files · ${canonical}${fileCount >= 2 ? " · ⊞" : ""}`,
       group: canonical,
       lane: laneId,
       layerAxis,
@@ -940,6 +941,7 @@ function buildOwnerLayersDiagram(
       role: "layer",
       domain: "arch",
       shape: "box",
+      ...(fileCount >= 2 ? { expandable: true } : {}),
       findings: n.findings,
       provenance: n.provenance,
     };

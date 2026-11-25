@@ -122,11 +122,14 @@ describe("RepoSpec v5 polyglot suite [REQ-HYGIENE-01]", () => {
       db.close();
     }
 
-    const inlineHtml = renderVisualHtml(run1.spec, run1.digest, { inline: true });
+    const inlineHtml = renderVisualHtml(run1.spec, run1.digest, { inline: true, drilldown: run1.drilldown });
     expect(inlineHtml).not.toContain("100vh");
     expect(inlineHtml).toContain("RepoSpec v5.0.0");
     expect(inlineHtml).toContain("Matrix (DSM)");
     expect(inlineHtml).toContain("renderModuleInspector");
+    expect(inlineHtml).toContain("buildFolderContextDiagram");
+    expect(run1.drilldown.files.length).toBeGreaterThanOrEqual(4);
+    expect(run1.drilldown.edges.length).toBeGreaterThanOrEqual(2);
     const scriptMatch = inlineHtml.match(/<script>\n([\s\S]*?)<\/script>/);
     expect(scriptMatch?.[1]).toBeTruthy();
     expect(() => new Function(scriptMatch?.[1] ?? "")).not.toThrow();

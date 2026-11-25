@@ -1,3 +1,6 @@
+import type { DrilldownIndex } from "./drilldown.ts";
+import { renderDrilldownClientScript } from "./renderDrilldown.ts";
+import { renderStudioCss } from "./renderStyles.ts";
 import type { RepoSpecV4 } from "./schema.ts";
 
 function escapeHtml(text: string): string {
@@ -8,7 +11,13 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildCompactRenderPayload(spec: RepoSpecV4, digest: string, inline: boolean): Record<string, unknown> {
+function buildCompactRenderPayload(
+  spec: RepoSpecV4,
+  digest: string,
+  inline: boolean,
+  drilldown?: DrilldownIndex,
+): Record<string, unknown> {
+  const includeDrilldown = drilldown && (!inline || drilldown.files.length <= 160);
   return {
     schemaVersion: spec.schemaVersion,
     digest,
@@ -16,6 +25,7 @@ function buildCompactRenderPayload(spec: RepoSpecV4, digest: string, inline: boo
     summary: spec.summary,
     verification: spec.verification,
     diagnostics: spec.diagnostics,
+    ...(includeDrilldown ? { drilldown } : {}),
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,
@@ -83,30 +93,11 @@ function buildCompactRenderPayload(spec: RepoSpecV4, digest: string, inline: boo
 export function renderVisualHtml(
   spec: RepoSpecV4,
   digest: string,
-  options?: { inline?: boolean },
+  options?: { inline?: boolean; drilldown?: DrilldownIndex },
 ): string {
   const inline = options?.inline ?? false;
-  const payload = buildCompactRenderPayload(spec, digest, inline);
+  const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown);
   const embeddedJson = JSON.stringify(payload).replace(/</g, "\\u003c");
-
-  const outerCss = inline
-    ? `
-    html, body { margin: 0; padding: 0; background: transparent; color: var(--foreground, #e5e7eb); font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, sans-serif); font-size: 13px; line-height: 1.45; }
-    .app { width: 100%; max-width: 100%; }
-    .workspace { display: flex; flex-direction: column; gap: 10px; }
-    .canvas-shell { height: 470px; }
-    .drawer { max-height: 390px; }`
-    : `
-    html, body { margin: 0; padding: 0; background: var(--background, #090d16); color: var(--foreground, #e5e7eb); font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, sans-serif); font-size: 13px; line-height: 1.45; }
-    .app { max-width: 1720px; margin: 0 auto; padding: 14px 18px 18px; }
-    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 392px; gap: 12px; align-items: stretch; }
-    .canvas-shell { height: calc(100vh - 156px); min-height: 540px; }
-    .drawer { height: calc(100vh - 156px); min-height: 540px; }
-    @media (max-width: 1040px) {
-      .workspace { grid-template-columns: 1fr; }
-      .canvas-shell { height: 520px; min-height: 400px; }
-      .drawer { height: auto; max-height: 480px; min-height: 220px; }
-    }`;
 
   return `<!doctype html>
 <html lang="en">
@@ -114,159 +105,7 @@ export function renderVisualHtml(
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>RepoSpec v${escapeHtml(spec.schemaVersion)} · ${escapeHtml(spec.repo.name)}</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; }
-  ${outerCss}
-  .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border, #1f2937); margin-bottom: 10px; }
-  .title-wrap { display: flex; flex-direction: column; gap: 2px; }
-  .title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground, #f8fafc); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .status-line { font-size: 11px; color: var(--muted-foreground, #94a3b8); font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace); display: flex; gap: 10px; flex-wrap: wrap; }
-  .status-fail { color: var(--destructive, #ef4444); font-weight: 600; }
-  .status-warn { color: var(--warning, #f59e0b); font-weight: 600; }
-  .status-pass { color: var(--success, #10b981); font-weight: 600; }
-
-  .controls-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .search-wrap { position: relative; }
-  .search { background: var(--card, #111827); color: var(--foreground, #f8fafc); border: 1px solid var(--border, #334155); border-radius: var(--radius, 7px); padding: 6px 10px; font-size: 12px; width: 256px; outline: none; }
-  .search:focus { border-color: var(--primary, #3b82f6); }
-  .search-dropdown { position: absolute; top: 34px; right: 0; width: 390px; max-height: 360px; overflow-y: auto; background: var(--popover, #0f172a); border: 1px solid var(--border, #334155); border-radius: 8px; z-index: 40; box-shadow: 0 12px 28px rgba(0,0,0,0.45); display: none; }
-  .search-dropdown.open { display: block; }
-  .search-item { padding: 7px 10px; border-bottom: 1px solid var(--border, #1e293b); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .search-item:hover { background: var(--secondary, #1e293b); }
-  .search-item-main { font-size: 12px; color: var(--foreground, #f8fafc); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .search-item-kind { font-size: 10px; color: var(--muted-foreground, #94a3b8); text-transform: uppercase; flex-shrink: 0; }
-
-  .nav-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .tab { background: var(--card, #111827); border: 1px solid var(--border, #1f2937); color: var(--muted-foreground, #cbd5e1); border-radius: var(--radius, 7px); padding: 5px 11px; font-size: 12px; font-weight: 500; cursor: pointer; }
-  .tab:hover { color: var(--foreground, #f8fafc); border-color: var(--primary, #3b82f6); }
-  .tab.active { background: var(--primary, #2563eb); color: var(--primary-foreground, #ffffff); border-color: var(--primary, #2563eb); font-weight: 600; }
-  .sub-toggles { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-  .pill-btn { background: var(--secondary, #1e293b); color: var(--foreground, #e2e8f0); border: 1px solid var(--border, #334155); border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer; }
-  .pill-btn:hover { border-color: var(--primary, #3b82f6); }
-  .pill-btn.active { background: var(--primary, #2563eb); color: #ffffff; border-color: var(--primary, #2563eb); }
-
-  .canvas-panel { background: var(--card, #0f1623); border: 1px solid var(--border, #1f2937); border-radius: var(--radius, 10px); padding: 10px 12px; display: flex; flex-direction: column; min-width: 0; }
-  .canvas-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-  .canvas-title { font-size: 13px; font-weight: 700; color: var(--foreground, #f8fafc); }
-  .canvas-sub { font-size: 11px; color: var(--muted-foreground, #94a3b8); margin-bottom: 6px; }
-  .toolbar { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-  .seg-group { display: inline-flex; border: 1px solid var(--border, #334155); border-radius: 6px; overflow: hidden; }
-  .seg-btn { background: var(--secondary, #1e293b); color: var(--muted-foreground, #cbd5e1); border: 0; padding: 3px 9px; font-size: 11px; cursor: pointer; font-family: var(--font-mono, monospace); }
-  .seg-btn.active { background: var(--primary, #2563eb); color: #ffffff; font-weight: 600; }
-  .tbtn { background: var(--secondary, #1e293b); color: var(--foreground, #e2e8f0); border: 1px solid var(--border, #334155); border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: var(--font-mono, monospace); }
-  .tbtn:hover { border-color: var(--primary, #3b82f6); }
-  .tbtn.active { background: var(--primary, #2563eb); color: #ffffff; border-color: var(--primary, #2563eb); }
-
-  .canvas-shell { position: relative; overflow: hidden; border: 1px solid var(--border, #1e293b); border-radius: 8px; background: var(--background, #090d16); cursor: grab; user-select: none; touch-action: none; }
-  .canvas-shell.matrix-mode { overflow: auto; cursor: default; user-select: text; padding: 12px; }
-  .canvas-shell.dragging { cursor: grabbing; }
-  .canvas-shell svg { width: 100%; height: 100%; display: block; }
-  .edge-tooltip { position: absolute; pointer-events: none; z-index: 30; background: rgba(15, 23, 42, 0.96); border: 1px solid #3b82f6; color: #f8fafc; border-radius: 6px; padding: 5px 9px; font-size: 11px; font-family: var(--font-mono, monospace); box-shadow: 0 8px 20px rgba(0,0,0,0.45); display: none; max-width: 340px; white-space: nowrap; }
-  .legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 6px; font-size: 10px; color: var(--muted-foreground, #94a3b8); }
-  .leg-item { display: inline-flex; align-items: center; gap: 5px; }
-  .leg-swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
-
-  .tray { margin-top: 6px; padding: 6px 8px; border: 1px dashed var(--border, #334155); border-radius: 6px; font-size: 11px; color: var(--muted-foreground, #94a3b8); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .tray-chip { padding: 2px 7px; border-radius: 4px; background: var(--secondary, #1e293b); color: var(--foreground, #cbd5e1); font-family: var(--font-mono, monospace); font-size: 10px; cursor: pointer; border: 1px solid transparent; }
-  .tray-chip:hover { border-color: var(--primary, #3b82f6); }
-
-  .svg-node { cursor: pointer; outline: none; transition: opacity 0.12s ease; }
-  .svg-node:hover .node-shape, .svg-node:focus .node-shape { stroke-width: 2.3 !important; stroke: var(--primary, #60a5fa) !important; }
-  .svg-node.selected .node-shape { stroke-width: 2.8 !important; stroke: var(--primary, #60a5fa) !important; }
-  .svg-node.dimmed { opacity: 0.16; }
-  .svg-edge-group { cursor: pointer; transition: opacity 0.12s ease; }
-  .svg-edge-group.edge-detail-hidden { display: none; }
-  .svg-edge-group.dimmed { opacity: 0.1; }
-  .svg-edge-group.selected .svg-edge-vis { stroke-width: 3.2 !important; stroke: var(--primary, #60a5fa) !important; }
-  .svg-edge-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; }
-
-  svg.hover-focus .svg-node { opacity: 0.16; }
-  svg.hover-focus .svg-node.hover-active { opacity: 1 !important; }
-  svg.hover-focus .svg-edge-group { opacity: 0.06; }
-  svg.hover-focus .svg-edge-group.hover-out { display: inline !important; opacity: 1 !important; }
-  svg.hover-focus .svg-edge-group.hover-out .svg-edge-vis { stroke: #38bdf8 !important; stroke-width: 2.4 !important; }
-  svg.hover-focus .svg-edge-group.hover-in { display: inline !important; opacity: 1 !important; }
-  svg.hover-focus .svg-edge-group.hover-in .svg-edge-vis { stroke: #34d399 !important; stroke-width: 2.4 !important; }
-  svg.hover-focus .svg-edge-group.hover-viol { display: inline !important; opacity: 1 !important; }
-  svg.hover-focus .svg-edge-group.hover-viol .svg-edge-vis { stroke: #ef4444 !important; stroke-width: 2.8 !important; }
-
-  .dsm-wrap { display: inline-block; min-width: 100%; }
-  .dsm-note { font-size: 11px; color: var(--muted-foreground, #94a3b8); margin-bottom: 10px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-  .dsm-table { border-collapse: separate; border-spacing: 2px; font-family: var(--font-mono, monospace); font-size: 10.5px; }
-  .dsm-table th, .dsm-table td { padding: 0; text-align: center; }
-  .dsm-corner { text-align: right; padding: 4px 8px !important; color: var(--muted-foreground, #64748b); font-size: 9.5px; }
-  .dsm-col-th { vertical-align: bottom; padding-bottom: 6px !important; min-width: 30px; max-width: 32px; cursor: pointer; }
-  .dsm-col-lbl { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; max-height: 120px; overflow: hidden; text-overflow: ellipsis; color: #cbd5e1; font-size: 10px; padding: 2px 4px; border-radius: 3px; }
-  .dsm-col-th:hover .dsm-col-lbl, .dsm-col-th.hl .dsm-col-lbl { color: #60a5fa; background: rgba(59,130,246,0.14); }
-  .dsm-row-th { text-align: right !important; padding: 3px 8px !important; white-space: nowrap; color: #cbd5e1; cursor: pointer; border-radius: 3px; }
-  .dsm-row-th:hover, .dsm-row-th.hl { color: #60a5fa; background: rgba(59,130,246,0.14); }
-  .dsm-lane-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-  .dsm-cell { width: 30px; height: 26px; border-radius: 4px; background: rgba(30, 41, 59, 0.35); border: 1px solid rgba(51, 65, 85, 0.35); color: #64748b; }
-  .dsm-cell.diag { background: rgba(148, 163, 184, 0.08); border-color: rgba(148, 163, 184, 0.16); color: #475569; }
-  .dsm-cell.hit { cursor: pointer; color: #e0f2fe; font-weight: 700; border-color: rgba(56, 189, 248, 0.45); }
-  .dsm-cell.hit:hover { outline: 2px solid #60a5fa; z-index: 2; }
-  .dsm-cell.viol { background: rgba(239, 68, 68, 0.36) !important; border-color: #ef4444 !important; color: #fecaca !important; cursor: pointer; font-weight: 700; }
-  .dsm-cell.sel { outline: 2px solid #f8fafc !important; }
-
-  .drawer { background: var(--card, #0f1623); border: 1px solid var(--border, #1f2937); border-radius: var(--radius, 10px); padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-  .drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .drawer-title { font-size: 14px; font-weight: 700; color: var(--foreground, #f8fafc); word-break: break-word; }
-  .drawer-sub { font-size: 11px; color: var(--muted-foreground, #94a3b8); font-family: var(--font-mono, monospace); word-break: break-all; }
-  .sec { border-top: 1px solid var(--border, #1f2937); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-  .sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground, #94a3b8); display: flex; justify-content: space-between; align-items: center; }
-  .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 11.5px; padding: 2px 0; }
-  .row-link { cursor: pointer; color: var(--foreground, #e2e8f0); }
-  .row-link:hover { color: var(--primary, #60a5fa); }
-  .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; }
-  .muted { color: var(--muted-foreground, #94a3b8); }
-
-  details.disc { background: var(--background, #090d16); border: 1px solid var(--border, #1f2937); border-left: 3px solid var(--border, #334155); border-radius: 6px; overflow: hidden; }
-  details.disc.tone-fail { border-left-color: var(--destructive, #ef4444); }
-  details.disc.tone-warn { border-left-color: var(--warning, #f59e0b); }
-  details.disc.tone-pass { border-left-color: var(--success, #10b981); }
-  details.disc.tone-info { border-left-color: var(--primary, #3b82f6); }
-  summary.disc-sum { list-style: none; cursor: pointer; padding: 7px 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11.5px; user-select: none; }
-  summary.disc-sum::-webkit-details-marker { display: none; }
-  summary.disc-sum:hover { background: rgba(148, 163, 184, 0.06); }
-  .disc-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
-  .disc-chev { color: #64748b; font-size: 10px; transition: transform 0.14s ease; flex-shrink: 0; display: inline-block; }
-  details.disc[open] > summary.disc-sum .disc-chev { transform: rotate(90deg); color: #94a3b8; }
-  .disc-title { font-weight: 600; color: var(--foreground, #f1f5f9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .disc-meta { font-size: 10px; color: var(--muted-foreground, #94a3b8); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .disc-body { padding: 7px 9px 9px; border-top: 1px solid rgba(30, 41, 59, 0.9); display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
-  .ev-item { padding: 5px 7px; border-radius: 4px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(51, 65, 85, 0.45); display: flex; flex-direction: column; gap: 2px; }
-  .fix-note { padding: 5px 7px; border-radius: 4px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); color: #cbd5e1; font-size: 10.5px; }
-
-  .ev-box { background: var(--background, #090d16); border: 1px solid var(--border, #1f2937); border-left: 3px solid var(--primary, #3b82f6); border-radius: 5px; padding: 6px 8px; font-size: 11px; display: flex; flex-direction: column; gap: 3px; }
-  .ev-box.fail { border-left-color: var(--destructive, #ef4444); }
-  .ev-box.warn { border-left-color: var(--warning, #f59e0b); }
-  .links-row { display: flex; gap: 8px; flex-wrap: wrap; font-size: 10px; align-items: center; }
-  .ext-link { color: var(--primary, #60a5fa); text-decoration: none; font-family: var(--font-mono, monospace); }
-  .ext-link:hover { text-decoration: underline; }
-  .trace-card { background: var(--background, #090d16); border: 1px solid var(--border, #1f2937); border-radius: 6px; padding: 7px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-  .trace-card:hover, .trace-card.active { border-color: var(--primary, #3b82f6); }
-  .trace-note { font-size: 10px; color: var(--muted-foreground, #94a3b8); }
-
-  .table-wrap { background: var(--card, #0f1623); border: 1px solid var(--border, #1f2937); border-radius: var(--radius, 10px); padding: 12px 14px; overflow-x: auto; }
-  table.data-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.data-tbl th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground, #94a3b8); padding: 6px 8px; border-bottom: 1px solid var(--border, #1f2937); }
-  table.data-tbl td { padding: 6px 8px; border-bottom: 1px solid var(--border, #172030); vertical-align: top; color: var(--foreground, #e2e8f0); }
-  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; font-family: var(--font-mono, monospace); flex-shrink: 0; }
-  .b-fail { background: rgba(239,68,68,0.18); color: #fca5a5; }
-  .b-warn { background: rgba(245,158,11,0.18); color: #fcd34d; }
-  .b-pass { background: rgba(16,185,129,0.18); color: #6ee7b7; }
-  .b-na { background: rgba(148,163,184,0.14); color: #94a3b8; }
-  .b-info { background: rgba(59,130,246,0.18); color: #93c5fd; }
-  .b-purple { background: rgba(139,92,246,0.2); color: #c4b5fd; }
-  .b-cyan { background: rgba(6,182,212,0.18); color: #67e8f9; }
-  .pill-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-  .story-box { background: rgba(30, 41, 59, 0.45); border: 1px solid var(--border, #1f2937); border-left: 3px solid var(--primary, #3b82f6); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
-  .crumb-sep { color: #64748b; font-size: 11px; margin: 0 2px; }
-  .api-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(51, 65, 85, 0.35); font-size: 11px; }
-  .action-btn { background: var(--primary, #2563eb); color: #ffffff; border: 0; border-radius: 5px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; }
-  .action-btn.sec-btn { background: var(--secondary, #1e293b); color: var(--foreground, #e2e8f0); border: 1px solid var(--border, #334155); }
-</style>
+<style>${renderStudioCss(inline)}</style>
 </head>
 <body>
 <div class="app" id="app"></div>
@@ -307,6 +146,7 @@ export function renderVisualHtml(
     viewMode: "flow",
     showAllEdges: false,
     activeLayerDiagId: isSingleUnitAtlas ? moduleDiags[0].id : null,
+    activeFolder: null,
     activeBehaviorId: behaviorDiags[0]?.id || null,
     selectedNodeId: null,
     selectedEdgeId: null,
@@ -321,6 +161,7 @@ export function renderVisualHtml(
     scale: 1,
     fittedDiagId: null,
   };
+  ${renderDrilldownClientScript()}
 
   function esc(s) {
     return String(s ?? "")
@@ -409,6 +250,10 @@ export function renderVisualHtml(
     }
     if (state.tab === "delivery") return deliveryDiag;
     if (state.tab === "map") {
+      if (state.activeFolder) {
+        const fd = buildFolderContextDiagram(state.activeFolder.unitSlug, state.activeFolder.folderPath);
+        if (fd) return fd;
+      }
       if (state.activeLayerDiagId && diagById.has(state.activeLayerDiagId)) {
         return diagById.get(state.activeLayerDiagId);
       }
@@ -907,6 +752,7 @@ export function renderVisualHtml(
 
     const subDiagId = "subsystem:" + mod.unitSlug + ":" + mod.name;
     const subDiag = mod.hasSubsystemDiagram ? diagById.get(subDiagId) : null;
+    const ddFolderCount = mod.kind === "directory" ? unitHasFolderFiles(mod.unitSlug, mod.name) : 0;
     const modDiag = diagById.get("modules:" + mod.unitSlug) || diag;
     const outEdges = (modDiag?.edges || []).filter((e) => e.from === mod.id);
     const inEdges = (modDiag?.edges || []).filter((e) => e.to === mod.id);
@@ -928,7 +774,11 @@ export function renderVisualHtml(
       "</div>";
 
     const actions = [
-      subDiag ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>" : "",
+      ddFolderCount > 0
+        ? '<button class="action-btn" data-open-folder="' + esc(mod.unitSlug + "::" + mod.name) + '">Open ' + esc(mod.name) + "/ (" + ddFolderCount + " files) →</button>"
+        : subDiag
+          ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>"
+          : "",
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
       '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
     ].filter(Boolean).join(" ");
@@ -979,10 +829,13 @@ export function renderVisualHtml(
         badgeClass: "b-na",
         open: mod.fileCount <= 6,
         bodyHtml: mod.files.map((f) => {
+          const hasDd = ddIdxByPath.has(f.file);
           const gh = githubUrl(f.file, 1);
-          const nameHtml = gh
-            ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">' + esc(f.file) + " ↗</a>"
-            : '<span class="mono">' + esc(f.file) + "</span>";
+          const nameHtml = hasDd
+            ? '<span class="row-link mono" data-open-file="' + esc(f.file) + '">' + esc(f.file) + "</span>"
+            : gh
+              ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">' + esc(f.file) + " ↗</a>"
+              : '<span class="mono">' + esc(f.file) + "</span>";
           const io = f.capabilities.filter((c) => c !== "PURE").join(",");
           return '<div class="row">' + nameHtml + '<span class="mono muted">' + f.lines + "L" + (io ? " · " + esc(io) : "") + "</span></div>";
         }).join(""),
@@ -1026,6 +879,8 @@ export function renderVisualHtml(
   }
 
   function renderNodeInspector(nodeId) {
+    const folderInsp = renderFolderNodeInspector(nodeId, activeDiagram());
+    if (folderInsp) return folderInsp;
     if (moduleById.has(nodeId) || nodeId.startsWith("mod:") || nodeId.startsWith("sub:")) {
       return renderModuleInspector(nodeId);
     }
@@ -1035,6 +890,8 @@ export function renderVisualHtml(
     const inEdges = DATA.edges.filter((e) => e.to === nodeId);
     const modDiag = moduleDiagByOwner.get(nodeId);
     const layerDiag = layerDiagByOwner.get(nodeId);
+    const linkedLayerMod = node.kind === "code_layer" && node.group ? moduleById.get("mod:" + node.group + ":" + node.label) : null;
+    const layerFolderCount = node.kind === "code_layer" && node.group ? unitHasFolderFiles(node.group, node.label) : 0;
     const unitName = node.label;
     const unitSlug = shortPkg(unitName);
     const unitDir = typeof node.meta?.dir === "string" ? node.meta.dir : "";
@@ -1043,6 +900,7 @@ export function renderVisualHtml(
     const unitGovs = DATA.surfaces.govRules.filter((g) => !g.scopePrefix || (unitDir && (unitDir === g.scopePrefix || unitDir.startsWith(g.scopePrefix + "/"))));
 
     const actions = [
+      layerFolderCount > 0 ? '<button class="action-btn" data-open-folder="' + esc(node.group + "::" + node.label) + '">Open ' + esc(node.label) + "/ (" + layerFolderCount + " files) →</button>" : "",
       modDiag ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ")</button>" : "",
       layerDiag ? '<button class="action-btn sec-btn" data-open-layers="' + esc(layerDiag.id) + '">Layers (' + layerDiag.nodes.length + ")</button>" : "",
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
@@ -1177,11 +1035,27 @@ export function renderVisualHtml(
           }).join("")) +
       "</div>";
 
+    const layerAnatomySec = linkedLayerMod
+      ? '<div class="sec"><div class="sec-title"><span>Folder Anatomy (' + linkedLayerMod.fileCount + ' files)</span><span class="muted">' + linkedLayerMod.lines + "L · " + linkedLayerMod.exportCount + " exp</span></div>" +
+        '<div class="pill-row">' + linkedLayerMod.capabilities.map((c) => '<span class="badge ' + capBadgeClass(c) + '">' + esc(c) + "</span>").join("") + "</div>" +
+        renderDisclosure({
+          title: "Files in " + linkedLayerMod.name + "/ (click any file)",
+          badge: linkedLayerMod.fileCount,
+          badgeClass: "b-info",
+          open: linkedLayerMod.fileCount <= 8,
+          bodyHtml: linkedLayerMod.files.slice(0, 20).map((f) =>
+            '<div class="row"><span class="row-link mono" data-open-file="' + esc(f.file) + '">' + esc(f.file.split("/").pop()) + '</span><span class="mono muted">' + f.lines + "L · " + f.exports + " exp</span></div>"
+          ).join(""),
+        }) +
+        "</div>"
+      : "";
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(shortPkg(node.label)) + '</div><div class="drawer-sub">' + esc(node.kind) + (node.meta?.archetype ? " · " + esc(node.meta.archetype) : "") + (node.meta?.layerAxis ? " · " + esc(node.meta.layerAxis) : "") + "</div></div></div>" +
       provenanceLinksHtml(node.provenance?.file, node.provenance?.line) +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
       findingsSec +
+      layerAnatomySec +
       connSec +
       surfaceSec +
       govSec
@@ -1307,6 +1181,17 @@ export function renderVisualHtml(
     const q = state.search.trim().toLowerCase();
     if (!q) return '<div class="search-dropdown" id="search-dd"></div>';
     const hits = [];
+    for (const f of DD_FILES) {
+      if (f.p.toLowerCase().includes(q)) {
+        hits.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
+      } else {
+        const symHit = f.s.find((s) => s[0].toLowerCase().includes(q));
+        if (symHit) {
+          hits.push({ kind: symHit[1], label: symHit[0] + " (" + f.p.split("/").pop() + ")", action: "file", id: f.p });
+        }
+      }
+      if (hits.length >= 10) break;
+    }
     for (const m of (DATA.modules || [])) {
       if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
         hits.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
@@ -1438,7 +1323,29 @@ export function renderVisualHtml(
 
     let subNav = "";
     if (state.tab === "map") {
-      if (state.activeLayerDiagId) {
+      if (state.activeFolder) {
+        const af = state.activeFolder;
+        const crumbs = ['<button class="pill-btn" data-back-map="1">System</button>'];
+        const unitModDiag = diagById.get("modules:" + af.unitSlug);
+        const unitLayerDiag = diagById.get("layers:" + af.unitSlug);
+        const unitReturnId = af.returnDiagId || unitModDiag?.id || unitLayerDiag?.id || null;
+        if (unitReturnId) {
+          crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(unitReturnId) + '">' + esc(af.unitSlug) + "</button>");
+        } else {
+          crumbs.push('<span class="crumb-sep">›</span><span class="mono muted">' + esc(af.unitSlug) + "</span>");
+        }
+        const segs = af.folderPath.split("/").filter(Boolean);
+        let acc = "";
+        segs.forEach((seg, si) => {
+          acc = acc ? acc + "/" + seg : seg;
+          if (si < segs.length - 1) {
+            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-folder="' + esc(af.unitSlug + "::" + acc) + '">' + esc(seg) + "/</button>");
+          } else {
+            crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(seg) + "/</span>");
+          }
+        });
+        subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
+      } else if (state.activeLayerDiagId) {
         const ld = diagById.get(state.activeLayerDiagId);
         const ownerModDiag = ld?.ownerId ? moduleDiagByOwner.get(ld.ownerId) : null;
         const ownerLayerDiag = ld?.ownerId ? layerDiagByOwner.get(ld.ownerId) : null;
@@ -1607,6 +1514,7 @@ export function renderVisualHtml(
     if (tabBtn) {
       state.tab = tabBtn.getAttribute("data-tab") || "map";
       state.activeLayerDiagId = null;
+      state.activeFolder = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
@@ -1618,6 +1526,7 @@ export function renderVisualHtml(
     if (mapModeBtn) {
       state.mapMode = mapModeBtn.getAttribute("data-map-mode") || "runtime";
       state.activeLayerDiagId = null;
+      state.activeFolder = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
@@ -1650,6 +1559,7 @@ export function renderVisualHtml(
 
     if (target.closest("[data-back-map]")) {
       state.activeLayerDiagId = null;
+      state.activeFolder = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
@@ -1657,9 +1567,51 @@ export function renderVisualHtml(
       return;
     }
 
+    const openFolderBtn = target.closest("[data-open-folder]");
+    if (openFolderBtn) {
+      const raw = openFolderBtn.getAttribute("data-open-folder") || "";
+      const sep = raw.indexOf("::");
+      if (sep > 0) {
+        const uSlug = raw.slice(0, sep);
+        const fPath = raw.slice(sep + 2);
+        const prevReturn = state.activeFolder?.returnDiagId || state.activeLayerDiagId;
+        state.tab = "map";
+        state.activeFolder = { unitSlug: uSlug, folderPath: fPath, returnDiagId: prevReturn };
+        state.focusMode = false;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        render();
+      }
+      return;
+    }
+
+    const openFileBtn = target.closest("[data-open-file]");
+    if (openFileBtn) {
+      const fPath = openFileBtn.getAttribute("data-open-file") || "";
+      const fIdx = ddIdxByPath.get(fPath);
+      if (fIdx !== undefined) {
+        const f = DD_FILES[fIdx];
+        const peel = ddUnitPeelPrefix(f.u);
+        const logical = ddLogicalRel(f, peel);
+        const parts = logical.split("/");
+        const parentFolder = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
+        const prevReturn = state.activeFolder?.returnDiagId || state.activeLayerDiagId;
+        state.tab = "map";
+        if (parentFolder) {
+          state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: prevReturn };
+        }
+        state.selectedNodeId = "file:" + f.p;
+        state.selectedEdgeId = null;
+        state.focusMode = false;
+        render();
+      }
+      return;
+    }
+
     const openLayerBtn = target.closest("[data-open-layers]");
     if (openLayerBtn) {
       state.tab = "map";
+      state.activeFolder = null;
       state.activeLayerDiagId = openLayerBtn.getAttribute("data-open-layers");
       state.focusMode = false;
       state.selectedNodeId = null;
@@ -1762,9 +1714,23 @@ export function renderVisualHtml(
       const act = searchItem.getAttribute("data-search-action");
       const id = searchItem.getAttribute("data-search-id") || "";
       state.search = "";
-      if (act === "module") {
+      if (act === "file") {
+        const fIdx = ddIdxByPath.get(id);
+        if (fIdx !== undefined) {
+          const f = DD_FILES[fIdx];
+          const peel = ddUnitPeelPrefix(f.u);
+          const logical = ddLogicalRel(f, peel);
+          const parts = logical.split("/");
+          const parentFolder = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
+          state.tab = "map";
+          if (parentFolder) state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: "modules:" + f.u };
+          state.selectedNodeId = "file:" + f.p;
+          state.selectedEdgeId = null;
+        }
+      } else if (act === "module") {
         const mod = moduleById.get(id);
         state.tab = "map";
+        state.activeFolder = null;
         state.activeLayerDiagId = mod ? "modules:" + mod.unitSlug : state.activeLayerDiagId;
         state.selectedNodeId = id;
         state.selectedEdgeId = null;
@@ -1819,11 +1785,45 @@ export function renderVisualHtml(
     if (!svgNode) return;
     const id = svgNode.getAttribute("data-node");
     if (!id) return;
+    const curDiag = activeDiagram();
+    const diagNode = curDiag?.nodes.find((n) => n.id === id);
+    if (id.startsWith("folder:")) {
+      const rest = id.slice(7);
+      const colon = rest.indexOf(":");
+      const uSlug = rest.slice(0, colon);
+      const fPath = rest.slice(colon + 1);
+      state.tab = "map";
+      state.activeFolder = { unitSlug: uSlug, folderPath: fPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return;
+    }
+    if (diagNode?.ctxMeta?.folderPath && diagNode.ctxMeta.unitSlug) {
+      state.tab = "map";
+      state.activeFolder = { unitSlug: diagNode.ctxMeta.unitSlug, folderPath: diagNode.ctxMeta.folderPath, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return;
+    }
     const mod = moduleById.get(id);
-    if (mod && mod.hasSubsystemDiagram) {
+    if (mod && mod.kind === "directory") {
+      if (unitHasFolderFiles(mod.unitSlug, mod.name) > 0) {
+        state.tab = "map";
+        state.activeFolder = { unitSlug: mod.unitSlug, folderPath: mod.name, returnDiagId: state.activeLayerDiagId };
+        state.focusMode = false;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        render();
+        return;
+      }
       const subId = "subsystem:" + mod.unitSlug + ":" + mod.name;
       if (diagById.has(subId)) {
         state.tab = "map";
+        state.activeFolder = null;
         state.activeLayerDiagId = subId;
         state.focusMode = false;
         state.selectedNodeId = null;
@@ -1832,9 +1832,20 @@ export function renderVisualHtml(
         return;
       }
     }
+    const specNode = nodeById.get(id);
+    if (specNode && specNode.kind === "code_layer" && specNode.group && unitHasFolderFiles(specNode.group, specNode.label) > 0) {
+      state.tab = "map";
+      state.activeFolder = { unitSlug: specNode.group, folderPath: specNode.label, returnDiagId: state.activeLayerDiagId };
+      state.focusMode = false;
+      state.selectedNodeId = null;
+      state.selectedEdgeId = null;
+      render();
+      return;
+    }
     const targetDiag = moduleDiagByOwner.get(id) || layerDiagByOwner.get(id) || null;
     if (targetDiag) {
       state.tab = "map";
+      state.activeFolder = null;
       state.activeLayerDiagId = targetDiag.id;
       state.focusMode = false;
       state.selectedNodeId = null;
