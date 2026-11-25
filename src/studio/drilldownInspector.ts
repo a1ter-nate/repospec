@@ -74,12 +74,23 @@ export function renderDrilldownInspectorScript(): string {
         "</div>"
       : "";
 
+    const allSyms = f.m || [];
+    const pubSyms = allSyms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "pub");
+    const privSyms = allSyms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "priv");
+    const surfacePreviewSec = allSyms.length > 0
+      ? '<div class="sec"><div class="sec-title"><span>Public (' + pubSyms.length + ") & Private (" + privSyms.length + ') Surface</span><span class="muted">click for callstack + code</span></div>' +
+        (pubSyms.length > 0 ? '<div class="pill-row">' + pubSyms.slice(0, 12).map((x) => '<button class="tray-chip" style="border:1px solid rgba(16,185,129,0.35);color:#6ee7b7" data-open-file-graph="' + esc(f.p) + '" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>" : "") +
+        (privSyms.length > 0 ? '<div class="pill-row" style="margin-top:4px">' + privSyms.slice(0, 12).map((x) => '<button class="tray-chip" style="border:1px solid rgba(245,158,11,0.3);color:#fcd34d" data-open-file-graph="' + esc(f.p) + '" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>" : "") +
+        "</div>"
+      : "";
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.u + " · " + f.p) + "</div></div></div>" +
       provenanceLinksHtml(f.p, 1) +
       pills +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Folder Briefing</button></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Symbol Callstack & Code (' + allSyms.length + ') →</button><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Folder Briefing</button></div>' +
       findingsSec +
+      surfacePreviewSec +
       symsHtml +
       surfacesSec +
       callersSec +

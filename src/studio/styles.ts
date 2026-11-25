@@ -239,5 +239,13 @@ export function renderStudioCss(inline: boolean): string {
   .split-pane svg { width: 100%; height: 100%; flex: 1; }
   .split-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--rs-border); background: rgba(11, 15, 25, 0.85); font-size: 11px; flex-shrink: 0; }
   @media (max-width: 900px) { .split-diff-wrap { grid-template-columns: 1fr; } }
+
+  .code-box { background: #070a10; border: 1px solid var(--rs-border); border-radius: 7px; max-height: 430px; overflow: auto; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; line-height: 1.5; padding: 6px 0; }
+  .code-line { display: flex; gap: 10px; padding: 0 10px 0 0; white-space: pre; min-width: max-content; }
+  .code-line.span-line { background: rgba(99, 102, 241, 0.045); }
+  .code-line.focus-line { background: rgba(99, 102, 241, 0.24); border-left: 2.5px solid #818cf8; }
+  .code-ln { width: 40px; flex-shrink: 0; text-align: right; color: #475569; user-select: none; padding-right: 4px; }
+  .code-line.focus-line .code-ln { color: #c7d2fe; font-weight: 700; }
+  .code-tx { color: #dbe4f0; }
 `;
 }

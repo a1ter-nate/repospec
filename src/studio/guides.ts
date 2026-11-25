@@ -57,6 +57,17 @@ export function renderGuidesClientScript(): string {
         why: "When a graph has dozens of arrows, a matrix reveals circular tangles immediately and shows the smallest import to cut.",
       };
     }
+    if (state.activeFileGraph) {
+      return {
+        title: "File Symbol Callstack & Code",
+        what: "Shows every public (exported) symbol on the left, how it calls down into private/internal helper functions in the middle, and external/imported calls on the right.",
+        how: [
+          "Hover any symbol card to trace its full downward callstack (blue) and upward callers (green).",
+          "Click any symbol name or call arrow (:line) to inspect the actual source code highlighted to that exact line.",
+        ],
+        why: "Lets you trace exactly how a public API entrypoint executes inside a file before reading or editing code.",
+      };
+    }
     if (state.activeFolder) {
       return {
         title: "Folder Context Map",
@@ -113,6 +124,67 @@ export function renderGuidesClientScript(): string {
       '<div class="fix-note"><strong>Why it matters:</strong> ' + esc(g.why) + "</div>" +
       "</div>"
     );
+  }
+
+  function renderLegend(diag) {
+    const items = [];
+    const detailCount = diag.edges.filter((e) => e.tier === "detail" && !e.violation).length;
+    if (state.viewMode === "matrix" && supportsMatrix(diag)) {
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Row imports Column (intensity = weight)</span>');
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#ef4444"></span>Rule violation / cycle</span>');
+      return '<div class="legend">' + items.join("") + "</div>";
+    }
+    if (diag.category === "filegraph") {
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#34d399"></span>Public surface</span>');
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#fbbf24"></span>Private helper</span>');
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Calls down</span>');
+      return '<div class="legend">' + items.join("") + "</div>";
+    }
+    if (diag.edges.some((e) => e.confidence === "observed")) {
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#64748b"></span>Spine</span>');
+    }
+    if (diag.edges.some((e) => e.confidence === "inferred")) {
+      items.push('<span class="leg-item"><span class="leg-swatch" style="border-top:2px dashed #64748b;height:0"></span>Inferred</span>');
+    }
+    if (diag.edges.some((e) => e.violation)) {
+      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#ef4444"></span>Violation</span>');
+    }
+    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Out</span>');
+    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#34d399"></span>In</span>');
+    if (detailCount > 0 && !state.showAllEdges) {
+      items.push('<span class="leg-item">+' + detailCount + " on hover</span>");
+    }
+    if (diag.foldedCount && diag.foldedCount > 0) {
+      items.push('<span class="leg-item">+' + diag.foldedCount + " folded</span>");
+    }
+    return '<div class="legend">' + items.join("") + "</div>";
+  }
+
+  function buildArchitectureStory() {
+    const mods = DATA.modules || [];
+    if (mods.length === 0) return "";
+    const curDiag = activeDiagram();
+    const scopedMods = curDiag && curDiag.ownerId
+      ? mods.filter((m) => m.unitId === curDiag.ownerId)
+      : mods;
+    const list = scopedMods.length >= 2 ? scopedMods : mods;
+    const entries = list.filter((m) => m.role === "entry" || (m.level === 0 && m.fanOut > 0)).slice(0, 3);
+    const cores = list.filter((m) => m.role === "orchestrator" || m.role === "core" || m.role === "adapter").slice(0, 4);
+    const foundations = list.filter((m) => m.role === "foundation" || (m.fanOut === 0 && m.fanIn > 0)).slice(0, 3);
+    const tangles = new Set(list.map((m) => m.tangleId).filter(Boolean));
+    const ioMods = list.filter((m) => m.capabilities.some((c) => c !== "PURE"));
+    const pureMods = list.filter((m) => m.capabilities.length === 1 && m.capabilities[0] === "PURE");
+
+    const s1 = entries.length > 0
+      ? "Execution enters through <strong>" + entries.map((m) => esc(m.name)).join(", ") + "</strong>" +
+        (cores.length > 0 ? ", flows through <strong>" + cores.map((m) => esc(m.name)).join(", ") + "</strong>" : "") +
+        (foundations.length > 0 ? ", down to foundational <strong>" + foundations.map((m) => esc(m.name)).join(", ") + "</strong>." : ".")
+      : "Organized into <strong>" + list.length + "</strong> modules across " + (new Set(list.map((m) => m.unitSlug)).size) + " unit(s).";
+    const s2 = tangles.size > 0
+      ? ' <span class="status-fail">' + tangles.size + " cyclic tangle" + (tangles.size === 1 ? "" : "s") + " detected.</span>"
+      : ' <span class="status-pass">Clean acyclic module DAG (0 cycles).</span>';
+    const s3 = " " + ioMods.length + " IO-boundary module" + (ioMods.length === 1 ? "" : "s") + " · " + pureMods.length + " pure logic module" + (pureMods.length === 1 ? "" : "s") + ".";
+    return '<div class="story-box">' + s1 + s2 + s3 + "</div>";
   }
 
   function buildFixBriefMarkdown(inv) {

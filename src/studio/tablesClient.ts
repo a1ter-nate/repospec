@@ -1,5 +1,91 @@
 export function renderTablesClientScript(): string {
   return `
+  function renderEdgeInspector(diag, edgeId) {
+    const e = diag.edges.find((x) => x.id === edgeId);
+    if (!e) return renderBriefingDrawer();
+    const labelFor = (id) => {
+      const m = moduleById.get(id);
+      if (m) return m.kind === "directory" ? m.name + "/" : m.name;
+      const dn = diag.nodes.find((n) => n.id === id);
+      if (dn) return dn.label;
+      return shortPkg(nodeById.get(id)?.label || id);
+    };
+    const fromLabel = labelFor(e.from);
+    const toLabel = labelFor(e.to);
+    return (
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(fromLabel) + (e.bidirectional ? " ⇄ " : " → ") + esc(toLabel) + '</div><div class="drawer-sub">' + esc(e.kind) + " · " + esc(e.confidence) + (e.weight ? " · weight " + e.weight : "") + "</div></div></div>" +
+      '<div><button class="action-btn sec-btn" data-clear-sel="1">Briefing (Esc)</button></div>' +
+      (e.ruleIds && e.ruleIds.length > 0
+        ? '<div class="sec"><div class="sec-title">Triggered Invariants</div>' + e.ruleIds.map((rid) => {
+            const inv = invById.get(rid);
+            if (!inv) return '<div class="ev-box warn"><strong class="mono">' + esc(rid) + "</strong></div>";
+            return renderFindingDisclosure(inv, {
+              open: true,
+              filterEv: (ev) => (ev.edgeFromId === e.from && ev.edgeToId === e.to) || (e.bidirectional && ev.edgeFromId === e.to && ev.edgeToId === e.from),
+            });
+          }).join("") + "</div>"
+        : "") +
+      '<div class="sec"><div class="sec-title">Source Evidence (' + (e.evidence?.length || 0) + ")</div>" +
+      ((e.evidence || []).length === 0
+        ? '<div class="muted" style="font-size:11px">Structural edge without line-level evidence items.</div>'
+        : e.evidence.map((ev) => '<div class="ev-box ' + (e.violation ? "fail" : "") + '">' + provenanceLinksHtml(ev.file, ev.line) + "<div>" + esc(ev.detail) + "</div></div>").join("")) +
+      "</div>"
+    );
+  }
+
+  function renderSearchDropdown() {
+    const q = state.search.trim().toLowerCase();
+    if (!q) return '<div class="search-dropdown" id="search-dd"></div>';
+    const hits = [];
+    for (const f of DD_FILES) {
+      if (f.p.toLowerCase().includes(q)) {
+        hits.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
+      } else {
+        const symHit = (f.m || []).find((s) => s[0].toLowerCase().includes(q));
+        if (symHit) {
+          hits.push({ kind: (symHit[1] === "pub" ? "pub " : "priv ") + symHit[2], label: formatSymDisplayName(symHit) + " (" + f.p.split("/").pop() + ")", action: "file", id: f.p });
+        }
+      }
+      if (hits.length >= 10) break;
+    }
+    for (const m of (DATA.modules || [])) {
+      if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
+        hits.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
+      } else {
+        const symHit = m.topExports.find((s) => s.name.toLowerCase().includes(q));
+        if (symHit) {
+          hits.push({ kind: symHit.kind, label: symHit.name + " (" + m.name + ")", action: "module", id: m.id });
+        }
+      }
+      if (hits.length >= 8) break;
+    }
+    for (const n of DATA.nodes) {
+      if (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) {
+        hits.push({ kind: n.kind, label: shortPkg(n.label), action: "node", id: n.id });
+      }
+      if (hits.length >= 14) break;
+    }
+    for (const ep of DATA.surfaces.endpoints) {
+      if (ep.path.toLowerCase().includes(q)) {
+        hits.push({ kind: ep.method, label: ep.path + " (" + (ep.authGuard || "unannotated") + ")", action: "endpoints", id: ep.path });
+      }
+      if (hits.length >= 18) break;
+    }
+    for (const e of DATA.entities) {
+      if (e.entity.toLowerCase().includes(q)) {
+        hits.push({ kind: e.datastore, label: e.entity, action: "entity", id: e.entity });
+      }
+      if (hits.length >= 22) break;
+    }
+    return (
+      '<div class="search-dropdown open" id="search-dd">' +
+      (hits.length === 0
+        ? '<div class="search-item"><span class="muted">No matches</span></div>'
+        : hits.map((h) => '<div class="search-item" data-search-action="' + esc(h.action) + '" data-search-id="' + esc(h.id) + '"><span class="search-item-main">' + esc(h.label) + '</span><span class="search-item-kind">' + esc(h.kind) + "</span></div>").join("")) +
+      "</div>"
+    );
+  }
+
   function renderMatrixView(diag) {
     const laneIdx = new Map((diag.lanes || []).map((l, i) => [l.id, i]));
     const laneColors = ["#38bdf8", "#818cf8", "#34d399", "#fbbf24", "#f472b6", "#94a3b8"];

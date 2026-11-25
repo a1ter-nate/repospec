@@ -141,7 +141,7 @@ export async function generateRepoSpec(
   storeDigestInDb(targetDbPath, digest);
   const idsModule = generateIdsModule(spec, digest);
   const sdkModule = generateSqliteSdkModule();
-  const drilldown = buildDrilldownIndex(ctx.units, merged.ast);
+  const drilldown = buildDrilldownIndex(ctx.units, merged.ast, ctx.rootDir);
   return { spec, digest, idsModule, sdkModule, dbPath: targetDbPath, drilldown };
 }
 

@@ -1,6 +1,8 @@
 export function renderSvgClientScript(): string {
   return `
   function nodeVisualTone(n) {
+    if (n.kind === "sym_pub") return { bg: "rgba(16,185,129,0.18)", stroke: "#34d399", glyph: "app" };
+    if (n.kind === "sym_priv") return { bg: "rgba(245,158,11,0.14)", stroke: "#fbbf24", glyph: "file" };
     if (n.kind === "datastore" || n.shape === "db") return { bg: "rgba(139,92,246,0.16)", stroke: "#a78bfa", glyph: "db" };
     if (n.kind === "external_service") return { bg: "rgba(6,182,212,0.16)", stroke: "#22d3ee", glyph: "ext" };
     if (n.kind === "folder" || n.kind === "code_layer" || (n.kind === "module" && n.label.endsWith("/"))) {

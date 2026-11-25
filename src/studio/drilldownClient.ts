@@ -249,7 +249,8 @@ export function renderDrilldownClientScript(): string {
             }
           }
           const findings = Array.from(fCounts.values());
-          return { id: ch.id, label: ch.label, sublabel: sub, shape: "box", kind: ch.isDir ? "folder" : "file", expandable: ch.isDir, provenance: { file: ch.provenanceFile }, findings: findings.length > 0 ? findings : undefined, childMeta: ch };
+          const hasSyms = !ch.isDir && ch.fileIdxs.length === 1 && Boolean(DD_FILES[ch.fileIdxs[0]]?.m?.length);
+          return { id: ch.id, label: ch.label, sublabel: sub, shape: "box", kind: ch.isDir ? "folder" : "file", expandable: ch.isDir || hasSyms, provenance: { file: ch.provenanceFile }, findings: findings.length > 0 ? findings : undefined, childMeta: ch };
         }),
       });
     });

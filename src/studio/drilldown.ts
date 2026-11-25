@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { AstIndexData, UnitDescriptor } from "../schema.ts";
 import { isExcludedCodePath } from "../extractors/moduleFacts.ts";
+import { extractFileCallGraph, packSourceArchiveBase64, type FileSymbolTuple } from "./fileSymbols.ts";
 
 export interface DrilldownFile {
   p: string;
@@ -12,16 +15,21 @@ export interface DrilldownFile {
   x: string[];
   t: string[];
   v: string[];
+  m?: FileSymbolTuple[];
+  k?: Array<[number, number, number]>;
+  o?: Array<[number, string, number]>;
 }
 
 export interface DrilldownIndex {
   files: DrilldownFile[];
   edges: Array<[number, number, number]>;
+  sourcesGzipBase64?: string;
 }
 
 export function buildDrilldownIndex(
   units: UnitDescriptor[],
   ast: AstIndexData,
+  repoRoot?: string,
 ): DrilldownIndex {
   const unitByName = new Map<string, UnitDescriptor>();
   for (const u of units) unitByName.set(u.name, u);
@@ -59,6 +67,7 @@ export function buildDrilldownIndex(
 
   const files: DrilldownFile[] = [];
   const idxByPath = new Map<string, number>();
+  const sourceTexts: string[] = [];
 
   for (const f of prodFiles) {
     const u = unitByName.get(f.unit);
@@ -67,6 +76,19 @@ export function buildDrilldownIndex(
     const symbols: Array<[string, string, number]> = (f.exportedSymbols ?? [])
       .slice(0, 20)
       .map((s) => [s.name, s.kind, s.line]);
+
+    let callGraph: ReturnType<typeof extractFileCallGraph> | null = null;
+    let packedText = "";
+    if (repoRoot) {
+      const absPath = path.join(repoRoot, f.file);
+      if (fs.existsSync(absPath)) {
+        const raw = fs.readFileSync(absPath, "utf8");
+        callGraph = extractFileCallGraph(f.file, raw);
+        const lines = raw.split("\n");
+        packedText = lines.length > 1200 ? `${lines.slice(0, 1200).join("\n")}\n// ... truncated (${lines.length} lines total)` : raw;
+      }
+    }
+    sourceTexts.push(packedText);
 
     idxByPath.set(f.file, files.length);
     files.push({
@@ -80,6 +102,7 @@ export function buildDrilldownIndex(
       x: Array.from(extByFile.get(f.file) ?? []).sort().slice(0, 8),
       t: Array.from(entitiesByFile.get(f.file) ?? []).sort().slice(0, 10),
       v: Array.from(envByFile.get(f.file) ?? []).sort().slice(0, 10),
+      ...(callGraph && callGraph.m.length > 0 ? { m: callGraph.m, k: callGraph.k, o: callGraph.o } : {}),
     });
   }
 
@@ -98,5 +121,6 @@ export function buildDrilldownIndex(
     edges.push([fromIdx, toIdx, imp.line]);
   }
 
-  return { files, edges };
+  const sourcesGzipBase64 = repoRoot && sourceTexts.length > 0 ? packSourceArchiveBase64(sourceTexts) : undefined;
+  return { files, edges, ...(sourcesGzipBase64 ? { sourcesGzipBase64 } : {}) };
 }

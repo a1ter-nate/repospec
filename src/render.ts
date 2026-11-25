@@ -3,6 +3,7 @@ import type { CommitArchDiff } from "./studio/commitDiff.ts";
 import { renderDiffClientScript } from "./studio/diffClient.ts";
 import type { DrilldownIndex } from "./studio/drilldown.ts";
 import { renderDrilldownClientScript } from "./studio/drilldownClient.ts";
+import { renderFileCallGraphClientScript } from "./studio/fileCallGraphClient.ts";
 import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSvgClientScript } from "./studio/svg.ts";
@@ -25,6 +26,9 @@ function buildCompactRenderPayload(
   commitDiff?: CommitArchDiff,
 ): Record<string, unknown> {
   const includeDrilldown = drilldown && (!inline || drilldown.files.length <= 160);
+  const compactDrilldown = includeDrilldown
+    ? { files: drilldown.files, edges: drilldown.edges }
+    : undefined;
   return {
     schemaVersion: spec.schemaVersion,
     digest,
@@ -32,7 +36,7 @@ function buildCompactRenderPayload(
     summary: spec.summary,
     verification: spec.verification,
     diagnostics: spec.diagnostics,
-    ...(includeDrilldown ? { drilldown } : {}),
+    ...(compactDrilldown ? { drilldown: compactDrilldown } : {}),
     ...(commitDiff ? { commitDiff } : {}),
     nodes: spec.nodes.map((n) => ({
       id: n.id,
@@ -106,6 +110,10 @@ export function renderVisualHtml(
   const inline = options?.inline ?? false;
   const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown, options?.commitDiff);
   const embeddedJson = JSON.stringify(payload).replace(/</g, "\\u003c");
+  const includeSrcBlob = Boolean(options?.drilldown?.sourcesGzipBase64 && (!inline || (options?.drilldown?.files.length ?? 0) <= 160));
+  const srcScriptTag = includeSrcBlob
+    ? `\n<script id="repospec-src" type="application/octet-stream">${options?.drilldown?.sourcesGzipBase64}</script>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -117,7 +125,7 @@ export function renderVisualHtml(
 </head>
 <body>
 <div class="app" id="app"></div>
-<script id="repospec-data" type="application/json">${embeddedJson}</script>
+<script id="repospec-data" type="application/json">${embeddedJson}</script>${srcScriptTag}
 <script>
 (() => {
   const DATA = JSON.parse(document.getElementById("repospec-data").textContent);
@@ -160,6 +168,9 @@ export function renderVisualHtml(
     diffDiagramId: DATA.commitDiff?.diagrams?.[0]?.id || null,
     activeLayerDiagId: isSingleUnitAtlas ? moduleDiags[0].id : null,
     activeFolder: null,
+    activeFileGraph: null,
+    codeFocusLine: 1,
+    codeFullFile: false,
     activeBehaviorId: behaviorDiags[0]?.id || null,
     selectedNodeId: null,
     selectedEdgeId: null,
@@ -176,6 +187,7 @@ export function renderVisualHtml(
     justNavigated: false,
   };
   ${renderDrilldownClientScript()}
+  ${renderFileCallGraphClientScript()}
   ${renderGuidesClientScript()}
   ${renderDiffClientScript()}
 
@@ -274,6 +286,10 @@ export function renderVisualHtml(
     }
     if (state.tab === "delivery") return deliveryDiag;
     if (state.tab === "map") {
+      if (state.activeFileGraph) {
+        const fg = buildFileCallGraphDiagram(state.activeFileGraph);
+        if (fg) return fg;
+      }
       if (state.activeFolder) {
         const fd = buildFolderContextDiagram(state.activeFolder.unitSlug, state.activeFolder.folderPath);
         if (fd) return fd;
@@ -388,34 +404,6 @@ export function renderVisualHtml(
   }
   ${renderSvgClientScript()}
 
-  function renderLegend(diag) {
-    const items = [];
-    const detailCount = diag.edges.filter((e) => e.tier === "detail" && !e.violation).length;
-    if (state.viewMode === "matrix" && supportsMatrix(diag)) {
-      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Row imports Column (intensity = weight)</span>');
-      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#ef4444"></span>Rule violation / cycle</span>');
-      return '<div class="legend">' + items.join("") + "</div>";
-    }
-    if (diag.edges.some((e) => e.confidence === "observed")) {
-      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#64748b"></span>Spine</span>');
-    }
-    if (diag.edges.some((e) => e.confidence === "inferred")) {
-      items.push('<span class="leg-item"><span class="leg-swatch" style="border-top:2px dashed #64748b;height:0"></span>Inferred</span>');
-    }
-    if (diag.edges.some((e) => e.violation)) {
-      items.push('<span class="leg-item"><span class="leg-swatch" style="background:#ef4444"></span>Violation</span>');
-    }
-    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#38bdf8"></span>Out</span>');
-    items.push('<span class="leg-item"><span class="leg-swatch" style="background:#34d399"></span>In</span>');
-    if (detailCount > 0 && !state.showAllEdges) {
-      items.push('<span class="leg-item">+' + detailCount + " on hover</span>");
-    }
-    if (diag.foldedCount && diag.foldedCount > 0) {
-      items.push('<span class="leg-item">+' + diag.foldedCount + " folded</span>");
-    }
-    return '<div class="legend">' + items.join("") + "</div>";
-  }
-
   function capBadgeClass(cap) {
     if (cap === "DB") return "b-purple";
     if (cap === "HTTP") return "b-cyan";
@@ -423,33 +411,6 @@ export function renderVisualHtml(
     if (cap === "PROC") return "b-fail";
     if (cap === "ENV") return "b-info";
     return "b-pass";
-  }
-
-  function buildArchitectureStory() {
-    const mods = DATA.modules || [];
-    if (mods.length === 0) return "";
-    const curDiag = activeDiagram();
-    const scopedMods = curDiag && curDiag.ownerId
-      ? mods.filter((m) => m.unitId === curDiag.ownerId)
-      : mods;
-    const list = scopedMods.length >= 2 ? scopedMods : mods;
-    const entries = list.filter((m) => m.role === "entry" || (m.level === 0 && m.fanOut > 0)).slice(0, 3);
-    const cores = list.filter((m) => m.role === "orchestrator" || m.role === "core" || m.role === "adapter").slice(0, 4);
-    const foundations = list.filter((m) => m.role === "foundation" || (m.fanOut === 0 && m.fanIn > 0)).slice(0, 3);
-    const tangles = new Set(list.map((m) => m.tangleId).filter(Boolean));
-    const ioMods = list.filter((m) => m.capabilities.some((c) => c !== "PURE"));
-    const pureMods = list.filter((m) => m.capabilities.length === 1 && m.capabilities[0] === "PURE");
-
-    const s1 = entries.length > 0
-      ? "Execution enters through <strong>" + entries.map((m) => esc(m.name)).join(", ") + "</strong>" +
-        (cores.length > 0 ? ", flows through <strong>" + cores.map((m) => esc(m.name)).join(", ") + "</strong>" : "") +
-        (foundations.length > 0 ? ", down to foundational <strong>" + foundations.map((m) => esc(m.name)).join(", ") + "</strong>." : ".")
-      : "Organized into <strong>" + list.length + "</strong> modules across " + (new Set(list.map((m) => m.unitSlug)).size) + " unit(s).";
-    const s2 = tangles.size > 0
-      ? ' <span class="status-fail">' + tangles.size + " cyclic tangle" + (tangles.size === 1 ? "" : "s") + " detected.</span>"
-      : ' <span class="status-pass">Clean acyclic module DAG (0 cycles).</span>';
-    const s3 = " " + ioMods.length + " IO-boundary module" + (ioMods.length === 1 ? "" : "s") + " · " + pureMods.length + " pure logic module" + (pureMods.length === 1 ? "" : "s") + ".";
-    return '<div class="story-box">' + s1 + s2 + s3 + "</div>";
   }
 
   function renderBriefingDrawer() {
@@ -896,93 +857,7 @@ export function renderVisualHtml(
     );
   }
 
-  function renderEdgeInspector(diag, edgeId) {
-    const e = diag.edges.find((x) => x.id === edgeId);
-    if (!e) return renderBriefingDrawer();
-    const labelFor = (id) => {
-      const m = moduleById.get(id);
-      if (m) return m.kind === "directory" ? m.name + "/" : m.name;
-      const dn = diag.nodes.find((n) => n.id === id);
-      if (dn) return dn.label;
-      return shortPkg(nodeById.get(id)?.label || id);
-    };
-    const fromLabel = labelFor(e.from);
-    const toLabel = labelFor(e.to);
-    return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(fromLabel) + (e.bidirectional ? " ⇄ " : " → ") + esc(toLabel) + '</div><div class="drawer-sub">' + esc(e.kind) + " · " + esc(e.confidence) + (e.weight ? " · weight " + e.weight : "") + "</div></div></div>" +
-      '<div><button class="action-btn sec-btn" data-clear-sel="1">Briefing (Esc)</button></div>' +
-      (e.ruleIds && e.ruleIds.length > 0
-        ? '<div class="sec"><div class="sec-title">Triggered Invariants</div>' + e.ruleIds.map((rid) => {
-            const inv = invById.get(rid);
-            if (!inv) return '<div class="ev-box warn"><strong class="mono">' + esc(rid) + "</strong></div>";
-            return renderFindingDisclosure(inv, {
-              open: true,
-              filterEv: (ev) => (ev.edgeFromId === e.from && ev.edgeToId === e.to) || (e.bidirectional && ev.edgeFromId === e.to && ev.edgeToId === e.from),
-            });
-          }).join("") + "</div>"
-        : "") +
-      '<div class="sec"><div class="sec-title">Source Evidence (' + (e.evidence?.length || 0) + ")</div>" +
-      ((e.evidence || []).length === 0
-        ? '<div class="muted" style="font-size:11px">Structural edge without line-level evidence items.</div>'
-        : e.evidence.map((ev) => '<div class="ev-box ' + (e.violation ? "fail" : "") + '">' + provenanceLinksHtml(ev.file, ev.line) + "<div>" + esc(ev.detail) + "</div></div>").join("")) +
-      "</div>"
-    );
-  }
-
   ${renderTablesClientScript()}
-
-  function renderSearchDropdown() {
-    const q = state.search.trim().toLowerCase();
-    if (!q) return '<div class="search-dropdown" id="search-dd"></div>';
-    const hits = [];
-    for (const f of DD_FILES) {
-      if (f.p.toLowerCase().includes(q)) {
-        hits.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
-      } else {
-        const symHit = f.s.find((s) => s[0].toLowerCase().includes(q));
-        if (symHit) {
-          hits.push({ kind: symHit[1], label: symHit[0] + " (" + f.p.split("/").pop() + ")", action: "file", id: f.p });
-        }
-      }
-      if (hits.length >= 10) break;
-    }
-    for (const m of (DATA.modules || [])) {
-      if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
-        hits.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
-      } else {
-        const symHit = m.topExports.find((s) => s.name.toLowerCase().includes(q));
-        if (symHit) {
-          hits.push({ kind: symHit.kind, label: symHit.name + " (" + m.name + ")", action: "module", id: m.id });
-        }
-      }
-      if (hits.length >= 8) break;
-    }
-    for (const n of DATA.nodes) {
-      if (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) {
-        hits.push({ kind: n.kind, label: shortPkg(n.label), action: "node", id: n.id });
-      }
-      if (hits.length >= 14) break;
-    }
-    for (const ep of DATA.surfaces.endpoints) {
-      if (ep.path.toLowerCase().includes(q)) {
-        hits.push({ kind: ep.method, label: ep.path + " (" + (ep.authGuard || "unannotated") + ")", action: "endpoints", id: ep.path });
-      }
-      if (hits.length >= 18) break;
-    }
-    for (const e of DATA.entities) {
-      if (e.entity.toLowerCase().includes(q)) {
-        hits.push({ kind: e.datastore, label: e.entity, action: "entity", id: e.entity });
-      }
-      if (hits.length >= 22) break;
-    }
-    return (
-      '<div class="search-dropdown open" id="search-dd">' +
-      (hits.length === 0
-        ? '<div class="search-item"><span class="muted">No matches</span></div>'
-        : hits.map((h) => '<div class="search-item" data-search-action="' + esc(h.action) + '" data-search-id="' + esc(h.id) + '"><span class="search-item-main">' + esc(h.label) + '</span><span class="search-item-kind">' + esc(h.kind) + "</span></div>").join("")) +
-      "</div>"
-    );
-  }
 
   ${renderCameraClientScript()}
 
@@ -1003,18 +878,43 @@ export function renderVisualHtml(
     clearHoverSpotlight();
     svg.classList.add("hover-focus");
     const connected = new Set([nodeId]);
-    svg.querySelectorAll("[data-edge]").forEach((el) => {
-      const fr = el.getAttribute("data-from");
-      const to = el.getAttribute("data-to");
-      const viol = el.getAttribute("data-viol") === "1";
-      if (fr === nodeId || to === nodeId) {
-        connected.add(fr);
-        connected.add(to);
-        if (viol) el.classList.add("hover-viol");
-        else if (fr === nodeId) el.classList.add("hover-out");
-        else el.classList.add("hover-in");
+    const edgeEls = Array.from(svg.querySelectorAll("[data-edge]"));
+    if (nodeId.startsWith("sym:")) {
+      const downReach = new Set([nodeId]);
+      const upReach = new Set([nodeId]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const el of edgeEls) {
+          const fr = el.getAttribute("data-from");
+          const to = el.getAttribute("data-to");
+          if (downReach.has(fr) && to && !downReach.has(to)) { downReach.add(to); changed = true; }
+          if (upReach.has(to) && fr && !upReach.has(fr)) { upReach.add(fr); changed = true; }
+        }
       }
-    });
+      for (const el of edgeEls) {
+        const fr = el.getAttribute("data-from");
+        const to = el.getAttribute("data-to");
+        if (downReach.has(fr) && downReach.has(to)) {
+          connected.add(fr); connected.add(to); el.classList.add("hover-out");
+        } else if (upReach.has(fr) && upReach.has(to)) {
+          connected.add(fr); connected.add(to); el.classList.add("hover-in");
+        }
+      }
+    } else {
+      for (const el of edgeEls) {
+        const fr = el.getAttribute("data-from");
+        const to = el.getAttribute("data-to");
+        const viol = el.getAttribute("data-viol") === "1";
+        if (fr === nodeId || to === nodeId) {
+          connected.add(fr);
+          connected.add(to);
+          if (viol) el.classList.add("hover-viol");
+          else if (fr === nodeId) el.classList.add("hover-out");
+          else el.classList.add("hover-in");
+        }
+      }
+    }
     svg.querySelectorAll("[data-node]").forEach((el) => {
       if (connected.has(el.getAttribute("data-node"))) el.classList.add("hover-active");
     });
@@ -1078,7 +978,27 @@ export function renderVisualHtml(
 
     let subNav = "";
     if (state.tab === "map") {
-      if (state.activeFolder) {
+      if (state.activeFileGraph) {
+        const fgPath = state.activeFileGraph;
+        const fIdx = ddIdxByPath.get(fgPath);
+        const fObj = fIdx !== undefined ? DD_FILES[fIdx] : null;
+        const crumbs = ['<button class="pill-btn" data-back-map="1">System</button>'];
+        if (fObj) {
+          const unitModId = "modules:" + fObj.u;
+          if (diagById.has(unitModId)) {
+            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(unitModId) + '">' + esc(fObj.u) + "</button>");
+          }
+          const logical = ddLogicalRel(fObj, ddUnitPeelPrefix(fObj.u));
+          const segs = logical.split("/").filter(Boolean);
+          let acc = "";
+          for (let si = 0; si < segs.length - 1; si += 1) {
+            acc = acc ? acc + "/" + segs[si] : segs[si];
+            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-folder="' + esc(fObj.u + "::" + acc) + '">' + esc(segs[si]) + "/</button>");
+          }
+        }
+        crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(fgPath.split("/").pop()) + "</span>");
+        subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
+      } else if (state.activeFolder) {
         const af = state.activeFolder;
         const crumbs = ['<button class="pill-btn" data-back-map="1">System</button>'];
         const unitModDiag = diagById.get("modules:" + af.unitSlug);
@@ -1152,11 +1072,13 @@ export function renderVisualHtml(
       const detailCount = diag.edges.filter((e) => e.tier === "detail" && !e.violation).length;
       const visibleSpineCount = diag.edges.length - detailCount;
 
-      const drawerHtml = state.selectedEdgeId
-        ? renderEdgeInspector(diag, state.selectedEdgeId)
-        : state.selectedNodeId
-          ? renderNodeInspector(state.selectedNodeId)
-          : renderBriefingDrawer();
+      const drawerHtml = state.activeFileGraph
+        ? renderFileCallGraphDrawer(state.activeFileGraph, diag)
+        : state.selectedEdgeId
+          ? renderEdgeInspector(diag, state.selectedEdgeId)
+          : state.selectedNodeId
+            ? renderNodeInspector(state.selectedNodeId)
+            : renderBriefingDrawer();
 
       const trayHtml = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0
         ? '<div class="tray" title="Units indexed without static runtime edges to the core graph — click any chip to inspect"><span>No edges extracted:</span>' +
@@ -1175,7 +1097,7 @@ export function renderVisualHtml(
         ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Spine hides low-weight wires until hover; click to show all wires">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Spine (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
         : "";
 
-      const canStepUp = Boolean(state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
+      const canStepUp = Boolean(state.activeFileGraph || state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
       const hudTopLeft = subNav ? '<div class="hud-pill hud-top-left">' + subNav + "</div>" : "";
       const hudTopRight =
         '<div class="hud-pill hud-top-right">' +
@@ -1231,6 +1153,10 @@ export function renderVisualHtml(
       "</div>" +
       bodyHtml;
     applyTransform();
+    const focusEl = document.querySelector("#code-viewer-box .focus-line");
+    if (focusEl && typeof focusEl.scrollIntoView === "function") {
+      focusEl.scrollIntoView({ block: "center" });
+    }
   }
 
   const appEl = document.getElementById("app");
@@ -1289,6 +1215,21 @@ export function renderVisualHtml(
     if (!id) return false;
     const curDiag = activeDiagram();
     const diagNode = curDiag?.nodes.find((n) => n.id === id);
+    if (id.startsWith("file:")) {
+      const fPath = id.slice(5);
+      if (ddIdxByPath.has(fPath)) {
+        state.tab = "map";
+        state.activeFileGraph = fPath;
+        state.selectedNodeId = null;
+        state.selectedEdgeId = null;
+        state.focusMode = false;
+        state.codeFocusLine = 1;
+        state.codeFullFile = false;
+        ensureFileSourcesLoaded();
+        render();
+        return true;
+      }
+    }
     if (id.startsWith("folder:")) {
       const rest = id.slice(7);
       const colon = rest.indexOf(":");
@@ -1367,6 +1308,7 @@ export function renderVisualHtml(
       state.tab = tabBtn.getAttribute("data-tab") || "map";
       state.activeLayerDiagId = null;
       state.activeFolder = null;
+      state.activeFileGraph = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
@@ -1410,6 +1352,15 @@ export function renderVisualHtml(
     }
 
     function stepUpLevel() {
+      if (state.activeFileGraph) {
+        const prevFile = state.activeFileGraph;
+        state.activeFileGraph = null;
+        state.selectedNodeId = "file:" + prevFile;
+        state.selectedEdgeId = null;
+        state.focusMode = false;
+        render();
+        return;
+      }
       if (state.activeFolder) {
         const parts = state.activeFolder.folderPath.split("/").filter(Boolean);
         if (parts.length > 1) {
@@ -1437,9 +1388,63 @@ export function renderVisualHtml(
     if (target.closest("[data-back-map]")) {
       state.activeLayerDiagId = null;
       state.activeFolder = null;
+      state.activeFileGraph = null;
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
+      render();
+      return;
+    }
+
+    const openFileGraphBtn = target.closest("[data-open-file-graph]");
+    if (openFileGraphBtn) {
+      const fPath = openFileGraphBtn.getAttribute("data-open-file-graph") || "";
+      if (ddIdxByPath.has(fPath)) {
+        state.tab = "map";
+        state.activeFileGraph = fPath;
+        state.focusMode = false;
+        state.selectedEdgeId = null;
+        const jumpSym = openFileGraphBtn.getAttribute("data-jump-sym");
+        if (jumpSym) {
+          const p = jumpSym.split(":");
+          state.selectedNodeId = "sym:" + p[0] + ":" + p[1];
+          state.codeFocusLine = Number(p[2]) || 1;
+        } else {
+          state.selectedNodeId = null;
+          state.codeFocusLine = 1;
+        }
+        state.codeFullFile = false;
+        ensureFileSourcesLoaded();
+        render();
+      }
+      return;
+    }
+
+    const jumpSymBtn = target.closest("[data-jump-sym]");
+    if (jumpSymBtn) {
+      const p = (jumpSymBtn.getAttribute("data-jump-sym") || "").split(":");
+      if (p.length >= 3) {
+        state.selectedNodeId = "sym:" + p[0] + ":" + p[1];
+        state.selectedEdgeId = null;
+        state.codeFocusLine = Number(p[2]) || 1;
+        ensureFileSourcesLoaded();
+        render();
+      }
+      return;
+    }
+
+    const jumpLineBtn = target.closest("[data-jump-line]");
+    if (jumpLineBtn) {
+      state.codeFocusLine = Number(jumpLineBtn.getAttribute("data-jump-line")) || 1;
+      ensureFileSourcesLoaded();
+      render();
+      return;
+    }
+
+    const codeFullBtn = target.closest("[data-code-full]");
+    if (codeFullBtn) {
+      state.codeFullFile = codeFullBtn.getAttribute("data-code-full") === "1";
+      ensureFileSourcesLoaded();
       render();
       return;
     }
@@ -1453,6 +1458,7 @@ export function renderVisualHtml(
         const fPath = raw.slice(sep + 2);
         const prevReturn = state.activeFolder?.returnDiagId || state.activeLayerDiagId;
         state.tab = "map";
+        state.activeFileGraph = null;
         state.activeFolder = { unitSlug: uSlug, folderPath: fPath, returnDiagId: prevReturn };
         state.focusMode = false;
         state.selectedNodeId = null;
@@ -1488,6 +1494,7 @@ export function renderVisualHtml(
     const openLayerBtn = target.closest("[data-open-layers]");
     if (openLayerBtn) {
       state.tab = "map";
+      state.activeFileGraph = null;
       state.activeFolder = null;
       state.activeLayerDiagId = openLayerBtn.getAttribute("data-open-layers");
       state.focusMode = false;
@@ -1916,8 +1923,17 @@ export function renderVisualHtml(
         return;
       }
     }
-    if (ev.key === "Backspace" && (state.activeFolder || state.activeLayerDiagId)) {
+    if (ev.key === "Backspace" && (state.activeFileGraph || state.activeFolder || state.activeLayerDiagId)) {
       ev.preventDefault();
+      if (state.activeFileGraph) {
+        const prevFile = state.activeFileGraph;
+        state.activeFileGraph = null;
+        state.selectedNodeId = "file:" + prevFile;
+        state.selectedEdgeId = null;
+        state.focusMode = false;
+        render();
+        return;
+      }
       if (state.activeFolder) {
         const parts = state.activeFolder.folderPath.split("/").filter(Boolean);
         if (parts.length > 1) state.activeFolder = { ...state.activeFolder, folderPath: parts.slice(0, -1).join("/") };

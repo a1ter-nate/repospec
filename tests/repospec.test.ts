@@ -7,6 +7,7 @@ import { generateRepoSpec } from "../src/cli.ts";
 import { buildFilePassport, buildPrecedentsReport } from "../src/passport.ts";
 import { renderVisualHtml } from "../src/render.ts";
 import { buildCommitArchDiff } from "../src/studio/commitDiff.ts";
+import { extractFileCallGraph } from "../src/studio/fileSymbols.ts";
 import { canonicalizeGitRemote } from "../src/taxonomy.ts";
 
 function makeFixture(files: Record<string, string>): string {
@@ -387,5 +388,46 @@ def test_tone():
 
     fs.rmSync(baseDir, { recursive: true, force: true });
     fs.rmSync(headDir, { recursive: true, force: true });
+  });
+
+  test("File symbol callstack extractor captures public/private class & function surfaces and exact call-site lines across languages", () => {
+    const tsSrc = [
+      `import axios from "axios";`,
+      `export class ShippingClient {`,
+      `  public async createLabel(id: string) {`,
+      `    const payload = this.buildPayload(id);`,
+      `    return this.postToCarrier(payload);`,
+      `  }`,
+      `  private buildPayload(id: string) {`,
+      `    return normalizeId(id);`,
+      `  }`,
+      `  private async postToCarrier(body: string) {`,
+      `    return axios.post("https://carrier.example/label", body);`,
+      `  }`,
+      `}`,
+      `function normalizeId(raw: string) {`,
+      `  return raw.trim();`,
+      `}`,
+    ].join("\n");
+    const cg = extractFileCallGraph("src/client/shipping.ts", tsSrc);
+    const pubNames = cg.m.filter((s) => s[1] === "pub").map((s) => (s[5] ? `${s[5]}.${s[0]}` : s[0]));
+    const privNames = cg.m.filter((s) => s[1] === "priv").map((s) => (s[5] ? `${s[5]}.${s[0]}` : s[0]));
+    expect(pubNames).toEqual(["ShippingClient.createLabel"]);
+    expect(privNames).toEqual(["ShippingClient.buildPayload", "ShippingClient.postToCarrier", "normalizeId"]);
+    expect(cg.k.length).toBeGreaterThanOrEqual(3);
+    expect(cg.k.some((e) => e[2] === 4)).toBe(true);
+    expect(cg.o.some((e) => e[1] === "axios.post" && e[2] === 11)).toBe(true);
+
+    const pySrc = [
+      `class Billing:`,
+      `    def charge(self, amt):`,
+      `        return self._validate(amt)`,
+      `    def _validate(self, amt):`,
+      `        return amt > 0`,
+    ].join("\n");
+    const pyCg = extractFileCallGraph("billing.py", pySrc);
+    expect(pyCg.m.find((s) => s[0] === "charge")?.[1]).toBe("pub");
+    expect(pyCg.m.find((s) => s[0] === "_validate")?.[1]).toBe("priv");
+    expect(pyCg.k.length).toBe(1);
   });
 });
