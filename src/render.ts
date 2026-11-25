@@ -1,3 +1,4 @@
+import { renderCameraClientScript } from "./studio/camera.ts";
 import type { DrilldownIndex } from "./studio/drilldown.ts";
 import { renderDrilldownClientScript } from "./studio/drilldownClient.ts";
 import { renderStudioCss } from "./studio/styles.ts";
@@ -1035,12 +1036,7 @@ export function renderVisualHtml(
     );
   }
 
-  function applyTransform() {
-    const vp = document.getElementById("viewport-g");
-    if (vp) vp.setAttribute("transform", "translate(" + state.tx + "," + state.ty + ") scale(" + state.scale + ")");
-    const zp = document.getElementById("zoom-pct");
-    if (zp) zp.textContent = Math.round(state.scale * 100) + "%";
-  }
+  ${renderCameraClientScript()}
 
   function clearHoverSpotlight() {
     const svg = document.getElementById("diagram-svg");
@@ -1110,6 +1106,7 @@ export function renderVisualHtml(
       state.tx = 0;
       state.ty = 0;
       state.scale = 1;
+      syncCameraTargetImmediate();
       state.fittedDiagId = nextFitKey;
     } else {
       state.justNavigated = false;
@@ -1236,9 +1233,9 @@ export function renderVisualHtml(
         "</div>";
       const hudBottomLeft = !inMatrix
         ? '<div class="hud-pill hud-bottom-left">' +
-          '<button class="tbtn" data-zoom="in" title="Zoom in">+</button>' +
-          '<div class="zoom-pct" id="zoom-pct">' + Math.round(state.scale * 100) + "%</div>" +
-          '<button class="tbtn" data-zoom="out" title="Zoom out">−</button>' +
+          '<button class="tbtn" data-zoom="in" title="Zoom in (+)">+</button>' +
+          '<button class="zoom-pct" id="zoom-pct" data-zoom="fit" title="Reset zoom (0)">' + Math.round(state.scale * 100) + "%</button>" +
+          '<button class="tbtn" data-zoom="out" title="Zoom out (-)">−</button>' +
           '<button class="tbtn" data-zoom="fit" title="Fit view (0)">Fit</button>' +
           (canStepUp ? '<button class="tbtn" data-step-up="1" title="Up one level (Backspace)">↑</button>' : "") +
           "</div>"
@@ -1250,15 +1247,15 @@ export function renderVisualHtml(
       bodyHtml =
         '<div class="workspace">' +
         '<div class="canvas-panel">' +
-        '<div class="canvas-shell' + (inMatrix ? " matrix-mode" : "") + '" id="canvas-shell">' +
         hudTopLeft +
         hudTopRight +
         hudBottomLeft +
         hudLegend +
         (!inMatrix ? renderMinimapHtml(diag) : "") +
-        (inMatrix ? renderMatrixView(diag) : renderDiagramSvg(diag)) +
-        '<div class="edge-tooltip" id="edge-tooltip"></div>' +
         trayHtml +
+        '<div class="edge-tooltip" id="edge-tooltip"></div>' +
+        '<div class="canvas-shell' + (inMatrix ? " matrix-mode" : "") + '" id="canvas-shell">' +
+        (inMatrix ? renderMatrixView(diag) : renderDiagramSvg(diag)) +
         "</div>" +
         "</div>" +
         '<div class="drawer" id="drawer">' + drawerHtml + "</div>" +
@@ -1279,13 +1276,9 @@ export function renderVisualHtml(
       "</div>" +
       "</div>" +
       bodyHtml;
+    applyTransform();
   }
 
-  let dragActive = false;
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let origTx = 0;
-  let origTy = 0;
   const appEl = document.getElementById("app");
 
   appEl.addEventListener("mouseover", (ev) => {
@@ -1567,11 +1560,7 @@ export function renderVisualHtml(
 
     const zoomBtn = target.closest("[data-zoom]");
     if (zoomBtn) {
-      const z = zoomBtn.getAttribute("data-zoom");
-      if (z === "in") state.scale = Math.min(3.5, state.scale * 1.25);
-      else if (z === "out") state.scale = Math.max(0.45, state.scale / 1.25);
-      else { state.tx = 0; state.ty = 0; state.scale = 1; }
-      applyTransform();
+      zoomByButton(zoomBtn.getAttribute("data-zoom") || "fit");
       return;
     }
 
@@ -1679,7 +1668,9 @@ export function renderVisualHtml(
         state.dataSubtab = "entities";
         state.dataFilter = id;
       }
+      const selAfterSearch = state.selectedNodeId;
       render();
+      if (selAfterSearch) centerCameraOnNode(selAfterSearch);
       return;
     }
 
@@ -1721,11 +1712,13 @@ export function renderVisualHtml(
   appEl.addEventListener("dblclick", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
-    const svgNode = target.closest("[data-node]");
-    if (!svgNode) return;
-    const id = svgNode.getAttribute("data-node");
-    if (id && typeof window !== "undefined") {
+    if (target.closest("[data-node]")) {
       ev.preventDefault();
+      return;
+    }
+    if (target.closest("#canvas-shell") && !target.closest(".matrix-mode") && !target.closest("[data-edge]") && !target.closest("button, .hud-pill, .hud-minimap, .tray")) {
+      ev.preventDefault();
+      zoomByButton("fit");
     }
   });
 
@@ -1748,40 +1741,97 @@ export function renderVisualHtml(
   });
 
   appEl.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 && ev.button !== 1) return;
     const target = ev.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("[data-node]") || target.closest("[data-edge]") || target.closest(".matrix-mode")) return;
+    const mm = target.closest("#hud-minimap");
+    if (mm) {
+      ev.preventDefault();
+      minimapDrag = true;
+      mm.setPointerCapture(ev.pointerId);
+      panCameraToMinimapEvent(ev);
+      return;
+    }
+    if (target.closest("button, a, input, select, .hud-pill, .tray, .matrix-mode")) return;
+    if (!spacePan && ev.button !== 1 && (target.closest("[data-node]") || target.closest("[data-edge]"))) return;
     const shell = target.closest("#canvas-shell");
     if (!shell) return;
+    syncCameraTargetImmediate();
     dragActive = true;
+    dragMoved = false;
+    dragPointerId = ev.pointerId;
     dragStartX = ev.clientX;
     dragStartY = ev.clientY;
+    lastMoveX = ev.clientX;
+    lastMoveY = ev.clientY;
+    lastMoveTs = performance.now();
     origTx = state.tx;
     origTy = state.ty;
-    shell.classList.add("dragging");
-    shell.setPointerCapture(ev.pointerId);
   });
 
   appEl.addEventListener("pointermove", (ev) => {
+    if (minimapDrag) {
+      panCameraToMinimapEvent(ev);
+      return;
+    }
     if (!dragActive) return;
     const svg = document.getElementById("diagram-svg");
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    const ratioX = rect.width > 0 ? vb.width / rect.width : 1;
-    const ratioY = rect.height > 0 ? vb.height / rect.height : 1;
-    state.tx = origTx + (ev.clientX - dragStartX) * ratioX;
-    state.ty = origTy + (ev.clientY - dragStartY) * ratioY;
+    const shell = document.getElementById("canvas-shell");
+    if (!svg || !shell) return;
+    const dxPx = ev.clientX - dragStartX;
+    const dyPx = ev.clientY - dragStartY;
+    if (!dragMoved && Math.hypot(dxPx, dyPx) < 3) return;
+    if (!dragMoved) {
+      dragMoved = true;
+      shell.classList.add("dragging");
+      if (typeof shell.setPointerCapture === "function" && dragPointerId >= 0) {
+        shell.setPointerCapture(dragPointerId);
+      }
+    }
+    const ppu = Math.max(0.0001, svgPixelsPerUnit(svg));
+    const now = performance.now();
+    const dt = Math.max(0.004, (now - lastMoveTs) / 1000);
+    if (dt < 0.08) {
+      const vx = ((ev.clientX - lastMoveX) / ppu) / dt;
+      const vy = ((ev.clientY - lastMoveY) / ppu) / dt;
+      panVelX = panVelX * 0.45 + vx * 0.55;
+      panVelY = panVelY * 0.45 + vy * 0.55;
+    }
+    lastMoveX = ev.clientX;
+    lastMoveY = ev.clientY;
+    lastMoveTs = now;
+    state.tx = origTx + dxPx / ppu;
+    state.ty = origTy + dyPx / ppu;
+    camTarget.tx = state.tx;
+    camTarget.ty = state.ty;
     applyTransform();
   });
 
   appEl.addEventListener("pointerup", (ev) => {
+    if (minimapDrag) {
+      minimapDrag = false;
+      const mm = document.getElementById("hud-minimap");
+      if (mm && mm.hasPointerCapture(ev.pointerId)) mm.releasePointerCapture(ev.pointerId);
+      return;
+    }
     if (!dragActive) return;
+    const wasDragged = dragMoved;
     dragActive = false;
+    dragMoved = false;
     const shell = document.getElementById("canvas-shell");
     if (shell) {
       shell.classList.remove("dragging");
       if (shell.hasPointerCapture(ev.pointerId)) shell.releasePointerCapture(ev.pointerId);
+    }
+    if (wasDragged && !prefersReducedMotion && performance.now() - lastMoveTs < 65 && Math.hypot(panVelX, panVelY) > 60) {
+      inertiaActive = true;
+      if (!camRaf) {
+        camLastTs = 0;
+        camRaf = requestAnimationFrame(stepCameraFrame);
+      }
+    } else {
+      panVelX = 0;
+      panVelY = 0;
     }
   });
 
@@ -1792,18 +1842,27 @@ export function renderVisualHtml(
     ev.preventDefault();
     const svg = document.getElementById("diagram-svg");
     if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    const mx = ((ev.clientX - rect.left) / Math.max(1, rect.width)) * vb.width;
-    const my = ((ev.clientY - rect.top) / Math.max(1, rect.height)) * vb.height;
-    const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nextScale = Math.max(0.45, Math.min(3.5, state.scale * factor));
-    const ratio = nextScale / state.scale;
-    state.tx = mx - (mx - state.tx) * ratio;
-    state.ty = my - (my - state.ty) * ratio;
-    state.scale = nextScale;
-    applyTransform();
+    const mult = ev.deltaMode === 1 ? 26 : ev.deltaMode === 2 ? 240 : 1;
+    const dx = ev.deltaX * mult;
+    const dy = ev.deltaY * mult;
+    const isHorizontalPan = !ev.ctrlKey && !ev.metaKey && ev.deltaMode === 0 && Math.abs(dx) > Math.abs(dy) * 1.15 && !ev.shiftKey;
+    if (ev.shiftKey || isHorizontalPan) {
+      const ppu = Math.max(0.0001, svgPixelsPerUnit(svg));
+      const panDx = ev.shiftKey && Math.abs(dx) < 1 ? dy : dx;
+      const panDy = ev.shiftKey && Math.abs(dx) < 1 ? 0 : dy;
+      camTarget.tx -= panDx / ppu;
+      camTarget.ty -= panDy / ppu;
+      kickCameraLoop(22);
+      return;
+    }
+    const pt = screenToSvg(svg, ev.clientX, ev.clientY);
+    const factor = computeWheelZoomFactor(ev);
+    zoomAroundSvgPoint(pt.x, pt.y, factor, ev.ctrlKey ? 30 : 18, false);
   }, { passive: false });
+
+  document.addEventListener("keyup", (ev) => {
+    if (ev.code === "Space") spacePan = false;
+  });
 
   document.addEventListener("keydown", (ev) => {
     const activeTag = document.activeElement?.tagName;
@@ -1817,6 +1876,10 @@ export function renderVisualHtml(
       return;
     }
     if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+    if (ev.code === "Space") {
+      spacePan = true;
+      return;
+    }
     if (ev.key === "/" || ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k")) {
       ev.preventDefault();
       const input = document.getElementById("global-search");
@@ -1849,10 +1912,17 @@ export function renderVisualHtml(
       return;
     }
     if (ev.key === "0") {
-      state.tx = 0;
-      state.ty = 0;
-      state.scale = 1;
-      applyTransform();
+      zoomByButton("fit");
+      return;
+    }
+    if (ev.key === "+" || ev.key === "=") {
+      ev.preventDefault();
+      zoomByButton("in");
+      return;
+    }
+    if (ev.key === "-") {
+      ev.preventDefault();
+      zoomByButton("out");
       return;
     }
     if (ev.key.toLowerCase() === "f" && state.selectedNodeId) {

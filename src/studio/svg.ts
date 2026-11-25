@@ -35,6 +35,7 @@ export function renderSvgClientScript(): string {
     const y = n.y - n.h / 2;
     const rx = n.shape === "pill" ? 16 : 10;
     const fill = "#141a29";
+    const shadow = '<rect x="' + (x + 1) + '" y="' + (y + 3) + '" width="' + n.w + '" height="' + n.h + '" rx="' + rx + '" fill="rgba(0,0,0,0.28)" />';
     const ghost = n.expandable
       ? '<rect x="' + (x + 5) + '" y="' + (y + 4) + '" width="' + (n.w - 10) + '" height="' + n.h + '" rx="' + rx + '" fill="#0d121e" stroke="rgba(255,255,255,0.1)" stroke-width="1" />'
       : "";
@@ -47,6 +48,7 @@ export function renderSvgClientScript(): string {
       '<circle class="port-dot" cx="' + x + '" cy="' + n.y + '" r="3.4" fill="#080b12" stroke="#818cf8" stroke-width="1.5" />' +
       '<circle class="port-dot" cx="' + (x + n.w) + '" cy="' + n.y + '" r="3.4" fill="#080b12" stroke="#818cf8" stroke-width="1.5" />';
     return (
+      shadow +
       ghost +
       '<rect class="node-shape" x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="' + rx + '" fill="' + fill + '" stroke="' + strokeColor + '" stroke-width="1.15" />' +
       topAccent +
@@ -109,12 +111,21 @@ export function renderSvgClientScript(): string {
     }
     const hasFilter = Boolean(state.selectedNodeId || state.selectedEdgeId || activeTrace);
 
+    const laneCounts = new Map();
+    for (const n of diag.nodes) {
+      if (n.lane) laneCounts.set(n.lane, (laneCounts.get(n.lane) || 0) + 1);
+    }
     const lanesSvg = (diag.lanes || []).map((l) => {
       const fill = l.lateral ? "rgba(99,102,241,0.035)" : "rgba(148,163,184,0.024)";
+      const cnt = laneCounts.get(l.id) || 0;
+      const cntSvg = cnt > 0
+        ? '<text x="' + (l.x + l.w - 12) + '" y="' + (l.y + 19) + '" text-anchor="end" font-size="9.5" font-weight="600" fill="#475569" font-family="ui-monospace, monospace">' + cnt + "</text>"
+        : "";
       return (
         '<g class="lane">' +
         '<rect x="' + l.x + '" y="' + l.y + '" width="' + l.w + '" height="' + l.h + '" rx="12" fill="' + fill + '" stroke="rgba(255,255,255,0.09)" stroke-width="1" stroke-dasharray="4 4" />' +
         '<text x="' + (l.x + 12) + '" y="' + (l.y + 19) + '" font-size="9.5" font-weight="700" fill="#64748b" letter-spacing="0.08em">' + esc(l.label.toUpperCase()) + "</text>" +
+        cntSvg +
         "</g>"
       );
     }).join("");
@@ -200,7 +211,7 @@ export function renderSvgClientScript(): string {
         '<rect x="' + iconX + '" y="' + iconY + '" width="24" height="24" rx="6" fill="' + tone.bg + '" />' +
         renderGlyphPath(tone.glyph, iconX + 12, iconY + 12, tone.stroke);
       const drillChev = n.expandable
-        ? '<path d="M ' + (leftX + n.w - 15) + " " + (n.y - 4) + ' l 4 4 l -4 4" fill="none" stroke="#64748b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />'
+        ? '<path class="drill-chev" d="M ' + (leftX + n.w - 15) + " " + (n.y - 4) + ' l 4 4 l -4 4" fill="none" stroke="#64748b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />'
         : "";
       const totalFindings = (n.findings || []).reduce((s, f) => s + f.count, 0);
       const dotColor = hasError ? "#ef4444" : hasWarn ? "#f59e0b" : hue;
@@ -256,10 +267,17 @@ export function renderSvgClientScript(): string {
   function renderMinimapHtml(diag) {
     if (INLINE || !diag || diag.nodes.length < 10) return "";
     const rects = diag.nodes.map((n) => {
-      const col = state.selectedNodeId === n.id ? "#818cf8" : (n.findings && n.findings.length > 0 ? "#ef4444" : "rgba(148,163,184,0.45)");
+      const col = state.selectedNodeId === n.id ? "#818cf8" : (n.findings && n.findings.length > 0 ? "#ef4444" : "rgba(148,163,184,0.48)");
       return '<rect x="' + (n.x - n.w / 2).toFixed(0) + '" y="' + (n.y - n.h / 2).toFixed(0) + '" width="' + n.w.toFixed(0) + '" height="' + n.h.toFixed(0) + '" rx="3" fill="' + col + '" />';
     }).join("");
-    return '<div class="hud-minimap"><svg viewBox="0 0 ' + diag.width + " " + diag.height + '" preserveAspectRatio="xMidYMid meet">' + rects + "</svg></div>";
+    const vpBox = '<rect id="minimap-vp" x="-68" y="-66" width="' + (diag.width + 104) + '" height="' + (diag.height + 132) + '" rx="6" fill="rgba(99,102,241,0.12)" stroke="#818cf8" stroke-width="6" />';
+    return (
+      '<div class="hud-minimap" id="hud-minimap" title="Click or drag to pan">' +
+      '<svg id="minimap-svg" viewBox="-68 -66 ' + (diag.width + 104) + " " + (diag.height + 132) + '" preserveAspectRatio="xMidYMid meet">' +
+      rects +
+      vpBox +
+      "</svg></div>"
+    );
   }
 `;
 }
