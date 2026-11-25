@@ -1,5 +1,5 @@
-import type { LaneDef } from "./layout.ts";
-import type { AstFileFact, CapabilityTag, ExportedSymbol } from "./schema.ts";
+import type { LaneDef } from "../layout.ts";
+import type { AstFileFact, CapabilityTag, ExportedSymbol } from "../schema.ts";
 
 export interface TopologicalAnalysis {
   levels: Map<string, number>;

@@ -14,7 +14,7 @@ import {
   computeTopologicalLevels,
   peelUnitModulePaths,
   summarizeModuleMetadata,
-} from "./topoLevels.ts";
+} from "./internal/topoLevels.ts";
 
 function stripExt(fileName: string): string {
   return fileName.replace(/\.(?:tsx?|mts|cts|jsx?|mjs|cjs|rs|py|cs)$/, "");

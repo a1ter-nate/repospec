@@ -5,7 +5,7 @@ import { buildModuleArchitecture } from "../src/moduleGraph.ts";
 import { renderVisualHtml } from "../src/render.ts";
 import { createEmptyAst, type CanonicalLayer, type LayoutNode, type RepoSpecV4, type SpecEdge, type SpecNode, type UnitDescriptor } from "../src/schema.ts";
 import { resolveLayerSemantics } from "../src/taxonomy.ts";
-import { computeTopologicalLevels } from "../src/topoLevels.ts";
+import { computeTopologicalLevels } from "../src/internal/topoLevels.ts";
 
 const LAYER_POOL: Array<{ raw: string; canonical: CanonicalLayer }> = [
   { raw: "routes", canonical: "transport" },

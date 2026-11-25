@@ -10,7 +10,7 @@ import {
 } from "../schema.ts";
 import type { ChangedFileEntry, CommitArchDiff, FindingDeltaItem } from "../studio/commitDiff.ts";
 import { buildOverlayBundle } from "../studio/diffOverlay.ts";
-import { computeTopologicalLevels } from "../topoLevels.ts";
+import { computeTopologicalLevels } from "../internal/topoLevels.ts";
 
 export interface FederationInput {
   spec: RepoSpecV4;
