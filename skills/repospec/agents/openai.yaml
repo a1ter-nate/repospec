@@ -1,0 +1,3 @@
+interface:
+  display_name: "RepoSpec"
+  short_description: "Polyglot architecture compiler, SQLite graph & invariants"
