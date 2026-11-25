@@ -20,4 +20,7 @@ JOIN v_prod_files f1 ON f1.file = fi.from_file
 JOIN files f2 ON f2.file = fi.to_file
 WHERE fi.type_only = 0
   AND f2.canonical_layer = 'ops_script'
+  AND fi.from_file NOT LIKE '.github/%'
+  AND fi.from_file NOT LIKE '%.test.%'
+  AND fi.from_file NOT LIKE '%.spec.%'
 ORDER BY fi.from_file ASC, fi.line ASC;

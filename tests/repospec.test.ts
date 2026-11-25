@@ -6,6 +6,7 @@ import path from "node:path";
 import { generateRepoSpec } from "../src/cli.ts";
 import { buildFilePassport, buildPrecedentsReport } from "../src/passport.ts";
 import { renderVisualHtml } from "../src/render.ts";
+import { buildCommitArchDiff } from "../src/studio/commitDiff.ts";
 import { canonicalizeGitRemote } from "../src/taxonomy.ts";
 
 function makeFixture(files: Record<string, string>): string {
@@ -331,5 +332,60 @@ def test_tone():
     expect((modDiag?.edges.length ?? 0)).toBeGreaterThanOrEqual(3);
 
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("Commit architecture diff computes added/removed nodes, verdict, and renders valid Diff Studio HTML", async () => {
+    const baseDir = makeFixture({
+      "package.json": JSON.stringify({ name: "diff-demo", private: true }),
+      "src/index.ts": `import { run } from "./core.ts";\nexport function main() { return run(); }\n`,
+      "src/core.ts": `export function run() { return 1; }\n`,
+    });
+    const headDir = makeFixture({
+      "package.json": JSON.stringify({ name: "diff-demo", private: true }),
+      "src/index.ts": `import { run } from "./core.ts";\nimport { report } from "./reporter.ts";\nexport function main() { return report(run()); }\n`,
+      "src/core.ts": `export function run() { return 2; }\n`,
+      "src/reporter.ts": `export function report(n: number) { return String(n); }\n`,
+    });
+    const baseRun = await generateRepoSpec(baseDir, "artifact");
+    const headRun = await generateRepoSpec(headDir, "artifact");
+
+    const commitDiff = buildCommitArchDiff({
+      git: {
+        range: "HEAD~1..HEAD",
+        baseRef: "HEAD~1",
+        headRef: "HEAD",
+        baseSha: "1111111",
+        headSha: "2222222",
+        commitSubject: "feat: add reporter module",
+        author: "tester",
+        date: "2026-11-25",
+        commitCount: 1,
+        fileStats: [
+          { path: "src/index.ts", status: "modified", insertions: 2, deletions: 1 },
+          { path: "src/reporter.ts", status: "added", insertions: 1, deletions: 0 },
+        ],
+      },
+      baseSpec: baseRun.spec,
+      headSpec: headRun.spec,
+    });
+
+    expect(commitDiff.verdict).toBe("safe");
+    expect(commitDiff.kpis.files.added).toBe(1);
+    expect(commitDiff.diagrams.length).toBeGreaterThanOrEqual(1);
+    const modBundle = commitDiff.diagrams.find((d) => d.id.includes("modules:"));
+    expect(modBundle?.overlay.nodes.some((n) => n.diffStatus === "added" && n.label === "reporter")).toBe(true);
+
+    const diffHtml = renderVisualHtml(headRun.spec, headRun.digest, {
+      inline: true,
+      drilldown: headRun.drilldown,
+      commitDiff,
+    });
+    expect(diffHtml).toContain("Commit Architecture Diff");
+    expect(diffHtml).toContain("renderInfoPopoverHtml");
+    const scriptMatch = diffHtml.match(/<script>\n([\s\S]*?)<\/script>/);
+    expect(() => new Function(scriptMatch?.[1] ?? "")).not.toThrow();
+
+    fs.rmSync(baseDir, { recursive: true, force: true });
+    fs.rmSync(headDir, { recursive: true, force: true });
   });
 });

@@ -118,7 +118,8 @@ export function renderSvgClientScript(): string {
     const lanesSvg = (diag.lanes || []).map((l) => {
       const fill = l.lateral ? "rgba(99,102,241,0.035)" : "rgba(148,163,184,0.024)";
       const cnt = laneCounts.get(l.id) || 0;
-      const cntSvg = cnt > 0
+      const hasCountInLabel = l.label.includes("(");
+      const cntSvg = cnt > 0 && !hasCountInLabel
         ? '<text x="' + (l.x + l.w - 12) + '" y="' + (l.y + 19) + '" text-anchor="end" font-size="9.5" font-weight="600" fill="#475569" font-family="ui-monospace, monospace">' + cnt + "</text>"
         : "";
       return (
@@ -227,8 +228,10 @@ export function renderSvgClientScript(): string {
         ? '<circle cx="' + (leftX + n.w - 5) + '" cy="' + (topY + 5) + '" r="8.5" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
           '<text x="' + (leftX + n.w - 5) + '" y="' + (topY + 8.3) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
         : statusDot;
+      const nodeTip = n.label + (cleanSub ? " — " + cleanSub : "") + (n.expandable ? " (Double-click or press Enter to drill in)" : "") + (totalFindings > 0 ? " · " + totalFindings + " active finding" + (totalFindings === 1 ? "" : "s") : "");
       return (
         '<g class="' + cls + '" tabindex="0" role="button" aria-label="' + esc(n.label) + '" data-node="' + esc(n.id) + '">' +
+        "<title>" + esc(nodeTip) + "</title>" +
         renderShapeSvg(n, stroke, hasError, hasWarn) +
         iconTileSvg +
         '<text x="' + textX + '" y="' + (n.y - (subStr ? 4 : -4)) + '" text-anchor="start" font-size="11.5" font-weight="600" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif">' + esc(titleStr) + "</text>" +
@@ -240,10 +243,11 @@ export function renderSvgClientScript(): string {
       );
     }).join("");
 
+    const hasMinimap = !INLINE && diag.nodes.length >= 10;
     const vbX = -68;
     const vbY = -66;
-    const vbW = diag.width + 104;
-    const vbH = diag.height + 132;
+    const vbW = diag.width + (hasMinimap ? 136 : 104);
+    const vbH = diag.height + (hasMinimap ? 152 : 132);
     const animCls = state.justNavigated ? ' class="canvas-anim"' : "";
     return (
       '<svg id="diagram-svg"' + animCls + ' viewBox="' + vbX + " " + vbY + " " + vbW + " " + vbH + '" preserveAspectRatio="xMidYMid meet">' +

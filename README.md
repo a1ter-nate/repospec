@@ -39,6 +39,10 @@ bun run check
 
 # Compile any TypeScript, JavaScript, Rust, Python, or C#/.NET repository
 bun src/cli.ts generate /path/to/repo --out ./out/my-repo --mode artifact --inline
+
+# Visual PR / Commit Architecture Diff (Current State -> New State overlay + Before/After split)
+bun src/cli.ts diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
+bun src/cli.ts generate /path/to/repo --diff main..HEAD --out ./out/my-repo --inline
 ```
 
 ### Core CLI Workflows

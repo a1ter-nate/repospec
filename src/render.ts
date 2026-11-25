@@ -1,8 +1,12 @@
 import { renderCameraClientScript } from "./studio/camera.ts";
+import type { CommitArchDiff } from "./studio/commitDiff.ts";
+import { renderDiffClientScript } from "./studio/diffClient.ts";
 import type { DrilldownIndex } from "./studio/drilldown.ts";
 import { renderDrilldownClientScript } from "./studio/drilldownClient.ts";
+import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSvgClientScript } from "./studio/svg.ts";
+import { renderTablesClientScript } from "./studio/tablesClient.ts";
 import type { RepoSpecV4 } from "./schema.ts";
 
 function escapeHtml(text: string): string {
@@ -18,6 +22,7 @@ function buildCompactRenderPayload(
   digest: string,
   inline: boolean,
   drilldown?: DrilldownIndex,
+  commitDiff?: CommitArchDiff,
 ): Record<string, unknown> {
   const includeDrilldown = drilldown && (!inline || drilldown.files.length <= 160);
   return {
@@ -28,6 +33,7 @@ function buildCompactRenderPayload(
     verification: spec.verification,
     diagnostics: spec.diagnostics,
     ...(includeDrilldown ? { drilldown } : {}),
+    ...(commitDiff ? { commitDiff } : {}),
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,
@@ -95,10 +101,10 @@ function buildCompactRenderPayload(
 export function renderVisualHtml(
   spec: RepoSpecV4,
   digest: string,
-  options?: { inline?: boolean; drilldown?: DrilldownIndex },
+  options?: { inline?: boolean; drilldown?: DrilldownIndex; commitDiff?: CommitArchDiff },
 ): string {
   const inline = options?.inline ?? false;
-  const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown);
+  const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown, options?.commitDiff);
   const embeddedJson = JSON.stringify(payload).replace(/</g, "\\u003c");
 
   return `<!doctype html>
@@ -143,10 +149,15 @@ export function renderVisualHtml(
     DATA.nodes.filter((n) => n.kind === "app").length <= 1;
 
   const state = {
-    tab: isLibraryDefault ? "behavior" : "map",
+    tab: DATA.commitDiff ? "diff" : isLibraryDefault ? "behavior" : "map",
     mapMode: "runtime",
     viewMode: "flow",
     showAllEdges: false,
+    dsmViolOnly: false,
+    dataIssuesOnly: false,
+    showGuide: false,
+    diffMode: "overlay",
+    diffDiagramId: DATA.commitDiff?.diagrams?.[0]?.id || null,
     activeLayerDiagId: isSingleUnitAtlas ? moduleDiags[0].id : null,
     activeFolder: null,
     activeBehaviorId: behaviorDiags[0]?.id || null,
@@ -165,6 +176,8 @@ export function renderVisualHtml(
     justNavigated: false,
   };
   ${renderDrilldownClientScript()}
+  ${renderGuidesClientScript()}
+  ${renderDiffClientScript()}
 
   function esc(s) {
     return String(s ?? "")
@@ -220,25 +233,33 @@ export function renderVisualHtml(
     );
   }
 
+  function sortInvariantsByUrgency(list) {
+    const rank = { fail: 0, warn: 1, pass: 2, na: 3 };
+    return [...list].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || (b.violationCount || 0) - (a.violationCount || 0));
+  }
+
   function renderFindingDisclosure(inv, opts) {
     const matchingEv = opts.filterEv ? inv.evidence.filter(opts.filterEv) : inv.evidence;
     const shownEv = (matchingEv.length > 0 ? matchingEv : inv.evidence).slice(0, 6);
     const hasAnchor = Boolean(shownEv.some((e) => e.anchors && e.anchors.length > 0) || inv.evidence.some((e) => e.anchors && e.anchors.length > 0));
     const tone = inv.status === "fail" ? "fail" : inv.status === "warn" ? "warn" : "pass";
-    const evRows = shownEv.map((ev) =>
-      '<div class="ev-item"><div>' + esc(ev.detail) + "</div>" + provenanceLinksHtml(ev.file, ev.line) + "</div>"
-    ).join("");
+    const evRows = shownEv.map((ev) => {
+      const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" title="Open file in Folder Context Map">Inspect file</button>' : "";
+      return '<div class="ev-item"><div>' + esc(ev.detail) + '</div><div class="links-row">' + provenanceLinksHtml(ev.file, ev.line) + openFileBtn + "</div></div>";
+    }).join("");
     const bodyHtml =
       '<div class="muted">' + esc(inv.statement) + "</div>" +
+      (inv.why ? '<div class="why-note"><strong>Why it matters:</strong> ' + esc(inv.why) + "</div>" : "") +
       evRows +
-      (inv.fix ? '<div class="fix-note"><strong>Fix:</strong> ' + esc(inv.fix) + "</div>" : "") +
+      (inv.fix ? '<div class="fix-note"><strong>How to fix:</strong> ' + esc(inv.fix) + "</div>" : "") +
       '<div class="links-row">' +
-      (hasAnchor ? '<button class="tbtn" data-show-inv="' + esc(inv.id) + '">Highlight on map</button>' : "") +
-      '<button class="tbtn" data-jump-checks="1">Open in Checks</button>' +
+      (hasAnchor ? '<button class="tbtn" data-show-inv="' + esc(inv.id) + '" title="Jump to this violation on the architecture map">Highlight on map</button>' : "") +
+      '<button class="tbtn" data-copy-inv="' + esc(inv.id) + '" title="Copy rule, evidence, and fix instructions as Markdown">Copy Fix Brief</button>' +
+      (opts.hideChecksLink || state.tab === "checks" ? "" : '<button class="tbtn" data-jump-checks="1">Open in Checks</button>') +
       "</div>";
     return renderDisclosure({
       title: inv.name,
-      meta: inv.id + " · " + inv.rung,
+      meta: inv.id + " · " + inv.rung + (inv.status === "fail" ? " · BLOCKER" : inv.status === "warn" ? " · WARNING" : ""),
       badge: opts.countOverride !== undefined ? opts.countOverride : inv.violationCount,
       badgeClass: tone === "fail" ? "b-fail" : tone === "warn" ? "b-warn" : "b-pass",
       tone,
@@ -367,63 +388,6 @@ export function renderVisualHtml(
   }
   ${renderSvgClientScript()}
 
-  function renderMatrixView(diag) {
-    const laneIdx = new Map((diag.lanes || []).map((l, i) => [l.id, i]));
-    const laneColors = ["#38bdf8", "#818cf8", "#34d399", "#fbbf24", "#f472b6", "#94a3b8"];
-    const ordered = [...diag.nodes].sort((a, b) => {
-      const ra = a.layerRank !== undefined ? a.layerRank : (laneIdx.get(a.lane || "") ?? 99);
-      const rb = b.layerRank !== undefined ? b.layerRank : (laneIdx.get(b.lane || "") ?? 99);
-      return ra - rb || a.label.localeCompare(b.label);
-    });
-
-    const edgeByPair = new Map();
-    let maxWeight = 1;
-    for (const e of diag.edges) {
-      edgeByPair.set(e.from + "|" + e.to, e);
-      if (e.bidirectional) edgeByPair.set(e.to + "|" + e.from, e);
-      if ((e.weight || 1) > maxWeight) maxWeight = e.weight || 1;
-    }
-
-    const headCols = ordered.map((n, ci) =>
-      '<th class="dsm-col-th" data-dsm-col="' + ci + '" data-select-node="' + esc(n.id) + '" title="' + esc(n.label) + '">' +
-      '<div class="dsm-col-lbl">' + esc(n.label) + "</div></th>"
-    ).join("");
-
-    const rowsHtml = ordered.map((rowNode, ri) => {
-      const lColor = laneColors[(laneIdx.get(rowNode.lane || "") ?? 5) % laneColors.length];
-      const cells = ordered.map((colNode, ci) => {
-        if (ri === ci) return '<td class="dsm-cell diag">·</td>';
-        const e = edgeByPair.get(rowNode.id + "|" + colNode.id);
-        if (!e) return '<td class="dsm-cell"></td>';
-        const w = e.weight || 1;
-        const alpha = (0.18 + Math.min(0.65, (Math.log(w + 1) / Math.log(maxWeight + 1)) * 0.65)).toFixed(2);
-        const bg = e.violation ? "" : ' style="background:rgba(56,189,248,' + alpha + ')"';
-        const cls = "dsm-cell " + (e.violation ? "viol" : "hit") + (state.selectedEdgeId === e.id ? " sel" : "");
-        const tip = rowNode.label + " → " + colNode.label + " · " + w + (e.violation ? " · VIOLATION" : "");
-        return '<td class="' + cls + '"' + bg + ' data-edge="' + esc(e.id) + '" data-dsm-r="' + ri + '" data-dsm-c="' + ci + '" title="' + esc(tip) + '">' + (w > 99 ? "99+" : w) + "</td>";
-      }).join("");
-      return (
-        "<tr>" +
-        '<th class="dsm-row-th" data-dsm-row="' + ri + '" data-select-node="' + esc(rowNode.id) + '">' +
-        '<span class="dsm-lane-dot" style="background:' + lColor + '"></span>' + esc(rowNode.label) +
-        "</th>" +
-        cells +
-        "</tr>"
-      );
-    }).join("");
-
-    return (
-      '<div class="dsm-wrap">' +
-      '<div class="dsm-note">' +
-      '<span><strong>Design Structure Matrix (Row → Column)</strong> · ' + ordered.length + " nodes · " + diag.edges.length + " dependencies · 0 edge crossings</span>" +
-      '<span>Click any cell for file:line evidence · <span style="color:#fca5a5">Red cells</span> = rule violation / cycle</span>' +
-      "</div>" +
-      '<table class="dsm-table"><thead><tr><th class="dsm-corner">FROM ↓ / TO →</th>' + headCols + "</tr></thead><tbody>" +
-      rowsHtml +
-      "</tbody></table></div>"
-    );
-  }
-
   function renderLegend(diag) {
     const items = [];
     const detailCount = diag.edges.filter((e) => e.tier === "detail" && !e.violation).length;
@@ -493,7 +457,62 @@ export function renderVisualHtml(
     const pkgs = DATA.nodes.filter((n) => n.kind === "package" || n.kind === "analyzer");
     const stores = DATA.nodes.filter((n) => n.kind === "datastore");
     const exts = DATA.nodes.filter((n) => n.kind === "external_service");
-    const activeInvs = DATA.invariants.filter((i) => i.status === "fail" || i.status === "warn");
+    const allActive = sortInvariantsByUrgency(DATA.invariants.filter((i) => i.status === "fail" || i.status === "warn"));
+    const curDiag = activeDiagram();
+
+    if (state.activeFolder) {
+      const af = state.activeFolder;
+      const folderIdxs = (ddByUnit.get(af.unitSlug) || []).filter((idx) => {
+        const rel = ddLogicalRel(DD_FILES[idx], ddUnitPeelPrefix(af.unitSlug));
+        return rel === af.folderPath || rel.startsWith(af.folderPath + "/");
+      });
+      const folderFileSet = new Set(folderIdxs.map((i) => DD_FILES[i].p));
+      const folderInvs = allActive.filter((inv) => inv.evidence.some((ev) => folderFileSet.has(ev.file)));
+      const totalLines = folderIdxs.reduce((s, i) => s + DD_FILES[i].l, 0);
+      const extSet = new Set();
+      const envSet = new Set();
+      for (const i of folderIdxs) {
+        for (const x of DD_FILES[i].x) extSet.add(x);
+        for (const v of DD_FILES[i].v) envSet.add(v);
+      }
+      const biggest = [...folderIdxs].sort((a, b) => DD_FILES[b].l - DD_FILES[a].l).slice(0, 8);
+      return (
+        '<div class="drawer-head"><div><div class="drawer-title">' + esc(af.folderPath + "/") + '</div><div class="drawer-sub">' + esc(af.unitSlug) + " · " + folderIdxs.length + " files · " + totalLines + " lines</div></div></div>" +
+        '<div class="story-box">Folder Context Map for <strong>' + esc(af.folderPath + "/") + "</strong>. Left shows callers, center shows files inside, right shows dependencies & external APIs." +
+        (folderInvs.length > 0 ? ' <span class="status-fail">' + folderInvs.length + " active issue" + (folderInvs.length === 1 ? "" : "s") + " inside this folder.</span>" : ' <span class="status-pass">0 active rule violations in this folder.</span>') + "</div>" +
+        (folderInvs.length > 0
+          ? '<div class="sec"><div class="sev-group-hdr fail"><span>Issues Inside ' + esc(af.folderPath + "/") + " (" + folderInvs.length + ")</span></div>" +
+            folderInvs.map((inv) => renderFindingDisclosure(inv, { open: inv.status === "fail", filterEv: (ev) => folderFileSet.has(ev.file) })).join("") + "</div>"
+          : "") +
+        (extSet.size > 0 || envSet.size > 0
+          ? '<div class="sec"><div class="sec-title">Folder Surfaces</div>' +
+            (extSet.size > 0 ? '<div class="row"><span class="muted">External APIs</span><span class="mono">' + esc(Array.from(extSet).slice(0, 6).join(", ")) + "</span></div>" : "") +
+            (envSet.size > 0 ? '<div class="row"><span class="muted">Env Vars</span><span class="mono">' + esc(Array.from(envSet).slice(0, 6).join(", ")) + "</span></div>" : "") + "</div>"
+          : "") +
+        '<div class="sec"><div class="sec-title"><span>Largest Files (click to inspect)</span></div>' +
+        biggest.map((i) => {
+          const f = DD_FILES[i];
+          return '<div class="row"><span class="row-link mono" data-select-node="' + esc("file:" + f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
+        }).join("") + "</div>"
+      );
+    }
+
+    const scopedUnitSlug = curDiag?.ownerId ? curDiag.id.replace(/^(?:modules|layers|subsystem):/, "").split(":")[0] : null;
+    const scopedUnitNode = curDiag?.ownerId ? nodeById.get(curDiag.ownerId) : null;
+    const scopedDir = typeof scopedUnitNode?.meta?.dir === "string" ? scopedUnitNode.meta.dir : "";
+    const unitInvs = scopedUnitSlug
+      ? allActive.filter((inv) => inv.evidence.some((ev) => (scopedDir && ev.file.startsWith(scopedDir + "/")) || ev.targetNodeId === curDiag?.ownerId))
+      : allActive;
+    const displayInvs = unitInvs.length > 0 ? unitInvs : allActive;
+    const fails = displayInvs.filter((i) => i.status === "fail");
+    const warns = displayInvs.filter((i) => i.status === "warn");
+
+    const scopedTangleMods = scopedUnitSlug
+      ? (DATA.modules || []).filter((m) => m.unitSlug === scopedUnitSlug && m.inTangle)
+      : [];
+    const tangleBanner = scopedTangleMods.length > 0
+      ? '<div class="tangle-banner"><div><strong>⚠ Circular Dependency Tangle (' + scopedTangleMods.length + ' modules)</strong><div class="muted" style="color:#fecaca;margin-top:2px">Mutual imports between ' + esc(scopedTangleMods.slice(0, 5).map((m) => m.name).join(", ")) + (scopedTangleMods.length > 5 ? " +" + (scopedTangleMods.length - 5) : "") + ' make changes ripple unpredictably.</div></div><div class="links-row"><button class="action-btn sec-btn" data-open-viol-matrix="1">Inspect Cycle in Matrix →</button></div></div>'
+      : "";
 
     const storyHtml = buildArchitectureStory();
     const shapeLine =
@@ -501,18 +520,19 @@ export function renderVisualHtml(
         ? "A " + DATA.repo.ecosystem + " library (" + pkgs.map((p) => esc(shortPkg(p.label))).join(", ") + ") with " + DATA.stateMachines.length + " declared state machine(s)."
         : "A " + DATA.repo.ecosystem + " system with " + apps.length + " app/binary unit(s), " + pkgs.length + " package(s), " + (DATA.modules || []).length + " indexed modules, and " + DATA.summary.indexedSourceFiles + " source files.";
 
+    const findingsScopeLabel = scopedUnitSlug && unitInvs.length > 0 ? " in " + scopedUnitSlug : "";
     const findingsHtml =
-      '<div class="sec"><div class="sec-title"><span>Needs Attention (' + activeInvs.length + ')</span><span class="muted">click to expand</span></div>' +
-      (activeInvs.length === 0
+      '<div class="sec"><div class="sec-title"><span>Needs Attention' + esc(findingsScopeLabel) + " (" + displayInvs.length + ')</span><span class="muted">sorted by severity</span></div>' +
+      (displayInvs.length === 0
         ? '<div class="muted" style="font-size:12px">All applicable SQL invariants pass.</div>'
-        : activeInvs.slice(0, 8).map((inv, i) =>
-            renderFindingDisclosure(inv, { open: i === 0 && inv.status === "fail" })
-          ).join("")) +
+        : (fails.length > 0 ? '<div class="sev-group-hdr fail"><span>Blockers (' + fails.length + ' FAIL)</span><span>act first</span></div>' + fails.slice(0, 6).map((inv, i) => renderFindingDisclosure(inv, { open: i === 0 })).join("") : "") +
+          (warns.length > 0 ? '<div class="sev-group-hdr warn"><span>Warnings (' + warns.length + " WARN)</span></div>" + warns.slice(0, 6).map((inv) => renderFindingDisclosure(inv, { open: false })).join("") : "")) +
       "</div>";
 
-    const traceHtml = DATA.traces.length > 0
+    const scopedTraces = scopedUnitSlug ? DATA.traces.filter((t) => t.diagramId === curDiag?.id) : DATA.traces;
+    const traceHtml = scopedTraces.length > 0
       ? '<div class="sec"><div class="sec-title">Static Paths (click to trace)</div>' +
-        DATA.traces.map((t) => {
+        scopedTraces.map((t) => {
           const active = state.activeTraceId === t.id ? " active" : "";
           return '<div class="trace-card' + active + '" data-trace="' + esc(t.id) + '">' +
             '<div style="font-weight:600;font-size:12px">' + esc(t.title) + " (" + t.steps.length + " steps)</div>" +
@@ -521,18 +541,26 @@ export function renderVisualHtml(
         "</div>"
       : "";
 
+    const drawerHeading = scopedUnitSlug ? scopedUnitSlug + " Briefing" : "Architecture Briefing";
+    const drawerSub = scopedUnitSlug
+      ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click any folder with ›"
+      : DATA.repo.name + " · " + DATA.repo.languages.join(", ");
+
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">Architecture Briefing</div><div class="drawer-sub">' + esc(DATA.repo.name) + " · " + esc(DATA.repo.languages.join(", ")) + "</div></div></div>" +
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
       (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
+      tangleBanner +
       findingsHtml +
       traceHtml +
-      '<div class="sec"><div class="sec-title">System Makeup</div>' +
-      (apps.length > 0 ? '<div class="row"><span class="muted">Entry / Apps</span><span class="mono">' + esc(apps.slice(0, 4).map((a) => shortPkg(a.label)).join(", ")) + (apps.length > 4 ? " +" + (apps.length - 4) : "") + "</span></div>" : "") +
-      (pkgs.length > 0 ? '<div class="row"><span class="muted">Libraries</span><span class="mono">' + esc(pkgs.slice(0, 4).map((p) => shortPkg(p.label)).join(", ")) + (pkgs.length > 4 ? " +" + (pkgs.length - 4) : "") + "</span></div>" : "") +
-      (stores.length > 0 ? '<div class="row"><span class="muted">State</span><span class="mono">' + esc(stores.map((s) => s.label).join(", ")) + " (" + DATA.summary.datastoreEntities + ")</span></div>" : "") +
-      (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span class="mono">' + esc(exts.slice(0, 5).map((x) => x.label).join(", ")) + (exts.length > 5 ? " +" + (exts.length - 5) : "") + "</span></div>" : "") +
-      (DATA.summary.govRules > 0 ? '<div class="row"><span class="muted">Gov Rules</span><span class="mono">' + DATA.summary.govRules + " scoped rules</span></div>" : "") +
-      "</div>"
+      (!scopedUnitSlug
+        ? '<div class="sec"><div class="sec-title">System Makeup</div>' +
+          (apps.length > 0 ? '<div class="row"><span class="muted">Entry / Apps</span><span class="mono">' + esc(apps.slice(0, 4).map((a) => shortPkg(a.label)).join(", ")) + (apps.length > 4 ? " +" + (apps.length - 4) : "") + "</span></div>" : "") +
+          (pkgs.length > 0 ? '<div class="row"><span class="muted">Libraries</span><span class="mono">' + esc(pkgs.slice(0, 4).map((p) => shortPkg(p.label)).join(", ")) + (pkgs.length > 4 ? " +" + (pkgs.length - 4) : "") + "</span></div>" : "") +
+          (stores.length > 0 ? '<div class="row"><span class="muted">State</span><span class="mono">' + esc(stores.map((s) => s.label).join(", ")) + " (" + DATA.summary.datastoreEntities + ")</span></div>" : "") +
+          (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span class="mono">' + esc(exts.slice(0, 5).map((x) => x.label).join(", ")) + (exts.length > 5 ? " +" + (exts.length - 5) : "") + "</span></div>" : "") +
+          (DATA.summary.govRules > 0 ? '<div class="row"><span class="muted">Gov Rules</span><span class="mono">' + DATA.summary.govRules + " scoped rules</span></div>" : "") +
+          "</div>"
+        : "")
     );
   }
 
@@ -901,87 +929,7 @@ export function renderVisualHtml(
     );
   }
 
-  function renderDataTab() {
-    const q = state.dataFilter.toLowerCase();
-    const subBtns =
-      '<div class="sub-toggles" style="margin-bottom:10px">' +
-      '<button class="pill-btn' + (state.dataSubtab === "entities" ? " active" : "") + '" data-data-sub="entities">Entities (' + DATA.entities.length + ")</button>" +
-      (DATA.surfaces.foreignKeys.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "fks" ? " active" : "") + '" data-data-sub="fks">Foreign Keys (' + DATA.summary.foreignKeys + ")</button>" : "") +
-      (DATA.surfaces.endpoints.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "endpoints" ? " active" : "") + '" data-data-sub="endpoints">HTTP Endpoints (' + DATA.summary.httpEndpoints + ")</button>" : "") +
-      (DATA.surfaces.envBindings.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "env" ? " active" : "") + '" data-data-sub="env">Env & Secrets (' + DATA.summary.envBindings + ")</button>" : "") +
-      '<input class="search" style="width:220px" id="data-filter" placeholder="Filter table..." value="' + esc(state.dataFilter) + '" />' +
-      "</div>";
-
-    if (state.dataSubtab === "fks") {
-      const rows = DATA.surfaces.foreignKeys.filter((f) => !q || f.fromTable.includes(q) || f.toTable.includes(q));
-      return '<div class="table-wrap">' + subBtns +
-        '<table class="data-tbl"><thead><tr><th>From</th><th>References</th><th>On Delete</th><th>Migration</th></tr></thead><tbody>' +
-        rows.slice(0, 120).map((f) => '<tr><td class="mono">' + esc(f.fromTable + "." + f.fromColumn) + '</td><td class="mono">' + esc(f.toTable + "." + f.toColumn) + '</td><td>' + (f.onDelete ? '<span class="badge ' + (f.onDelete === "CASCADE" ? "b-warn" : "b-info") + '">' + esc(f.onDelete) + "</span>" : '<span class="muted">RESTRICT</span>') + '</td><td class="mono muted">' + esc(f.file) + "</td></tr>").join("") +
-        "</tbody></table></div>";
-    }
-    if (state.dataSubtab === "endpoints") {
-      const rows = DATA.surfaces.endpoints.filter((e) => !q || e.path.toLowerCase().includes(q) || e.unit.toLowerCase().includes(q) || (e.authGuard || "").toLowerCase().includes(q));
-      return '<div class="table-wrap">' + subBtns +
-        '<table class="data-tbl"><thead><tr><th>Method</th><th>Path</th><th>Auth Guard</th><th>Unit</th><th>Authority</th></tr></thead><tbody>' +
-        rows.slice(0, 180).map((e) => '<tr><td><span class="badge b-info">' + esc(e.method) + '</span></td><td class="mono">' + esc(e.path) + '</td><td><span class="badge ' + (e.authGuard === "public" || !e.authGuard ? "b-warn" : "b-pass") + '">' + esc(e.authGuard || "unannotated") + '</span></td><td class="mono">' + esc(shortPkg(e.unit)) + '</td><td class="mono muted">' + esc(e.resolution || e.source) + "</td></tr>").join("") +
-        "</tbody></table></div>";
-    }
-    if (state.dataSubtab === "env") {
-      const rows = DATA.surfaces.envBindings.filter((e) => !q || e.name.toLowerCase().includes(q) || e.units.join(",").toLowerCase().includes(q));
-      return '<div class="table-wrap">' + subBtns +
-        '<table class="data-tbl"><thead><tr><th>Env Variable</th><th>Sources</th><th>Units</th><th>Secret</th></tr></thead><tbody>' +
-        rows.slice(0, 150).map((e) => '<tr><td class="mono">' + esc(e.name) + '</td><td class="mono muted">' + esc(e.sources.join(", ")) + '</td><td class="mono">' + esc(e.units.map(shortPkg).join(", ")) + '</td><td>' + (e.isSecret ? '<span class="badge b-warn">secret</span>' : '<span class="muted">config</span>') + "</td></tr>").join("") +
-        "</tbody></table></div>";
-    }
-
-    const rows = DATA.entities.filter((e) => !q || e.entity.toLowerCase().includes(q) || e.domains.join(",").toLowerCase().includes(q));
-    return '<div class="table-wrap">' + subBtns +
-      '<table class="data-tbl"><thead><tr><th>Entity</th><th>Store</th><th>Refs</th><th>FKs</th><th>Tenancy</th><th>Domains</th><th>Layers</th></tr></thead><tbody>' +
-      rows.slice(0, 150).map((e) =>
-        '<tr><td class="mono"><strong>' + esc(e.entity) + "</strong>" + (e.authorizedShared ? ' <span class="badge b-info">shared</span>' : "") +
-        '</td><td class="mono muted">' + esc(e.datastore) +
-        '</td><td class="mono">' + e.totalRefs +
-        '</td><td class="mono">' + e.fkCount +
-        '</td><td>' + (e.hasTenancyKey ? '<span class="badge b-pass">tenant</span>' : '<span class="muted">—</span>') +
-        '</td><td class="mono">' + esc(e.domains.join(", ") || "—") +
-        '</td><td class="mono muted">' + esc(e.layers.join(", ") || "—") + "</td></tr>"
-      ).join("") +
-      "</tbody></table></div>";
-  }
-
-  function renderChecksTab() {
-    const invs = DATA.invariants.filter((i) => {
-      if (state.checksFilter === "active") return i.status === "fail" || i.status === "warn";
-      if (state.checksFilter === "na") return i.status === "na";
-      return true;
-    });
-    return (
-      '<div class="table-wrap">' +
-      '<div class="sub-toggles" style="margin-bottom:10px">' +
-      '<button class="pill-btn' + (state.checksFilter === "active" ? " active" : "") + '" data-checks-filter="active">Active (' + DATA.invariants.filter((i) => i.status === "fail" || i.status === "warn").length + ")</button>" +
-      '<button class="pill-btn' + (state.checksFilter === "all" ? " active" : "") + '" data-checks-filter="all">All (' + DATA.invariants.length + ")</button>" +
-      '<button class="pill-btn' + (state.checksFilter === "na" ? " active" : "") + '" data-checks-filter="na">N/A (' + DATA.invariants.filter((i) => i.status === "na").length + ")</button>" +
-      "</div>" +
-      '<div style="display:flex;flex-direction:column;gap:8px">' +
-      invs.map((inv) => {
-        if (inv.status === "pass" || inv.status === "na") {
-          return renderDisclosure({
-            title: inv.name,
-            meta: inv.id + " · " + inv.rung,
-            badge: inv.status.toUpperCase(),
-            badgeClass: inv.status === "pass" ? "b-pass" : "b-na",
-            tone: inv.status === "pass" ? "pass" : "",
-            open: false,
-            bodyHtml:
-              '<div class="muted">' + esc(inv.statement) + "</div>" +
-              (inv.applicabilityReason ? '<div class="mono muted">N/A: ' + esc(inv.applicabilityReason) + "</div>" : ""),
-          });
-        }
-        return renderFindingDisclosure(inv, { open: inv.status === "fail" });
-      }).join("") +
-      "</div></div>"
-    );
-  }
+  ${renderTablesClientScript()}
 
   function renderSearchDropdown() {
     const q = state.search.trim().toLowerCase();
@@ -1114,12 +1062,13 @@ export function renderVisualHtml(
 
     const v = DATA.verification;
     const statusHtml =
-      '<span class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '">' + v.invariantsFailed + " fail</span>" +
-      (v.invariantsWarned > 0 ? '<span class="s-dot warn status-warn">' + v.invariantsWarned + " warn</span>" : "") +
+      '<button class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '" data-jump-checks-filter="fail" title="Click to view failing architectural checks">' + v.invariantsFailed + " fail</button>" +
+      (v.invariantsWarned > 0 ? '<button class="s-dot warn status-warn" data-jump-checks-filter="warn" title="Click to view architectural warnings">' + v.invariantsWarned + " warn</button>" : "") +
       "<span>" + DATA.summary.indexedSourceFiles + " files · " + v.directTestCoveragePct + "% tested</span>" +
       (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
 
     const tabs = [
+      { id: "diff", label: "Diff (" + (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || "") + ")", show: Boolean(DATA.commitDiff) },
       { id: "map", label: "Map", show: Boolean(runtimeDiag) },
       { id: "behavior", label: "Behavior (" + behaviorDiags.length + ")", show: behaviorDiags.length > 0 },
       { id: "data", label: "Data (" + DATA.entities.length + ")", show: DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0 },
@@ -1170,17 +1119,18 @@ export function renderVisualHtml(
           crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(shortTitle) + "</span>");
         }
         if (ownerModDiag && ownerLayerDiag && ld && ld.category !== "subsystem") {
-          crumbs.push('<span class="crumb-sep">·</span>');
-          crumbs.push('<button class="pill-btn' + (ld.category === "modules" ? " active" : "") + '" data-open-layers="' + esc(ownerModDiag.id) + '">Modules</button>');
-          crumbs.push('<button class="pill-btn' + (ld.category === "layers" ? " active" : "") + '" data-open-layers="' + esc(ownerLayerDiag.id) + '">Layers</button>');
+          crumbs.push('<span class="seg-group" style="margin-left:4px">' +
+            '<button class="seg-btn' + (ld.category === "modules" ? " active" : "") + '" data-open-layers="' + esc(ownerModDiag.id) + '" title="Top-level module dependency graph ordered from entry points to foundations">Modules</button>' +
+            '<button class="seg-btn' + (ld.category === "layers" ? " active" : "") + '" data-open-layers="' + esc(ownerLayerDiag.id) + '" title="Clean Architecture layers — red backward arrows highlight layer inversions">Layers</button>' +
+            "</span>");
         }
         subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
       } else {
         subNav = '<div class="sub-toggles">' +
-          (moduleDiags.length === 1 ? '<button class="pill-btn" data-open-layers="' + esc(moduleDiags[0].id) + '">Modules (' + moduleDiags[0].nodes.length + ")</button>" : "") +
-          '<button class="pill-btn' + (state.mapMode === "runtime" ? " active" : "") + '" data-map-mode="runtime">Runtime</button>' +
-          (packagesDiag ? '<button class="pill-btn' + (state.mapMode === "packages" ? " active" : "") + '" data-map-mode="packages">Packages</button>' : "") +
-          (domainsDiag ? '<button class="pill-btn' + (state.mapMode === "domains" ? " active" : "") + '" data-map-mode="domains">Domains</button>' : "") +
+          (moduleDiags.length === 1 ? '<button class="pill-btn" data-open-layers="' + esc(moduleDiags[0].id) + '" title="Drill into top-level module topology">Modules (' + moduleDiags[0].nodes.length + ")</button>" : "") +
+          '<button class="pill-btn' + (state.mapMode === "runtime" ? " active" : "") + '" data-map-mode="runtime" title="Apps, services, datastores, and external APIs flowing left-to-right">Runtime</button>' +
+          (packagesDiag ? '<button class="pill-btn' + (state.mapMode === "packages" ? " active" : "") + '" data-map-mode="packages" title="Internal workspace package dependency graph">Packages</button>' : "") +
+          (domainsDiag ? '<button class="pill-btn' + (state.mapMode === "domains" ? " active" : "") + '" data-map-mode="domains" title="Business domain coupling graph — red arrows show bidirectional coupling">Domains</button>' : "") +
           "</div>";
       }
     } else if (state.tab === "behavior" && behaviorDiags.length > 1) {
@@ -1190,7 +1140,9 @@ export function renderVisualHtml(
     }
 
     let bodyHtml = "";
-    if (state.tab === "data") {
+    if (state.tab === "diff") {
+      bodyHtml = renderDiffTab();
+    } else if (state.tab === "data") {
       bodyHtml = renderDataTab();
     } else if (state.tab === "checks") {
       bodyHtml = renderChecksTab();
@@ -1207,20 +1159,20 @@ export function renderVisualHtml(
           : renderBriefingDrawer();
 
       const trayHtml = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0
-        ? '<div class="tray"><span>No edges extracted:</span>' +
+        ? '<div class="tray" title="Units indexed without static runtime edges to the core graph — click any chip to inspect"><span>No edges extracted:</span>' +
           diag.unconnectedNodes.map((u) => '<span class="tray-chip" data-select-node="' + esc(u.id) + '">' + esc(u.label) + "</span>").join("") +
           "</div>"
         : "";
 
       const viewToggleHtml = canMatrix
         ? '<span class="seg-group">' +
-          '<button class="seg-btn' + (!inMatrix ? " active" : "") + '" data-view-mode="flow">Flow</button>' +
-          '<button class="seg-btn' + (inMatrix ? " active" : "") + '" data-view-mode="matrix">Matrix (DSM)</button>' +
+          '<button class="seg-btn' + (!inMatrix ? " active" : "") + '" data-view-mode="flow" title="Visual node-and-wire dependency flow">Flow</button>' +
+          '<button class="seg-btn' + (inMatrix ? " active" : "") + '" data-view-mode="matrix" title="Design Structure Matrix: grid showing every dependency with zero crossing lines">Matrix (DSM)</button>' +
           "</span>"
         : "";
 
       const wireToggleHtml = !inMatrix && detailCount > 0
-        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Spine (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
+        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Spine hides low-weight wires until hover; click to show all wires">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Spine (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
         : "";
 
       const canStepUp = Boolean(state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
@@ -1229,7 +1181,8 @@ export function renderVisualHtml(
         '<div class="hud-pill hud-top-right">' +
         viewToggleHtml +
         wireToggleHtml +
-        (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1">Focus <span class="keycap">F</span></button>' : "") +
+        (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1" title="Bow-Tie focus: isolate only direct callers and dependencies of the selected card">Focus <span class="keycap">F</span></button>' : "") +
+        '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read this graph">?</button>' +
         "</div>";
       const hudBottomLeft = !inMatrix
         ? '<div class="hud-pill hud-bottom-left">' +
@@ -1249,6 +1202,7 @@ export function renderVisualHtml(
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
+        renderInfoPopoverHtml() +
         hudBottomLeft +
         hudLegend +
         (!inMatrix ? renderMinimapHtml(diag) : "") +
@@ -1608,8 +1562,77 @@ export function renderVisualHtml(
       return;
     }
 
+    if (target.closest("[data-toggle-guide]")) {
+      state.showGuide = !state.showGuide;
+      render();
+      return;
+    }
+
+    const copyInvBtn = target.closest("[data-copy-inv]");
+    if (copyInvBtn) {
+      const inv = invById.get(copyInvBtn.getAttribute("data-copy-inv"));
+      if (inv && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(buildFixBriefMarkdown(inv)).catch(() => {});
+      }
+      copyInvBtn.textContent = "Copied ✓";
+      setTimeout(() => { copyInvBtn.textContent = "Copy Fix Brief"; }, 1400);
+      return;
+    }
+
+    if (target.closest("[data-dsm-viol-only]")) {
+      state.dsmViolOnly = !state.dsmViolOnly;
+      render();
+      return;
+    }
+
+    if (target.closest("[data-open-viol-matrix]")) {
+      state.viewMode = "matrix";
+      state.dsmViolOnly = true;
+      state.focusMode = false;
+      render();
+      return;
+    }
+
+    if (target.closest("[data-data-issues]")) {
+      state.dataIssuesOnly = !state.dataIssuesOnly;
+      render();
+      return;
+    }
+
+    const diffModeBtn = target.closest("[data-diff-mode]");
+    if (diffModeBtn) {
+      state.diffMode = diffModeBtn.getAttribute("data-diff-mode") || "overlay";
+      state.tx = 0;
+      state.ty = 0;
+      state.scale = 1;
+      syncCameraTargetImmediate();
+      render();
+      return;
+    }
+
+    const diffDiagBtn = target.closest("[data-diff-diag]");
+    if (diffDiagBtn) {
+      state.diffDiagramId = diffDiagBtn.getAttribute("data-diff-diag");
+      state.tx = 0;
+      state.ty = 0;
+      state.scale = 1;
+      syncCameraTargetImmediate();
+      render();
+      return;
+    }
+
+    const jumpFilterBtn = target.closest("[data-jump-checks-filter]");
+    if (jumpFilterBtn) {
+      state.tab = "checks";
+      state.checksFilter = jumpFilterBtn.getAttribute("data-jump-checks-filter") || "active";
+      state.showGuide = false;
+      render();
+      return;
+    }
+
     if (target.closest("[data-jump-checks]")) {
       state.tab = "checks";
+      state.checksFilter = "active";
       render();
       return;
     }
@@ -1617,6 +1640,7 @@ export function renderVisualHtml(
     const dataSub = target.closest("[data-data-sub]");
     if (dataSub) {
       state.dataSubtab = dataSub.getAttribute("data-data-sub") || "entities";
+      state.dataIssuesOnly = false;
       render();
       return;
     }

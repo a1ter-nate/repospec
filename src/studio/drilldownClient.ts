@@ -1,3 +1,5 @@
+import { renderDrilldownInspectorScript } from "./drilldownInspector.ts";
+
 export function renderDrilldownClientScript(): string {
   return `
   const DD_FILES = (DATA.drilldown && DATA.drilldown.files) || [];
@@ -204,6 +206,21 @@ export function renderDrilldownClientScript(): string {
       }
     }
 
+    const fileFindingsByPath = new Map();
+    const fileViolTargetsByPath = new Map();
+    for (const inv of DATA.invariants || []) {
+      if (inv.status !== "fail" && inv.status !== "warn") continue;
+      for (const ev of inv.evidence || []) {
+        if (!ev.file) continue;
+        const arr = fileFindingsByPath.get(ev.file) || [];
+        arr.push({ invId: inv.id, severity: inv.status === "fail" ? "error" : "warn", detail: ev.detail, line: ev.line });
+        fileFindingsByPath.set(ev.file, arr);
+        const tSet = fileViolTargetsByPath.get(ev.file) || [];
+        tSet.push({ invId: inv.id, detail: ev.detail, line: ev.line });
+        fileViolTargetsByPath.set(ev.file, tSet);
+      }
+    }
+
     const keptCallers = Array.from(callerGroups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 12);
     const keptDeps = Array.from(depGroups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 14);
     const keptCallerIds = new Set(keptCallers.map((c) => c.id));
@@ -222,7 +239,17 @@ export function renderDrilldownClientScript(): string {
         items: arr.map((ch) => {
           const caps = Array.from(ch.caps).slice(0, 2);
           const sub = (ch.isDir ? ch.fileIdxs.length + " files · " : "") + ch.lines + "L · " + (caps.length > 0 ? caps.join("+") : "PURE") + (ch.isDir ? " · ⊞" : "");
-          return { id: ch.id, label: ch.label, sublabel: sub, shape: ch.isDir ? "box" : "box", kind: ch.isDir ? "folder" : "file", expandable: ch.isDir, provenance: { file: ch.provenanceFile }, childMeta: ch };
+          const fCounts = new Map();
+          for (const fIdx of ch.fileIdxs) {
+            const fp = DD_FILES[fIdx].p;
+            for (const fnd of fileFindingsByPath.get(fp) || []) {
+              const cur = fCounts.get(fnd.invId);
+              if (cur) cur.count += 1;
+              else fCounts.set(fnd.invId, { ruleId: fnd.invId, severity: fnd.severity, count: 1 });
+            }
+          }
+          const findings = Array.from(fCounts.values());
+          return { id: ch.id, label: ch.label, sublabel: sub, shape: "box", kind: ch.isDir ? "folder" : "file", expandable: ch.isDir, provenance: { file: ch.provenanceFile }, findings: findings.length > 0 ? findings : undefined, childMeta: ch };
         }),
       });
     });
@@ -266,6 +293,7 @@ export function renderDrilldownClientScript(): string {
           w: colW,
           h,
           provenance: it.provenance,
+          findings: it.findings,
           ctxMeta: it.ctxMeta,
           childMeta: it.childMeta,
         };
@@ -303,22 +331,35 @@ export function renderDrilldownClientScript(): string {
       } else if (lb < la) {
         const sx = a.x - a.w / 2;
         const tx = b.x + b.w / 2;
-        const arcY = maxBottom + 18 + (eSeq % 4) * 7;
-        pts.push({ x: sx, y: a.y }, { x: sx - 16, y: a.y }, { x: sx - 16, y: arcY }, { x: tx + 16, y: arcY }, { x: tx + 16, y: b.y }, { x: tx, y: b.y });
+        const dx = Math.max(24, (sx - tx) * 0.45);
+        pts.push({ x: sx, y: a.y }, { x: sx - dx, y: a.y }, { x: tx + dx, y: b.y }, { x: tx, y: b.y });
       } else {
-        const rx = Math.max(a.x + a.w / 2, b.x + b.w / 2) + 18 + (eSeq % 3) * 7;
+        const rx = Math.max(a.x + a.w / 2, b.x + b.w / 2) + 18 + (eSeq % 3) * 6;
         pts.push({ x: a.x + a.w / 2, y: a.y }, { x: rx, y: a.y }, { x: rx, y: b.y }, { x: b.x + b.w / 2, y: b.y });
       }
+      const matchedRuleIds = [];
+      for (const ev of ep.evidence || []) {
+        const viols = fileViolTargetsByPath.get(ev.file) || [];
+        for (const v of viols) {
+          const targetTok = (b.label || "").replace(new RegExp("/$"), "");
+          if (v.detail && targetTok && v.detail.includes(targetTok)) {
+            if (!matchedRuleIds.includes(v.invId)) matchedRuleIds.push(v.invId);
+          }
+        }
+      }
+      const isViol = matchedRuleIds.length > 0;
       const isInternal = !ep.from.startsWith("ctx_") && !ep.to.startsWith("ctx_");
-      const tier = !isDense || isInternal || ep.weight >= 2 || ep.kind === "calls_external" || ep.kind === "reads_writes" ? "spine" : "detail";
+      const tier = isViol || !isDense || isInternal || ep.weight >= 2 || ep.kind === "calls_external" || ep.kind === "reads_writes" ? "spine" : "detail";
       layoutEdges.push({
         id: "fld:" + eSeq,
         from: ep.from,
         to: ep.to,
         kind: ep.kind,
-        tier,
-        label: ep.weight > 1 ? String(ep.weight) : undefined,
+        tier: isViol ? "violation" : tier,
+        label: isViol ? "⚠ " + ep.weight : ep.weight > 1 ? String(ep.weight) : undefined,
         weight: ep.weight,
+        violation: isViol,
+        ruleIds: isViol ? matchedRuleIds : undefined,
         confidence: "observed",
         evidence: ep.evidence,
         points: pts,
@@ -342,127 +383,6 @@ export function renderDrilldownClientScript(): string {
       edges: layoutEdges,
     };
   }
-
-  function renderFileInspector(filePath) {
-    const idx = ddIdxByPath.get(filePath);
-    if (idx === undefined) return renderBriefingDrawer();
-    const f = DD_FILES[idx];
-    const inLinks = ddInByIdx.get(idx) || [];
-    const outLinks = ddOutByIdx.get(idx) || [];
-    const fileEndpoints = DATA.surfaces.endpoints.filter((ep) => ep.file === f.p);
-    const fileFindings = DATA.invariants.filter((inv) => (inv.status === "fail" || inv.status === "warn") && inv.evidence.some((ev) => ev.file === f.p));
-
-    const pills =
-      '<div class="pill-row">' +
-      '<span class="badge b-info">' + f.l + " lines</span>" +
-      '<span class="badge b-na">' + f.e + " exports</span>" +
-      f.c.map((c) => '<span class="badge ' + capBadgeClass(c) + '">' + esc(c) + "</span>").join("") +
-      "</div>";
-
-    const symsHtml =
-      '<div class="sec"><div class="sec-title"><span>Exported API (' + f.s.length + ")</span></div>" +
-      (f.s.length === 0
-        ? '<div class="muted" style="font-size:11px">No named top-level exports indexed.</div>'
-        : f.s.map((sym) => {
-            const gh = githubUrl(f.p, sym[2]);
-            const loc = gh ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">:' + sym[2] + " ↗</a>" : '<span class="mono muted">:' + sym[2] + "</span>";
-            return '<div class="api-row"><span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sym[0]) + '</span><span style="display:flex;gap:5px;align-items:center;flex-shrink:0"><span class="badge b-na">' + esc(sym[1]) + "</span>" + loc + "</span></div>";
-          }).join("")) +
-      "</div>";
-
-    const surfaceRows = [];
-    if (f.x.length > 0) {
-      surfaceRows.push('<div class="row"><span class="muted">External APIs</span><span class="mono">' + esc(f.x.join(", ")) + "</span></div>");
-    }
-    if (f.t.length > 0) {
-      surfaceRows.push('<div class="row"><span class="muted">Datastore</span><span class="mono">' + esc(f.t.join(", ")) + "</span></div>");
-    }
-    if (f.v.length > 0) {
-      surfaceRows.push('<div class="row"><span class="muted">Env Vars</span><span class="mono">' + esc(f.v.join(", ")) + "</span></div>");
-    }
-    if (fileEndpoints.length > 0) {
-      surfaceRows.push('<div class="row"><span class="muted">HTTP Routes</span><span class="mono">' + esc(fileEndpoints.slice(0, 6).map((ep) => ep.method + " " + ep.path).join(", ")) + "</span></div>");
-    }
-    const surfacesSec = surfaceRows.length > 0
-      ? '<div class="sec"><div class="sec-title">Runtime Surfaces</div>' + surfaceRows.join("") + "</div>"
-      : "";
-
-    const callersSec =
-      '<div class="sec"><div class="sec-title"><span>Imported By (' + inLinks.length + ')</span><span class="muted">click to jump</span></div>' +
-      (inLinks.length === 0
-        ? '<div class="muted" style="font-size:11px">No direct production callers indexed (entry point or dynamic).</div>'
-        : inLinks.slice(0, 20).map((inc) => {
-            const cf = DD_FILES[inc.from];
-            return '<div class="row"><span class="row-link mono" data-open-file="' + esc(cf.p) + '">← ' + esc(cf.p) + '</span><span class="mono muted">:' + inc.line + "</span></div>";
-          }).join("") + (inLinks.length > 20 ? '<div class="muted">+' + (inLinks.length - 20) + " more</div>" : "")) +
-      "</div>";
-
-    const importsSec =
-      '<div class="sec"><div class="sec-title"><span>Imports (' + outLinks.length + ')</span><span class="muted">click to jump</span></div>' +
-      (outLinks.length === 0
-        ? '<div class="muted" style="font-size:11px">Leaf file (0 internal file imports).</div>'
-        : outLinks.slice(0, 20).map((out) => {
-            const tf = DD_FILES[out.to];
-            return '<div class="row"><span class="row-link mono" data-open-file="' + esc(tf.p) + '">→ ' + esc(tf.p) + '</span><span class="mono muted">:' + out.line + "</span></div>";
-          }).join("") + (outLinks.length > 20 ? '<div class="muted">+' + (outLinks.length - 20) + " more</div>" : "")) +
-      "</div>";
-
-    const findingsSec = fileFindings.length > 0
-      ? '<div class="sec"><div class="sec-title">Active Findings (' + fileFindings.length + ")</div>" +
-        fileFindings.map((inv) => renderFindingDisclosure(inv, { open: inv.status === "fail", filterEv: (ev) => ev.file === f.p })).join("") +
-        "</div>"
-      : "";
-
-    return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.u + " · " + f.p) + "</div></div></div>" +
-      provenanceLinksHtml(f.p, 1) +
-      pills +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Folder Briefing</button></div>' +
-      findingsSec +
-      symsHtml +
-      surfacesSec +
-      callersSec +
-      importsSec
-    );
-  }
-
-  function renderFolderNodeInspector(nodeId, diag) {
-    if (nodeId.startsWith("file:")) {
-      return renderFileInspector(nodeId.slice(5));
-    }
-    const diagNode = diag?.nodes.find((n) => n.id === nodeId);
-    if (nodeId.startsWith("folder:")) {
-      const rest = nodeId.slice(7);
-      const colon = rest.indexOf(":");
-      const uSlug = rest.slice(0, colon);
-      const fPath = rest.slice(colon + 1);
-      const ch = diagNode?.childMeta;
-      const cnt = ch ? ch.fileIdxs.length : unitHasFolderFiles(uSlug, fPath);
-      const fileRows = (ch ? ch.fileIdxs.slice(0, 24) : []).map((idx) => {
-        const f = DD_FILES[idx];
-        return '<div class="row"><span class="row-link mono" data-open-file="' + esc(f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
-      }).join("");
-      return (
-        '<div class="drawer-head"><div><div class="drawer-title">' + esc(fPath + "/") + '</div><div class="drawer-sub">' + esc(uSlug + " · " + cnt + " files") + "</div></div></div>" +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn" data-open-folder="' + esc(uSlug + "::" + fPath) + '">Drill into ' + esc(fPath.split("/").pop()) + "/ (" + cnt + ' files) →</button><button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
-        '<div class="sec"><div class="sec-title">Files Inside</div>' + (fileRows || '<div class="muted">Click Drill to explore files.</div>') + "</div>"
-      );
-    }
-    if (diagNode?.ctxMeta) {
-      const cm = diagNode.ctxMeta;
-      const openBtn = cm.folderPath && cm.unitSlug
-        ? '<button class="action-btn" data-open-folder="' + esc(cm.unitSlug + "::" + cm.folderPath) + '">Open ' + esc(cm.label) + " →</button>"
-        : "";
-      const fList = Array.from(cm.files || []).slice(0, 18).map((fp) =>
-        '<div class="row"><span class="row-link mono" data-open-file="' + esc(fp) + '">' + esc(fp) + "</span></div>"
-      ).join("");
-      return (
-        '<div class="drawer-head"><div><div class="drawer-title">' + esc(diagNode.label) + '</div><div class="drawer-sub">' + esc(diagNode.sublabel || "") + "</div></div></div>" +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap">' + openBtn + '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
-        (fList ? '<div class="sec"><div class="sec-title">Referenced Files</div>' + fList + "</div>" : "")
-      );
-    }
-    return null;
-  }
+  ${renderDrilldownInspectorScript()}
 `;
 }

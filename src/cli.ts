@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
+import type { CommitArchDiff } from "./studio/commitDiff.ts";
+import { runCommitDiffWorktrees } from "./studio/diffRunner.ts";
 import { buildDrilldownIndex, type DrilldownIndex } from "./studio/drilldown.ts";
 import { archExtractor } from "./extractors/arch.ts";
 import { ciExtractor } from "./extractors/ci.ts";
@@ -326,6 +328,63 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (cmd === "diff-view") {
+    const repoDir = args[1];
+    if (!repoDir) {
+      console.error("Usage: repospec diff-view <repoDir> [base..head] [--out <dir>] [--inline]");
+      process.exit(1);
+    }
+    const maybeRange = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
+    const outArg = parseFlag(args, "--out") ?? path.join(process.cwd(), "out", `${path.basename(path.resolve(repoDir))}-diff`);
+    const writeInline = args.includes("--inline");
+    fs.mkdirSync(outArg, { recursive: true });
+    const sqliteOut = path.join(outArg, "repospec.sqlite");
+    const { head, commitDiff } = await runCommitDiffWorktrees({
+      repoDir,
+      rangeArg: maybeRange,
+      headSqliteOut: sqliteOut,
+      generateFn: (dir, dbPath) => generateRepoSpec(dir, "artifact", dbPath),
+    });
+    const htmlOut = path.join(outArg, "repospec.html");
+    const diffJsonOut = path.join(outArg, "repospec.diff.json");
+    fs.writeFileSync(diffJsonOut, `${JSON.stringify(commitDiff, null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      htmlOut,
+      renderVisualHtml(head.spec, head.digest, { inline: false, drilldown: head.drilldown, commitDiff }),
+      "utf8",
+    );
+    let inlineOut: string | null = null;
+    if (writeInline) {
+      inlineOut = path.join(outArg, "repospec.inline.html");
+      fs.writeFileSync(
+        inlineOut,
+        renderVisualHtml(head.spec, head.digest, { inline: true, drilldown: head.drilldown, commitDiff }),
+        "utf8",
+      );
+    }
+    console.log(
+      JSON.stringify(
+        {
+          repo: head.spec.repo.name,
+          range: commitDiff.range,
+          baseSha: commitDiff.baseSha,
+          headSha: commitDiff.headSha,
+          verdict: commitDiff.verdict,
+          verdictSummary: commitDiff.verdictSummary,
+          kpis: commitDiff.kpis,
+          artifacts: {
+            html: path.resolve(htmlOut),
+            diffJson: path.resolve(diffJsonOut),
+            ...(inlineOut ? { inlineHtml: path.resolve(inlineOut) } : {}),
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
   if (cmd === "generate") {
     const repoDir = args[1];
     if (!repoDir) {
@@ -335,11 +394,26 @@ async function main(): Promise<void> {
     const modeArg = parseFlag(args, "--mode") ?? "artifact";
     const storageMode: StorageMode = modeArg === "commit" ? "commit" : "artifact";
     const outArg = parseFlag(args, "--out") ?? path.join(process.cwd(), "out", path.basename(path.resolve(repoDir)));
+    const diffFlag = parseFlag(args, "--diff");
     const writeInline = args.includes("--inline");
 
     fs.mkdirSync(outArg, { recursive: true });
     const sqliteOut = path.join(outArg, "repospec.sqlite");
-    const { spec, digest, idsModule, sdkModule, drilldown } = await generateRepoSpec(repoDir, storageMode, sqliteOut);
+    let commitDiff: CommitArchDiff | undefined;
+    let genRes: Awaited<ReturnType<typeof generateRepoSpec>>;
+    if (diffFlag) {
+      const diffOut = await runCommitDiffWorktrees({
+        repoDir,
+        rangeArg: diffFlag,
+        headSqliteOut: sqliteOut,
+        generateFn: (dir, dbPath) => generateRepoSpec(dir, storageMode, dbPath),
+      });
+      genRes = diffOut.head;
+      commitDiff = diffOut.commitDiff;
+    } else {
+      genRes = await generateRepoSpec(repoDir, storageMode, sqliteOut);
+    }
+    const { spec, digest, idsModule, sdkModule, drilldown } = genRes;
 
     const specOut = path.join(outArg, "repospec.json");
     const schemaOut = path.join(outArg, "repospec.schema.json");
@@ -351,12 +425,12 @@ async function main(): Promise<void> {
     fs.writeFileSync(schemaOut, `${JSON.stringify(buildRepoSpecJsonSchema(), null, 2)}\n`, "utf8");
     fs.writeFileSync(idsOut, idsModule, "utf8");
     fs.writeFileSync(sdkOut, sdkModule, "utf8");
-    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown }), "utf8");
+    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown, commitDiff }), "utf8");
 
     let inlineOut: string | null = null;
     if (writeInline) {
       inlineOut = path.join(outArg, "repospec.inline.html");
-      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true, drilldown }), "utf8");
+      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true, drilldown, commitDiff }), "utf8");
     }
 
     console.log(
