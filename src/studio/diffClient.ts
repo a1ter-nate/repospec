@@ -15,7 +15,7 @@ export function renderDiffClientScript(): string {
       return (
         '<g class="lane">' +
         '<rect x="' + l.x + '" y="' + l.y + '" width="' + l.w + '" height="' + l.h + '" rx="12" fill="' + fill + '" stroke="rgba(255,255,255,0.09)" stroke-width="1" stroke-dasharray="4 4" />' +
-        '<text x="' + (l.x + 12) + '" y="' + (l.y + 19) + '" font-size="9.5" font-weight="700" fill="#64748b" letter-spacing="0.08em">' + esc(l.label.toUpperCase()) + "</text>" +
+        '<text x="' + (l.x + 12) + '" y="' + (l.y + 21) + '" font-size="11.5" font-weight="600" fill="#8c98b0" letter-spacing="0.08em">' + esc(l.label.toUpperCase()) + "</text>" +
         "</g>"
       );
     }).join("");
@@ -81,17 +81,17 @@ export function renderDiffClientScript(): string {
         : "";
       const subText = n.deltaLabel ? (n.deltaLabel + (n.sublabel ? " · " + n.sublabel : "")) : (n.sublabel || "");
       const cleanSub = subText.replace(new RegExp("⊞\\\\s*", "g"), "").trim();
-      const maxChars = Math.max(10, Math.floor((n.w - 58) / 6.9));
+      const maxChars = Math.max(10, Math.floor((n.w - 60) / 8.0));
       const titleStr = n.label.length > maxChars ? n.label.slice(0, maxChars - 1) + "…" : n.label;
-      const subMax = Math.max(12, Math.floor((n.w - 54) / 5.7));
+      const subMax = Math.max(12, Math.floor((n.w - 58) / 6.7));
       const subStr = cleanSub.length > subMax ? cleanSub.slice(0, subMax - 1) + "…" : cleanSub;
       return (
         '<g class="svg-node' + (isSel ? " selected" : "") + '" style="opacity:' + op + '" data-node="' + esc(n.id) + '">' +
         '<rect class="node-shape" x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="10" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (ds !== "unchanged" || isSel ? 1.8 : 1.1) + '"' + dash + " />" +
-        '<rect x="' + (x + 10) + '" y="' + (n.y - 12) + '" width="24" height="24" rx="6" fill="' + tone.bg + '" />' +
-        renderGlyphPath(tone.glyph, x + 22, n.y, tone.stroke) +
-        '<text x="' + (x + 42) + '" y="' + (n.y - (subStr ? 4 : -4)) + '" font-size="11.5" font-weight="600" fill="' + (ds === "removed" ? "#fca5a5" : "#f8fafc") + '"' + (ds === "removed" ? ' text-decoration="line-through"' : "") + ">" + esc(titleStr) + "</text>" +
-        (subStr ? '<text x="' + (x + 42) + '" y="' + (n.y + 12) + '" font-size="9.5" fill="' + (ds === "modified" ? "#fcd34d" : ds === "added" ? "#6ee7b7" : "#94a3b8") + '" font-family="ui-monospace, monospace">' + esc(subStr) + "</text>" : "") +
+        '<rect x="' + (x + 11) + '" y="' + (n.y - 13) + '" width="26" height="26" rx="6" fill="' + tone.bg + '" />' +
+        renderGlyphPath(tone.glyph, x + 24, n.y, tone.stroke) +
+        '<text x="' + (x + 44) + '" y="' + (n.y - (subStr ? 4 : -4.5)) + '" font-size="13.5" font-weight="600" fill="' + (ds === "removed" ? "#ff9a9a" : "#e6ebf5") + '"' + (ds === "removed" ? ' text-decoration="line-through"' : "") + ">" + esc(titleStr) + "</text>" +
+        (subStr ? '<text x="' + (x + 44) + '" y="' + (n.y + 13.5) + '" font-size="11.5" fill="' + (ds === "modified" ? "#f5c26b" : ds === "added" ? "#6ee7b0" : "#8793ab") + '" font-family="ui-monospace, monospace">' + esc(subStr) + "</text>" : "") +
         pill +
         "</g>"
       );

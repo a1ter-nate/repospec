@@ -70,8 +70,8 @@ function estimateNodeSize(
       ? `${sublabel ?? ""} · ${ambientBadges[0]}`
       : (sublabel ?? "");
   const longest = Math.max(label.length, fullSub.length * 0.86);
-  const width = Math.max(178, Math.min(286, longest * 7.4 + 66));
-  const height = sublabel ? 58 : 44;
+  const width = Math.max(194, Math.min(308, longest * 8.2 + 72));
+  const height = sublabel ? 62 : 48;
   return { width: Math.round(width), height };
 }
 

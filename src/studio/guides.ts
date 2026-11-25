@@ -187,6 +187,15 @@ export function renderGuidesClientScript(): string {
     return '<div class="story-box">' + s1 + s2 + s3 + "</div>";
   }
 
+  function capBadgeClass(cap) {
+    if (cap === "DB") return "b-purple";
+    if (cap === "HTTP") return "b-cyan";
+    if (cap === "FS") return "b-warn";
+    if (cap === "PROC") return "b-fail";
+    if (cap === "ENV") return "b-info";
+    return "b-pass";
+  }
+
   function buildFixBriefMarkdown(inv) {
     const lines = [
       "### " + inv.name + " (" + inv.id + " · " + inv.status.toUpperCase() + ")",

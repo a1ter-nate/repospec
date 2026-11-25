@@ -186,12 +186,12 @@ export function renderFileCallGraphClientScript(): string {
 
     cols.forEach((col, ci) => {
       laneIdxById.set(col.id, ci);
-      const widths = col.items.map((it) => Math.max(176, Math.min(290, Math.max(it.label.length, (it.sublabel || "").length * 0.85) * 7.4 + 62)));
-      const colW = Math.round(Math.max(182, ...widths));
+      const widths = col.items.map((it) => Math.max(194, Math.min(312, Math.max(it.label.length, (it.sublabel || "").length * 0.85) * 8.2 + 72)));
+      const colW = Math.round(Math.max(196, ...widths));
       const laneW = colW + padX * 2;
       let curY = topY + padTop;
       for (const it of col.items) {
-        const h = 52;
+        const h = 58;
         const ln = {
           id: it.id,
           label: it.label,
@@ -285,29 +285,85 @@ export function renderFileCallGraphClientScript(): string {
     };
   }
 
-  function renderCodeBlockHtml(fileIdx, startLine, endLine, focusLine, fullFile) {
+  function copyCurrentCodeToClipboard(btn) {
+    if (!FILE_SOURCES || !state.activeFileGraph) return;
+    const idx = ddIdxByPath.get(state.activeFileGraph);
+    if (idx === undefined) return;
+    const raw = FILE_SOURCES[idx];
+    if (typeof raw !== "string") return;
+    const rangeAttr = btn.getAttribute("data-copy-code") || "";
+    const parts = rangeAttr.split(":");
+    let text = raw;
+    if (parts.length === 2 && Number(parts[0]) > 0 && Number(parts[1]) >= Number(parts[0])) {
+      text = raw.split("\\n").slice(Number(parts[0]) - 1, Number(parts[1])).join("\\n");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    btn.textContent = "✓ Copied";
+    btn.style.color = "#5fd9a0";
+    setTimeout(() => { btn.textContent = "Copy"; btn.style.color = ""; }, 1400);
+  }
+
+  function renderCodeBlockHtml(fileIdx, filePath, startLine, endLine, focusLine, fullFile, hasScope) {
+    const fileName = filePath.split("/").pop() || filePath;
+    const langChip = langChipForPath(filePath);
+    const gh = githubUrl(filePath, focusLine);
     if (!FILE_SOURCES) {
       ensureFileSourcesLoaded();
-      return '<div class="code-box"><div class="muted" style="padding:10px">Decompressing source code...</div></div>';
+      return '<div class="code-frame"><div class="code-box"><div class="muted" style="padding:14px">Decompressing source code...</div></div></div>';
     }
     const raw = FILE_SOURCES[fileIdx];
     if (typeof raw !== "string") {
-      return '<div class="code-box"><div class="muted" style="padding:10px">Source not embedded in inline compact mode. Open full <code>repospec.html</code> to inspect lines.</div></div>';
+      return '<div class="code-frame"><div class="code-box"><div class="muted" style="padding:14px">Source not embedded in inline compact mode. Open full <code>repospec.html</code> to inspect lines.</div></div></div>';
     }
     const allLines = raw.split("\\n");
     const fromL = fullFile ? 1 : Math.max(1, startLine - 2);
     const toL = fullFile ? allLines.length : Math.min(allLines.length, Math.max(endLine + 2, startLine + 24));
+    const scopeCount = hasScope ? Math.max(1, endLine - startLine + 1) : allLines.length;
+    const rangeLabel = hasScope ? "L" + startLine + "–" + endLine : allLines.length + " lines";
+    const copyRange = hasScope && !fullFile ? startLine + ":" + endLine : "0:0";
+
     const rows = [];
     for (let ln = fromL; ln <= toL; ln += 1) {
       const text = allLines[ln - 1] ?? "";
       const isFocus = ln === focusLine;
-      const inSpan = !fullFile || (ln >= startLine && ln <= endLine);
-      const cls = "code-line" + (isFocus ? " focus-line" : inSpan && startLine > 0 ? " span-line" : "");
+      const outOfScope = hasScope && fullFile && (ln < startLine || ln > endLine);
+      const isStart = hasScope && fullFile && ln === startLine;
+      const isEnd = hasScope && fullFile && ln === endLine;
+      const cls =
+        "code-line" +
+        (isFocus ? " focus-line" : "") +
+        (outOfScope ? " dim-line" : "") +
+        (isStart ? " scope-start" : "") +
+        (isEnd ? " scope-end" : "");
       rows.push(
-        '<div class="' + cls + '" data-code-line="' + ln + '"><span class="code-ln">' + ln + '</span><span class="code-tx">' + esc(text || " ") + "</span></div>"
+        '<div class="' + cls + '" data-code-line="' + ln + '"><span class="code-ln">' + ln + '</span><span class="code-tx">' + highlightCodeLine(text, filePath) + "</span></div>"
       );
     }
-    return '<div class="code-box" id="code-viewer-box">' + rows.join("") + "</div>";
+
+    return (
+      '<div class="code-frame">' +
+      '<div class="code-chrome">' +
+      '<div class="code-chrome-left">' +
+      '<span class="code-fname" title="' + esc(filePath) + '">' + esc(fileName) + "</span>" +
+      '<span class="code-range">' + esc(rangeLabel) + "</span>" +
+      '<span class="badge b-info">' + esc(langChip) + "</span>" +
+      "</div>" +
+      '<div class="code-chrome-right">' +
+      (hasScope
+        ? '<span class="seg-group">' +
+          '<button class="seg-btn' + (!fullFile ? " active" : "") + '" data-code-full="0">Symbol</button>' +
+          '<button class="seg-btn' + (fullFile ? " active" : "") + '" data-code-full="1">Full File</button>' +
+          "</span>"
+        : "") +
+      '<button class="tbtn" data-copy-code="' + esc(copyRange) + '" title="Copy code to clipboard">Copy</button>' +
+      (gh ? '<a class="tbtn" style="text-decoration:none" href="' + esc(gh) + '" target="_blank" rel="noopener" title="Open in GitHub">GitHub ↗</a>' : "") +
+      "</div></div>" +
+      '<div class="code-box" id="code-viewer-box">' + rows.join("") + "</div>" +
+      '<div class="code-foot"><span>Ln ' + focusLine + " · " + scopeCount + " lines " + (hasScope ? "in scope" : "total") + "</span><span>" + esc(langChip) + " · UTF-8</span></div>" +
+      "</div>"
+    );
   }
 
   function renderFileCallGraphDrawer(filePath, diag) {
@@ -347,44 +403,31 @@ export function renderFileCallGraphClientScript(): string {
         : "";
       const calleesHtml = (callees.length > 0 || exts.length > 0)
         ? '<div class="sec"><div class="sec-title"><span>Calls Down (↓ ' + (callees.length + exts.length) + ')</span><span class="muted">click to jump to line</span></div><div class="pill-row">' +
-          callees.map((c) => '<button class="tray-chip" data-jump-line="' + c[2] + '" title="Jump to call at line ' + c[2] + ' (or click node on canvas)">→ ' + esc(formatSymDisplayName(syms[c[1]])) + " :" + c[2] + "</button>").join("") +
+          callees.map((c) => '<button class="tray-chip" data-jump-line="' + c[2] + '" title="Jump to call at line ' + c[2] + '">→ ' + esc(formatSymDisplayName(syms[c[1]])) + " :" + c[2] + "</button>").join("") +
           exts.map((o) => '<button class="tray-chip" data-jump-line="' + o[2] + '">↗ ' + esc(o[1]) + " :" + o[2] + "</button>").join("") +
           "</div></div>"
         : "";
 
       return (
-        '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "PUBLIC " : "PRIVATE ") + s[2] + " · lines " + s[3] + "–" + s[4]) + '</div></div><span class="badge ' + (s[1] === "pub" ? "b-pass" : "b-warn") + '">' + (s[1] === "pub" ? "PUBLIC" : "PRIVATE") + "</span></div>" +
-        provenanceLinksHtml(f.p, focusLine) +
-        '<div class="links-row">' +
-        '<span class="seg-group">' +
-        '<button class="seg-btn' + (!state.codeFullFile ? " active" : "") + '" data-code-full="0">Symbol Lines</button>' +
-        '<button class="seg-btn' + (state.codeFullFile ? " active" : "") + '" data-code-full="1">Full File (' + f.l + "L)</button>" +
-        "</span>" +
-        '<button class="action-btn sec-btn" data-clear-sel="1">All Symbols</button>' +
-        "</div>" +
+        '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "PUBLIC " : "PRIVATE ") + s[2] + " · " + f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge ' + (s[1] === "pub" ? "b-pass" : "b-warn") + '">' + (s[1] === "pub" ? "PUBLIC" : "PRIVATE") + '</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
         callersHtml +
         calleesHtml +
-        '<div class="sec"><div class="sec-title"><span>Source Code</span><span class="mono muted">line ' + focusLine + "</span></div>" +
-        renderCodeBlockHtml(idx, s[3], s[4], focusLine, state.codeFullFile) +
-        "</div>"
+        renderCodeBlockHtml(idx, f.p, s[3], s[4], focusLine, state.codeFullFile, true)
       );
     }
 
     const pubs = syms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "pub");
     const privs = syms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "priv");
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.p + " · " + f.l + "L") + "</div></div></div>" +
-      provenanceLinksHtml(f.p, 1) +
-      '<div class="story-box"><strong>Name-only Symbol Callstack:</strong> ' + pubs.length + " public surface" + (pubs.length === 1 ? "" : "s") + " calling down into " + privs.length + " private helper" + (privs.length === 1 ? "" : "s") + " (" + calls.length + " intra-file calls). Click any name or arrow to view the exact lines of code.</div>" +
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.p + " · " + f.l + " lines") + "</div></div></div>" +
+      '<div class="story-box"><strong>Name-only Symbol Callstack:</strong> ' + pubs.length + " public surface" + (pubs.length === 1 ? "" : "s") + " calling down into " + privs.length + " private helper" + (privs.length === 1 ? "" : "s") + " (" + calls.length + " intra-file calls). Click any name or arrow to jump straight to its source lines.</div>" +
       '<div class="sec"><div class="sec-title"><span>Public Surface (' + pubs.length + ')</span><span class="muted">click for code</span></div>' +
-      (pubs.length === 0 ? '<div class="muted">No exported functions/methods detected.</div>' : '<div class="pill-row">' + pubs.map((x) => '<button class="tray-chip" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
+      (pubs.length === 0 ? '<div class="muted">No exported functions/methods detected.</div>' : '<div class="pill-row">' + pubs.map((x) => '<button class="tray-chip" style="border-color:rgba(95,217,160,0.35);color:#6ee7b0" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
       "</div>" +
       '<div class="sec"><div class="sec-title"><span>Private / Internal Surface (' + privs.length + ')</span><span class="muted">click for code</span></div>' +
-      (privs.length === 0 ? '<div class="muted">No private helpers detected.</div>' : '<div class="pill-row">' + privs.map((x) => '<button class="tray-chip" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
+      (privs.length === 0 ? '<div class="muted">No private helpers detected.</div>' : '<div class="pill-row">' + privs.map((x) => '<button class="tray-chip" style="border-color:rgba(245,194,107,0.32);color:#f5c26b" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
       "</div>" +
-      '<div class="sec"><div class="sec-title"><span>Full File Source (' + f.l + ' lines)</span></div>' +
-      renderCodeBlockHtml(idx, 1, Math.min(f.l, 120), 1, true) +
-      "</div>"
+      renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false)
     );
   }
 `;

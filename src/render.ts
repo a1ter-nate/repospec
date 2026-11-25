@@ -7,6 +7,7 @@ import { renderFileCallGraphClientScript } from "./studio/fileCallGraphClient.ts
 import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSvgClientScript } from "./studio/svg.ts";
+import { renderSyntaxClientScript } from "./studio/syntaxClient.ts";
 import { renderTablesClientScript } from "./studio/tablesClient.ts";
 import type { RepoSpecV4 } from "./schema.ts";
 
@@ -187,6 +188,7 @@ export function renderVisualHtml(
     justNavigated: false,
   };
   ${renderDrilldownClientScript()}
+  ${renderSyntaxClientScript()}
   ${renderFileCallGraphClientScript()}
   ${renderGuidesClientScript()}
   ${renderDiffClientScript()}
@@ -403,15 +405,6 @@ export function renderVisualHtml(
     return null;
   }
   ${renderSvgClientScript()}
-
-  function capBadgeClass(cap) {
-    if (cap === "DB") return "b-purple";
-    if (cap === "HTTP") return "b-cyan";
-    if (cap === "FS") return "b-warn";
-    if (cap === "PROC") return "b-fail";
-    if (cap === "ENV") return "b-info";
-    return "b-pass";
-  }
 
   function renderBriefingDrawer() {
     const apps = DATA.nodes.filter((n) => n.kind === "app" || n.kind === "native_app");
@@ -1120,7 +1113,7 @@ export function renderVisualHtml(
         : "";
 
       bodyHtml =
-        '<div class="workspace">' +
+        '<div class="workspace' + (state.activeFileGraph ? " code-open" : "") + '">' +
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
@@ -1438,6 +1431,12 @@ export function renderVisualHtml(
       state.codeFocusLine = Number(jumpLineBtn.getAttribute("data-jump-line")) || 1;
       ensureFileSourcesLoaded();
       render();
+      return;
+    }
+
+    const copyCodeBtn = target.closest("[data-copy-code]");
+    if (copyCodeBtn) {
+      copyCurrentCodeToClipboard(copyCodeBtn);
       return;
     }
 
