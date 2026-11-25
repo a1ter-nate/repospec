@@ -7,6 +7,7 @@ import { renderFileCallGraphClientScript } from "./studio/fileCallGraphClient.ts
 import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSvgClientScript } from "./studio/svg.ts";
+import { renderExplainClientScript } from "./ai/explainClient.ts";
 import { renderSyntaxClientScript } from "./studio/syntaxClient.ts";
 import { renderTablesClientScript } from "./studio/tablesClient.ts";
 import type { RepoSpecV4 } from "./schema.ts";
@@ -189,6 +190,7 @@ export function renderVisualHtml(
   };
   ${renderDrilldownClientScript()}
   ${renderSyntaxClientScript()}
+  ${renderExplainClientScript()}
   ${renderFileCallGraphClientScript()}
   ${renderGuidesClientScript()}
   ${renderDiffClientScript()}
@@ -1433,6 +1435,8 @@ export function renderVisualHtml(
       render();
       return;
     }
+
+    if (handleExplainClick(target)) return;
 
     const copyCodeBtn = target.closest("[data-copy-code]");
     if (copyCodeBtn) {

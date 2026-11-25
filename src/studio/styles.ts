@@ -284,5 +284,23 @@ export function renderStudioCss(inline: boolean): string {
   .tok-pu { color: #9aa6bd; }
   .tok-pr { color: #8fd3f0; }
   .tok-dec { color: #e8c97a; }
+
+  .explain-box { background: #111622; border: 1px solid #1d273c; border-left: 3px solid #7cc8ff; border-radius: 9px; padding: 11px 13px; display: flex; flex-direction: column; gap: 8px; }
+  .explain-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .explain-head-left { display: flex; align-items: center; gap: 8px; }
+  .explain-head-right { display: flex; align-items: center; gap: 6px; }
+  .explain-ai-btn { border-color: rgba(199, 164, 255, 0.38) !important; color: #d8c2ff !important; }
+  .explain-ai-btn:hover { background: rgba(199, 164, 255, 0.14) !important; border-color: rgba(199, 164, 255, 0.65) !important; color: #ffffff !important; }
+  .explain-ai-btn:disabled { opacity: 0.6; cursor: wait; }
+  .explain-body { font-size: 13px; line-height: 1.55; color: var(--text-1); }
+  .explain-watch { font-size: 12.5px; line-height: 1.5; color: #f5c26b; background: rgba(43, 34, 16, 0.72); border: 1px solid rgba(245, 194, 107, 0.28); border-radius: 6px; padding: 6px 9px; }
+  .explain-tag { font-size: 11.5px; font-family: var(--font-mono, monospace); color: var(--text-2); background: #0d121e; border: 1px solid #1d273c; border-radius: 5px; padding: 2px 7px; }
+  .explain-err { font-size: 12px; font-family: var(--font-mono, monospace); color: #ff9a9a; background: #2d1416; border: 1px solid rgba(255, 154, 154, 0.3); border-radius: 6px; padding: 7px 9px; line-height: 1.45; }
+  .explain-cfg { border-top: 1px solid #1b2438; padding-top: 9px; display: flex; flex-direction: column; gap: 8px; }
+  .explain-cfg-row { display: flex; align-items: center; gap: 8px; }
+  .explain-lbl { width: 64px; flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .explain-inp { flex: 1; min-width: 0; background: #0a0f19; color: var(--text-1); border: 1px solid var(--rs-border-hi); border-radius: 6px; padding: 5px 8px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none; }
+  .explain-inp:focus { border-color: var(--accent); }
+  .explain-cfg-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
 `;
 }

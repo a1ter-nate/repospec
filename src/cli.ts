@@ -3,6 +3,7 @@ import { Database } from "bun:sqlite";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { startStudioServer } from "./ai/studioServer.ts";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
 import type { CommitArchDiff } from "./studio/commitDiff.ts";
@@ -160,6 +161,7 @@ async function main(): Promise<void> {
       [
         "Usage:",
         "  repospec generate <repoDir> [--out <dir>] [--mode artifact|commit] [--inline]",
+        "  repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434]",
         "  repospec check <repoDir> [--spec <path/to/repospec.json>] [--allow-fail]",
         "  repospec explain <path-or-unit> --db <repospec.sqlite>",
         "  repospec impact <base..head> --db <repospec.sqlite> [--repo <repoDir>] [--format json|github]",
@@ -383,6 +385,23 @@ async function main(): Promise<void> {
       ),
     );
     return;
+  }
+
+  if (cmd === "serve") {
+    const target = args[1];
+    if (!target) {
+      console.error("Usage: repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434]");
+      process.exit(1);
+    }
+    const portFlag = parseFlag(args, "--port");
+    const ollamaFlag = parseFlag(args, "--ollama");
+    const started = startStudioServer({
+      targetPath: target,
+      port: portFlag ? Number(portFlag) : undefined,
+      ollamaUrl: ollamaFlag,
+    });
+    console.log(JSON.stringify({ url: started.url, html: started.htmlPath, localAiProxy: `${started.url}/api/ai/explain` }, null, 2));
+    await new Promise(() => {});
   }
 
   if (cmd === "generate") {
