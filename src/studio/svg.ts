@@ -186,16 +186,20 @@ export function renderSvgClientScript(): string {
       );
     }).join("");
 
+    const blastRes = state.blastSeedId ? computeBlastRadiusForDiagram(diag, state.blastSeedId) : null;
     const nodesSvg = diag.nodes.map((n) => {
       const isSel = state.selectedNodeId === n.id;
       const isTrace = traceNodeSet.has(n.id);
       const dimmed = hasFilter && !(isTrace || neighborNodes.has(n.id));
+      const blastHop = blastRes ? blastRes.hopById.get(n.id) : undefined;
+      const blastCls = blastRes ? (blastHop === undefined ? " blast-dim" : " blast-" + Math.min(3, blastHop)) : "";
+      const lens = !blastRes ? computeNodeLensStyle(n) : null;
       const hue = statusHue(n.findings, false);
       const isTangle = Boolean(n.ambientBadges && n.ambientBadges.includes("tangle"));
       const hasError = (n.findings || []).some((f) => f.severity === "error") || isTangle;
       const hasWarn = !hasError && (n.findings || []).some((f) => f.severity === "warn");
-      const stroke = isSel || isTrace ? "#818cf8" : hasError ? "rgba(239,68,68,0.62)" : hasWarn ? "rgba(245,158,11,0.55)" : "rgba(255,255,255,0.13)";
-      const cls = "svg-node" + (isSel ? " selected" : "") + (dimmed ? " dimmed" : "");
+      const stroke = isSel || isTrace ? "#818cf8" : lens ? lens.stroke : hasError ? "rgba(239,68,68,0.62)" : hasWarn ? "rgba(245,158,11,0.55)" : "rgba(255,255,255,0.13)";
+      const cls = "svg-node" + (isSel ? " selected" : "") + (dimmed ? " dimmed" : "") + blastCls;
       const tone = nodeVisualTone(n);
       const leftX = n.x - n.w / 2;
       const topY = n.y - n.h / 2;
@@ -232,15 +236,22 @@ export function renderSvgClientScript(): string {
         : statusDot;
       const drillHint = n.expandable ? (n.kind === "file" ? " (Double-click or press Enter for callstack & code)" : " (Double-click or press Enter to drill in)") : "";
       const nodeTip = n.label + (cleanSub ? " — " + cleanSub : "") + drillHint + (totalFindings > 0 ? " · " + totalFindings + " active finding" + (totalFindings === 1 ? "" : "s") : "");
+      const lensBadge = lens
+        ? '<rect x="' + (leftX + n.w - 38) + '" y="' + (topY - 7) + '" width="36" height="16" rx="8" fill="' + lens.badgeBg + '" />' +
+          '<text x="' + (leftX + n.w - 20) + '" y="' + (topY + 4.5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#080b12">' + esc(lens.badge) + "</text>"
+        : "";
+      const shapeSvg = lens
+        ? renderShapeSvg(n, stroke, hasError, hasWarn).replace(/fill="[^"]+"/, 'fill="' + lens.fill + '"')
+        : renderShapeSvg(n, stroke, hasError, hasWarn);
       return (
         '<g class="' + cls + '" tabindex="0" role="button" aria-label="' + esc(n.label) + '" data-node="' + esc(n.id) + '">' +
         "<title>" + esc(nodeTip) + "</title>" +
-        renderShapeSvg(n, stroke, hasError, hasWarn) +
+        shapeSvg +
         iconTileSvg +
         '<text x="' + textX + '" y="' + (n.y - (subStr ? 4 : -4.5)) + '" text-anchor="start" font-size="13.5" font-weight="600" fill="#e6ebf5" font-family="ui-sans-serif, system-ui, sans-serif">' + esc(titleStr) + "</text>" +
         (subStr ? '<text x="' + textX + '" y="' + (n.y + 13.5) + '" text-anchor="start" font-size="11.5" fill="#8793ab" font-family="ui-monospace, monospace">' + esc(subStr) + "</text>" : "") +
         drillChev +
-        findingPill +
+        (lensBadge || findingPill) +
         traceBadge +
         "</g>"
       );

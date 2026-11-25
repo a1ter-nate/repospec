@@ -28,9 +28,21 @@ Double-click any source file to see its **Public Surface → Private Helpers (by
 ![RepoSpec Symbol Callstack, Syntax-Highlighted Code Drawer & Local AI Explain](docs/screenshots/03-symbol-callstack-ai.png)
 
 ### 4. PR / Commit Architecture Diff (`Current State → New State`)
-Run `repospec diff-view` on any git range to see added/modified/removed modules and edges overlaid directly on the architecture map, side-by-side `Before → After` comparison, and new invariant regressions.
+Run `repospec diff-view` on any git range to see added/modified/removed modules and edges overlaid directly on the architecture map, side-by-side `Before → After` comparison, inline syntax-highlighted `+`/`-` diff hunks, and an opt-in **`✦ Explain PR with Local AI`** summary.
 
 ![RepoSpec Commit Architecture Diff View](docs/screenshots/04-commit-diff.png)
+
+### 5. Blast-Radius Simulator, Coverage/Churn Heatmaps, Multi-File E2E Traces & Drift Timeline
+- **Blast-Radius Simulator:** Click **`Blast Radius`** on any module or file to light up transitive upstream caller rings (`1-hop`, `2-hop`, `3+ hops`), affected HTTP routes, and untested risk.
+- **Coverage & Churn Lenses:** Toggle **`Normal | Coverage | Churn`** to tint every module/file card by direct test coverage `%` or git commit churn hotspots.
+- **Multi-File End-to-End Call Trace & Cross-File `Def →` Follow-Through:** Click **`Trace E2E →`** on any symbol or HTTP endpoint to trace calls across files up to 4 hops deep, or click **`Def →`** to jump straight into imported definitions.
+- **Shareable Deep Links (`Share`), One-Click `Copy Agent Context`, Live Watch Mode (`serve --watch`), & Architecture Drift Timeline (`timeline`):**
+
+![RepoSpec Blast Radius Simulator](docs/screenshots/05-blast-radius.png)
+
+![RepoSpec End-to-End Multi-File Call Trace](docs/screenshots/06-e2e-trace.png)
+
+![RepoSpec Architecture Drift Timeline](docs/screenshots/07-arch-timeline.png)
 
 ---
 
@@ -57,9 +69,10 @@ Requires [Bun](https://bun.sh) `>= 1.2.0`.
 
 ```bash
 # Run directly from npm via bunx (or install globally with: bun add -g repospec)
-bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --inline
-bunx repospec serve ./out/my-repo --port 4173
+bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --inline --timeline 8
+bunx repospec serve ./out/my-repo --port 4173 --watch /path/to/repo
 bunx repospec diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
+bunx repospec timeline /path/to/repo --commits 12 --out ./out/my-repo-timeline
 
 # Or develop from a local clone
 git clone https://github.com/a1ter-nate/repospec.git

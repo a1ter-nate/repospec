@@ -209,5 +209,64 @@ export function renderGuidesClientScript(): string {
     }
     return lines.join("\\n");
   }
+
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function shortPkg(s) {
+    return String(s || "").replace(new RegExp("^@[^/]+/"), "");
+  }
+
+  function githubUrl(relFile, line) {
+    if (!DATA.repo.remote || !DATA.repo.commitSha || !relFile || relFile === ".") return null;
+    const base = DATA.repo.scopeRootRel && DATA.repo.scopeRootRel !== "."
+      ? (DATA.repo.scopeRootRel + "/" + relFile).replace(new RegExp("\\\\\\\\", "g"), "/")
+      : relFile;
+    const parts = [];
+    for (const seg of base.split("/")) {
+      if (seg === "..") parts.pop();
+      else if (seg && seg !== ".") parts.push(seg);
+    }
+    const cleanPath = parts.join("/");
+    return DATA.repo.remote + "/blob/" + DATA.repo.commitSha + "/" + cleanPath + (line ? "#L" + line : "");
+  }
+
+  function provenanceLinksHtml(file, line) {
+    if (!file || file === ".") return "";
+    const gh = githubUrl(file, line);
+    const label = esc(file + (line ? ":" + line : ""));
+    if (gh) {
+      return '<span class="links-row"><span class="mono muted">' + label + '</span><a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">GitHub ↗</a></span>';
+    }
+    return '<span class="mono muted">' + label + "</span>";
+  }
+
+  function renderDisclosure(opts) {
+    const toneCls = opts.tone ? " tone-" + opts.tone : "";
+    const openAttr = opts.open ? " open" : "";
+    const badgeHtml = opts.badge !== undefined && opts.badge !== ""
+      ? '<span class="badge ' + (opts.badgeClass || "b-info") + '">' + esc(opts.badge) + "</span>"
+      : "";
+    const metaHtml = opts.meta ? '<div class="disc-meta">' + esc(opts.meta) + "</div>" : "";
+    return (
+      '<details class="disc' + toneCls + '"' + openAttr + ">" +
+      '<summary class="disc-sum">' +
+      '<span class="disc-left"><span class="disc-chev">▸</span><span style="min-width:0;display:flex;flex-direction:column;gap:1px"><span class="disc-title">' + esc(opts.title) + "</span>" + metaHtml + "</span></span>" +
+      badgeHtml +
+      "</summary>" +
+      '<div class="disc-body">' + opts.bodyHtml + "</div>" +
+      "</details>"
+    );
+  }
+
+  function sortInvariantsByUrgency(list) {
+    const rank = { fail: 0, warn: 1, pass: 2, na: 3 };
+    return [...list].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || (b.violationCount || 0) - (a.violationCount || 0));
+  }
 `;
 }

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { extractUnifiedDiffHunks } from "../extractors/gitMetrics.ts";
 import type { RepoSpecV4 } from "../schema.ts";
 import { buildOverlayBundle, type DiffDiagramBundle } from "./diffOverlay.ts";
 
@@ -10,6 +11,7 @@ export interface ChangedFileEntry {
   unitSlug: string;
   moduleId: string | null;
   blastRadius: number;
+  hunk?: string;
 }
 
 export interface FindingDeltaItem {
@@ -81,6 +83,7 @@ export function resolveGitDiffRange(repoDir: string, rangeArg?: string): {
   date: string;
   commitCount: number;
   fileStats: Array<{ path: string; status: ChangedFileEntry["status"]; insertions: number; deletions: number }>;
+  hunksByPath: Map<string, string>;
 } {
   let baseRef = "HEAD~1";
   let headRef = "HEAD";
@@ -146,6 +149,7 @@ export function resolveGitDiffRange(repoDir: string, rangeArg?: string): {
     });
   }
 
+  const hunksByPath = extractUnifiedDiffHunks(repoDir, baseRef, headRef);
   return {
     range: `${baseRef}..${headRef}`,
     baseRef,
@@ -157,6 +161,7 @@ export function resolveGitDiffRange(repoDir: string, rangeArg?: string): {
     date,
     commitCount,
     fileStats,
+    hunksByPath,
   };
 }
 
@@ -170,7 +175,7 @@ function setDiff(baseItems: string[], headItems: string[]): { added: string[]; r
 }
 
 export function buildCommitArchDiff(params: {
-  git: ReturnType<typeof resolveGitDiffRange>;
+  git: Omit<ReturnType<typeof resolveGitDiffRange>, "hunksByPath"> & { hunksByPath?: Map<string, string> };
   baseSpec: RepoSpecV4;
   headSpec: RepoSpecV4;
 }): CommitArchDiff {
@@ -281,6 +286,7 @@ export function buildCommitArchDiff(params: {
       cur.del += fsItem.deletions;
       modStatsAcc.set(matchedMod.id, cur);
     }
+    const hunk = git.hunksByPath?.get(fsItem.path);
     return {
       path: fsItem.path,
       status: fsItem.status,
@@ -289,6 +295,7 @@ export function buildCommitArchDiff(params: {
       unitSlug: unitSlug || "repo",
       moduleId: matchedMod?.id ?? null,
       blastRadius: matchedMod?.fanIn ?? 0,
+      ...(hunk ? { hunk } : {}),
     };
   });
 

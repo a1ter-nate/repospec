@@ -91,11 +91,24 @@ function stripCommentsAndStringsPreserveLines(src: string, isPython: boolean): s
 
 function findBraceEndLine(lines: string[], startIdx: number): number {
   let depth = 0;
+  let angleDepth = 0;
   let seenOpen = false;
   for (let i = startIdx; i < lines.length; i += 1) {
     const ln = lines[i] ?? "";
     for (let j = 0; j < ln.length; j += 1) {
       const c = ln[j];
+      const prev = j > 0 ? ln[j - 1] : "";
+      if (!seenOpen) {
+        if (c === "<") {
+          angleDepth += 1;
+          continue;
+        }
+        if (c === ">" && prev !== "=" && angleDepth > 0) {
+          angleDepth -= 1;
+          continue;
+        }
+        if (angleDepth > 0) continue;
+      }
       if (c === "{") {
         depth += 1;
         seenOpen = true;
@@ -104,7 +117,7 @@ function findBraceEndLine(lines: string[], startIdx: number): number {
         if (seenOpen && depth <= 0) return i + 1;
       }
     }
-    if (!seenOpen && i > startIdx + 3 && ln.includes(";")) return i + 1;
+    if (!seenOpen && angleDepth === 0 && i > startIdx + 3 && ln.includes(";")) return i + 1;
   }
   return Math.min(lines.length, startIdx + 1);
 }
@@ -315,7 +328,7 @@ function collectImportedIdentifiers(rawText: string, ext: string): Map<string, s
     }
     return imported;
   }
-  for (const m of rawText.matchAll(/import\s+(?:type\s+)?([^;\n]+?)\s+from\s+["']([^"']+)["']/g)) {
+  for (const m of rawText.matchAll(/import\s+(?:type\s+)?([^;]{1,800}?)\s+from\s+["']([^"']+)["']/g)) {
     const clause = m[1] ?? "";
     const modRaw = m[2] ?? "";
     if (clause.startsWith("type ")) continue;

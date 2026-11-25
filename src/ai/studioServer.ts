@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const WATCH_IGNORE = new Set([".git", "node_modules", "out", "dist", "build", ".next", "target", ".venv"]);
 
 function validateLoopbackUrl(raw: string): URL {
   const parsed = new URL(raw);
@@ -14,13 +15,48 @@ function validateLoopbackUrl(raw: string): URL {
   return parsed;
 }
 
-function createStudioFetchHandler(htmlPath: string, defaultUpstream: URL): (req: Request) => Promise<Response> {
+function shouldIgnoreWatchPath(relPath: string): boolean {
+  const parts = relPath.replace(/\\/g, "/").split("/");
+  return parts.some((p) => WATCH_IGNORE.has(p) || p.startsWith(".repospec"));
+}
+
+function createStudioFetchHandler(
+  htmlPath: string,
+  defaultUpstream: URL,
+  sseClients: Set<ReadableStreamDefaultController<Uint8Array>>,
+  watchActive: boolean,
+): (req: Request) => Promise<Response> {
+  const enc = new TextEncoder();
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/repospec.html")) {
       const html = fs.readFileSync(htmlPath, "utf8");
       return new Response(html, {
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/live") {
+      if (!watchActive) {
+        return new Response("Watch mode inactive", { status: 204 });
+      }
+      let ctrlRef: ReadableStreamDefaultController<Uint8Array> | null = null;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          ctrlRef = controller;
+          sseClients.add(controller);
+          controller.enqueue(enc.encode("event: connected\ndata: ok\n\n"));
+        },
+        cancel() {
+          if (ctrlRef) sseClients.delete(ctrlRef);
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-store",
+          Connection: "keep-alive",
+        },
       });
     }
 
@@ -62,7 +98,7 @@ function createStudioFetchHandler(htmlPath: string, defaultUpstream: URL): (req:
       }
       const model = typeof body.model === "string" && body.model.trim() ? body.model.trim() : "qwen3.5:9b";
       const system = typeof body.system === "string" ? body.system.slice(0, 1200) : "";
-      const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 4800) : "";
+      const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 6400) : "";
       const chatUrl = new URL("/api/chat", upstreamBase);
       const t0 = performance.now();
       try {
@@ -74,7 +110,7 @@ function createStudioFetchHandler(htmlPath: string, defaultUpstream: URL): (req:
             model,
             stream: false,
             think: false,
-            options: { num_predict: 180, temperature: 0.15 },
+            options: { num_predict: 220, temperature: 0.15 },
             messages: [
               { role: "system", content: system },
               { role: "user", content: prompt },
@@ -113,9 +149,11 @@ export interface StudioServerOptions {
   targetPath: string;
   port?: number;
   ollamaUrl?: string;
+  watchDir?: string;
+  onRebuild?: () => Promise<void>;
 }
 
-export function startStudioServer(opts: StudioServerOptions): { url: string; htmlPath: string; stop: () => void } {
+export function startStudioServer(opts: StudioServerOptions): { url: string; htmlPath: string; watching: boolean; stop: () => void } {
   const resolved = path.resolve(opts.targetPath);
   const htmlPath = fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()
     ? path.join(resolved, "repospec.html")
@@ -125,7 +163,9 @@ export function startStudioServer(opts: StudioServerOptions): { url: string; htm
   }
 
   const defaultUpstream = validateLoopbackUrl(opts.ollamaUrl ?? "http://127.0.0.1:11434");
-  const handler = createStudioFetchHandler(htmlPath, defaultUpstream);
+  const sseClients = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  const watchActive = Boolean(opts.watchDir && opts.onRebuild);
+  const handler = createStudioFetchHandler(htmlPath, defaultUpstream, sseClients, watchActive);
   const basePort = opts.port ?? 4173;
   let server: ReturnType<typeof Bun.serve> | null = null;
   let boundPort = basePort;
@@ -148,11 +188,72 @@ export function startStudioServer(opts: StudioServerOptions): { url: string; htm
   if (!server) {
     throw new Error(`Could not bind studio server on ports ${basePort}..${basePort + 9}`);
   }
+
+  let watcher: fs.FSWatcher | null = null;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let rebuilding = false;
+  let queued = false;
+  const enc = new TextEncoder();
+
+  const notifyReload = () => {
+    const msg = enc.encode(`event: reload\ndata: ${Date.now()}\n\n`);
+    for (const c of Array.from(sseClients)) {
+      try {
+        c.enqueue(msg);
+      } catch {
+        sseClients.delete(c);
+      }
+    }
+  };
+
+  const triggerRebuild = async () => {
+    if (!opts.onRebuild) return;
+    if (rebuilding) {
+      queued = true;
+      return;
+    }
+    rebuilding = true;
+    try {
+      await opts.onRebuild();
+      notifyReload();
+    } catch (err) {
+      process.stderr.write(`watch rebuild error: ${err instanceof Error ? err.message : String(err)}\n`);
+    } finally {
+      rebuilding = false;
+      if (queued) {
+        queued = false;
+        void triggerRebuild();
+      }
+    }
+  };
+
+  if (opts.watchDir && opts.onRebuild) {
+    const absWatch = path.resolve(opts.watchDir);
+    watcher = fs.watch(absWatch, { recursive: true }, (_event, filename) => {
+      if (typeof filename === "string" && shouldIgnoreWatchPath(filename)) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void triggerRebuild();
+      }, 450);
+    });
+  }
+
   const active = server;
   return {
     url: `http://127.0.0.1:${boundPort}`,
     htmlPath,
+    watching: watchActive,
     stop: () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      watcher?.close();
+      for (const c of Array.from(sseClients)) {
+        try {
+          c.close();
+        } catch {
+          sseClients.delete(c);
+        }
+      }
+      sseClients.clear();
       active.stop(true);
     },
   };

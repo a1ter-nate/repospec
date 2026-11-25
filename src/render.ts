@@ -8,6 +8,9 @@ import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSvgClientScript } from "./studio/svg.ts";
 import { renderExplainClientScript } from "./ai/explainClient.ts";
+import { renderStudioFeaturesClientScript } from "./ai/studioFeaturesClient.ts";
+import { renderStudioVizClientScript } from "./ai/studioVizClient.ts";
+import type { ArchTimelineData } from "./extractors/gitMetrics.ts";
 import { renderSyntaxClientScript } from "./studio/syntaxClient.ts";
 import { renderTablesClientScript } from "./studio/tablesClient.ts";
 import type { RepoSpecV4 } from "./schema.ts";
@@ -26,6 +29,7 @@ function buildCompactRenderPayload(
   inline: boolean,
   drilldown?: DrilldownIndex,
   commitDiff?: CommitArchDiff,
+  timeline?: ArchTimelineData,
 ): Record<string, unknown> {
   const includeDrilldown = drilldown && (!inline || drilldown.files.length <= 160);
   const compactDrilldown = includeDrilldown
@@ -40,6 +44,7 @@ function buildCompactRenderPayload(
     diagnostics: spec.diagnostics,
     ...(compactDrilldown ? { drilldown: compactDrilldown } : {}),
     ...(commitDiff ? { commitDiff } : {}),
+    ...(timeline ? { timeline } : {}),
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,
@@ -107,10 +112,10 @@ function buildCompactRenderPayload(
 export function renderVisualHtml(
   spec: RepoSpecV4,
   digest: string,
-  options?: { inline?: boolean; drilldown?: DrilldownIndex; commitDiff?: CommitArchDiff },
+  options?: { inline?: boolean; drilldown?: DrilldownIndex; commitDiff?: CommitArchDiff; timeline?: ArchTimelineData },
 ): string {
   const inline = options?.inline ?? false;
-  const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown, options?.commitDiff);
+  const payload = buildCompactRenderPayload(spec, digest, inline, options?.drilldown, options?.commitDiff, options?.timeline);
   const embeddedJson = JSON.stringify(payload).replace(/</g, "\\u003c");
   const includeSrcBlob = Boolean(options?.drilldown?.sourcesGzipBase64 && (!inline || (options?.drilldown?.files.length ?? 0) <= 160));
   const srcScriptTag = includeSrcBlob
@@ -171,6 +176,11 @@ export function renderVisualHtml(
     activeLayerDiagId: isSingleUnitAtlas ? moduleDiags[0].id : null,
     activeFolder: null,
     activeFileGraph: null,
+    e2eTraceSeed: null,
+    canvasLens: "default",
+    blastSeedId: null,
+    diffSelectedFile: null,
+    timelineIdx: null,
     codeFocusLine: 1,
     codeFullFile: false,
     activeBehaviorId: behaviorDiags[0]?.id || null,
@@ -194,65 +204,8 @@ export function renderVisualHtml(
   ${renderFileCallGraphClientScript()}
   ${renderGuidesClientScript()}
   ${renderDiffClientScript()}
-
-  function esc(s) {
-    return String(s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function shortPkg(s) {
-    return String(s || "").replace(new RegExp("^@[^/]+/"), "");
-  }
-
-  function githubUrl(relFile, line) {
-    if (!DATA.repo.remote || !DATA.repo.commitSha || !relFile || relFile === ".") return null;
-    const base = DATA.repo.scopeRootRel && DATA.repo.scopeRootRel !== "."
-      ? (DATA.repo.scopeRootRel + "/" + relFile).replace(new RegExp("\\\\\\\\", "g"), "/")
-      : relFile;
-    const parts = [];
-    for (const seg of base.split("/")) {
-      if (seg === "..") parts.pop();
-      else if (seg && seg !== ".") parts.push(seg);
-    }
-    const cleanPath = parts.join("/");
-    return DATA.repo.remote + "/blob/" + DATA.repo.commitSha + "/" + cleanPath + (line ? "#L" + line : "");
-  }
-
-  function provenanceLinksHtml(file, line) {
-    if (!file || file === ".") return "";
-    const gh = githubUrl(file, line);
-    const label = esc(file + (line ? ":" + line : ""));
-    if (gh) {
-      return '<span class="links-row"><span class="mono muted">' + label + '</span><a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">GitHub ↗</a></span>';
-    }
-    return '<span class="mono muted">' + label + '</span>';
-  }
-
-  function renderDisclosure(opts) {
-    const toneCls = opts.tone ? " tone-" + opts.tone : "";
-    const openAttr = opts.open ? " open" : "";
-    const badgeHtml = opts.badge !== undefined && opts.badge !== ""
-      ? '<span class="badge ' + (opts.badgeClass || "b-info") + '">' + esc(opts.badge) + "</span>"
-      : "";
-    const metaHtml = opts.meta ? '<div class="disc-meta">' + esc(opts.meta) + "</div>" : "";
-    return (
-      '<details class="disc' + toneCls + '"' + openAttr + ">" +
-      '<summary class="disc-sum">' +
-      '<span class="disc-left"><span class="disc-chev">▸</span><span style="min-width:0;display:flex;flex-direction:column;gap:1px"><span class="disc-title">' + esc(opts.title) + "</span>" + metaHtml + "</span></span>" +
-      badgeHtml +
-      "</summary>" +
-      '<div class="disc-body">' + opts.bodyHtml + "</div>" +
-      "</details>"
-    );
-  }
-
-  function sortInvariantsByUrgency(list) {
-    const rank = { fail: 0, warn: 1, pass: 2, na: 3 };
-    return [...list].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || (b.violationCount || 0) - (a.violationCount || 0));
-  }
+  ${renderStudioFeaturesClientScript()}
+  ${renderStudioVizClientScript()}
 
   function renderFindingDisclosure(inv, opts) {
     const matchingEv = opts.filterEv ? inv.evidence.filter(opts.filterEv) : inv.evidence;
@@ -290,6 +243,10 @@ export function renderVisualHtml(
     }
     if (state.tab === "delivery") return deliveryDiag;
     if (state.tab === "map") {
+      if (state.e2eTraceSeed) {
+        const e2e = buildCrossFileTraceDiagram(state.e2eTraceSeed);
+        if (e2e) return e2e;
+      }
       if (state.activeFileGraph) {
         const fg = buildFileCallGraphDiagram(state.activeFileGraph);
         if (fg) return fg;
@@ -573,6 +530,8 @@ export function renderVisualHtml(
           : subDiag
             ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>"
             : "",
+      '<button class="action-btn sec-btn" data-toggle-blast="' + esc(mod.id) + '">' + (state.blastSeedId === mod.id ? "Exit Blast" : "Blast Radius") + "</button>",
+      '<button class="action-btn sec-btn" data-copy-ctx="module" data-copy-ctx-id="' + esc(mod.id) + '">Copy Agent Context</button>',
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
       '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
     ].filter(Boolean).join(" ");
@@ -703,6 +662,8 @@ export function renderVisualHtml(
       layerFolderCount > 0 ? '<button class="action-btn" data-open-folder="' + esc(node.group + "::" + node.label) + '">Open ' + esc(node.label) + "/ (" + layerFolderCount + " files) →</button>" : "",
       modDiag ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ")</button>" : "",
       layerDiag ? '<button class="action-btn sec-btn" data-open-layers="' + esc(layerDiag.id) + '">Layers (' + layerDiag.nodes.length + ")</button>" : "",
+      '<button class="action-btn sec-btn" data-toggle-blast="' + esc(node.id) + '">' + (state.blastSeedId === node.id ? "Exit Blast" : "Blast Radius") + "</button>",
+      '<button class="action-btn sec-btn" data-copy-ctx="node" data-copy-ctx-id="' + esc(node.id) + '">Copy Agent Context</button>',
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
       '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
     ].filter(Boolean).join(" ");
@@ -978,12 +939,15 @@ export function renderVisualHtml(
       { id: "behavior", label: "Behavior (" + behaviorDiags.length + ")", show: behaviorDiags.length > 0 },
       { id: "data", label: "Data (" + DATA.entities.length + ")", show: DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0 },
       { id: "delivery", label: "Delivery", show: Boolean(deliveryDiag) },
+      { id: "timeline", label: "Timeline (" + (DATA.timeline?.commits?.length || 0) + ")", show: Boolean(DATA.timeline?.commits?.length) },
       { id: "checks", label: "Checks (" + (v.invariantsFailed + v.invariantsWarned) + ")", show: true },
     ].filter((t) => t.show);
 
     let subNav = "";
     if (state.tab === "map") {
-      if (state.activeFileGraph) {
+      if (state.e2eTraceSeed) {
+        subNav = '<div class="sub-toggles"><button class="pill-btn" data-close-e2e="1">← Back to Map</button><span class="crumb-sep">›</span><span class="crumb-cur">E2E Trace · ' + esc(state.e2eTraceSeed.filePath.split("/").pop()) + "</span></div>";
+      } else if (state.activeFileGraph) {
         const fgPath = state.activeFileGraph;
         const fIdx = ddIdxByPath.get(fgPath);
         const fObj = fIdx !== undefined ? DD_FILES[fIdx] : null;
@@ -1067,6 +1031,8 @@ export function renderVisualHtml(
     let bodyHtml = "";
     if (state.tab === "diff") {
       bodyHtml = renderDiffTab();
+    } else if (state.tab === "timeline") {
+      bodyHtml = renderTimelineTab();
     } else if (state.tab === "data") {
       bodyHtml = renderDataTab();
     } else if (state.tab === "checks") {
@@ -1077,13 +1043,17 @@ export function renderVisualHtml(
       const detailCount = diag.edges.filter((e) => e.tier === "detail" && !e.violation).length;
       const visibleSpineCount = diag.edges.length - detailCount;
 
-      const drawerHtml = state.activeFileGraph
-        ? renderFileCallGraphDrawer(state.activeFileGraph, diag)
-        : state.selectedEdgeId
-          ? renderEdgeInspector(diag, state.selectedEdgeId)
-          : state.selectedNodeId
-            ? renderNodeInspector(state.selectedNodeId)
-            : renderBriefingDrawer();
+      const blastDrawerHtml = state.blastSeedId ? renderBlastRadiusPanel(diag) : "";
+      const baseDrawerHtml = state.e2eTraceSeed
+        ? renderE2eTraceDrawer(diag)
+        : state.activeFileGraph
+          ? renderFileCallGraphDrawer(state.activeFileGraph, diag)
+          : state.selectedEdgeId
+            ? renderEdgeInspector(diag, state.selectedEdgeId)
+            : state.selectedNodeId
+              ? renderNodeInspector(state.selectedNodeId)
+              : renderBriefingDrawer();
+      const drawerHtml = blastDrawerHtml + baseDrawerHtml;
 
       const trayHtml = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0
         ? '<div class="tray" title="Units indexed without static runtime edges to the core graph — click any chip to inspect"><span>No edges extracted:</span>' +
@@ -1104,8 +1074,16 @@ export function renderVisualHtml(
 
       const canStepUp = Boolean(state.activeFileGraph || state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
       const hudTopLeft = subNav ? '<div class="hud-pill hud-top-left">' + subNav + "</div>" : "";
+      const lensHtml = !inMatrix && !state.activeFileGraph && !state.e2eTraceSeed && DD_FILES.length > 0
+        ? '<span class="seg-group" title="Heatmap lens overlay">' +
+          '<button class="seg-btn' + (state.canvasLens === "default" ? " active" : "") + '" data-lens="default">Normal</button>' +
+          '<button class="seg-btn' + (state.canvasLens === "coverage" ? " active" : "") + '" data-lens="coverage" title="Tint modules & files by direct test coverage %">Coverage</button>' +
+          '<button class="seg-btn' + (state.canvasLens === "churn" ? " active" : "") + '" data-lens="churn" title="Tint modules & files by git commit churn hotspots">Churn</button>' +
+          "</span>"
+        : "";
       const hudTopRight =
         '<div class="hud-pill hud-top-right">' +
+        lensHtml +
         viewToggleHtml +
         wireToggleHtml +
         (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1" title="Bow-Tie focus: isolate only direct callers and dependencies of the selected card">Focus <span class="keycap">F</span></button>' : "") +
@@ -1125,7 +1103,7 @@ export function renderVisualHtml(
         : "";
 
       bodyHtml =
-        '<div class="workspace' + (state.activeFileGraph ? " code-open" : "") + '">' +
+        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed ? " code-open" : "") + '">' +
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
@@ -1146,18 +1124,20 @@ export function renderVisualHtml(
     document.getElementById("app").innerHTML =
       '<div class="studio-bar">' +
       '<div class="bar-left">' +
-      '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + "</span></div>" +
+      '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + '</span><span class="live-badge" id="live-watch-badge"' + (liveWatchConnected ? ' style="display:inline-flex"' : "") + '>LIVE</span></div>' +
       '<div class="tabs">' +
       tabs.map((t) => '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-tab="' + esc(t.id) + '">' + esc(t.label) + "</button>").join("") +
       "</div>" +
       "</div>" +
       '<div class="bar-right">' +
       '<div class="status-pills">' + statusHtml + "</div>" +
+      '<button class="tbtn" data-copy-share="1" title="Copy shareable URL to current view & symbol">Share</button>' +
       '<div class="search-wrap"><input class="search" id="global-search" placeholder="Jump to module, file, symbol..." value="' + esc(state.search) + '" /><span class="search-kbd">/</span>' + renderSearchDropdown() + "</div>" +
       "</div>" +
       "</div>" +
       bodyHtml;
     applyTransform();
+    syncHashFromState();
     const focusEl = document.querySelector("#code-viewer-box .focus-line");
     if (focusEl && typeof focusEl.scrollIntoView === "function") {
       focusEl.scrollIntoView({ block: "center" });
@@ -1220,6 +1200,10 @@ export function renderVisualHtml(
     if (!id) return false;
     const curDiag = activeDiagram();
     const diagNode = curDiag?.nodes.find((n) => n.id === id);
+    if (id.startsWith("e2e:") && diagNode?.e2eMeta?.filePath) {
+      state.e2eTraceSeed = null;
+      return openFileCodeView(diagNode.e2eMeta.filePath, diagNode.e2eMeta.line || 1, diagNode.e2eMeta.symIdx);
+    }
     if (id.startsWith("file:")) {
       const fPath = id.slice(5);
       if (ddIdxByPath.has(fPath)) {
@@ -1439,6 +1423,7 @@ export function renderVisualHtml(
     }
 
     if (handleExplainClick(target)) return;
+    if (handleFeatureClick(target)) return;
 
     const copyCodeBtn = target.closest("[data-copy-code]");
     if (copyCodeBtn) {
@@ -1504,6 +1489,7 @@ export function renderVisualHtml(
       state.selectedNodeId = null;
       state.selectedEdgeId = null;
       state.focusMode = false;
+      state.blastSeedId = null;
       state.activeTraceId = null;
       render();
       return;
@@ -1893,6 +1879,7 @@ export function renderVisualHtml(
       state.selectedNodeId = null;
       state.selectedEdgeId = null;
       state.focusMode = false;
+      state.blastSeedId = null;
       state.activeTraceId = null;
       state.showGuide = false;
       aiConfigOpen = false;
@@ -1976,6 +1963,8 @@ export function renderVisualHtml(
     }
   });
 
+  restoreStateFromHash();
+  initLiveWatchStream();
   render();
 })();
 </script>

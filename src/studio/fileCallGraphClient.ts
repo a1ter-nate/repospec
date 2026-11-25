@@ -413,8 +413,13 @@ export function renderFileCallGraphClientScript(): string {
           extSites.map((o) => '<button class="tray-chip" data-jump-sym="' + idx + ":" + o[0] + ":" + o[2] + '">← ' + esc(formatSymDisplayName(syms[o[0]])) + " :" + o[2] + "</button>").join("") +
           "</div></div>"
         : "";
+      const resolvedDef = resolveCrossFileSymbolTarget(idx, extName);
+      const defCta = resolvedDef
+        ? '<div class="pill-row"><button class="action-btn" data-jump-def="' + esc(resolvedDef.filePath + "::" + resolvedDef.symIdx + "::" + resolvedDef.line) + '">Open Definition: ' + esc(resolvedDef.label) + " →</button></div>"
+        : "";
       return (
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(extName) + '</div><div class="drawer-sub">EXTERNAL CALL TARGET · ' + esc(f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-info">EXTERNAL</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
+        defCta +
         sitesHtml +
         renderCodeBlockHtml(idx, f.p, Math.max(1, firstLine - 6), Math.min(f.l, firstLine + 24), firstLine, state.codeFullFile, true)
       );
@@ -448,9 +453,13 @@ export function renderFileCallGraphClientScript(): string {
           "</div></div>"
         : "";
       const calleesHtml = (callees.length > 0 || exts.length > 0)
-        ? '<div class="sec"><div class="sec-title"><span>Calls Down (↓ ' + (callees.length + exts.length) + ')</span><span class="muted">click to jump to line</span></div><div class="pill-row">' +
+        ? '<div class="sec"><div class="sec-title"><span>Calls Down (↓ ' + (callees.length + exts.length) + ')</span><span class="muted">jump line or follow def</span></div><div class="pill-row">' +
           callees.map((c) => '<button class="tray-chip" data-jump-line="' + c[2] + '" title="Jump to call at line ' + c[2] + '">→ ' + esc(formatSymDisplayName(syms[c[1]])) + " :" + c[2] + "</button>").join("") +
-          exts.map((o) => '<button class="tray-chip" data-jump-line="' + o[2] + '">↗ ' + esc(o[1]) + " :" + o[2] + "</button>").join("") +
+          exts.map((o) => {
+            const def = resolveCrossFileSymbolTarget(idx, o[1]);
+            const dBtn = def ? '<button class="tray-chip" style="border-color:rgba(124,200,255,0.45);color:#7cc8ff" data-jump-def="' + esc(def.filePath + "::" + def.symIdx + "::" + def.line) + '">Def →</button>' : "";
+            return '<span style="display:inline-flex;gap:3px;align-items:center"><button class="tray-chip" data-jump-line="' + o[2] + '">↗ ' + esc(o[1]) + " :" + o[2] + "</button>" + dBtn + "</span>";
+          }).join("") +
           "</div></div>"
         : "";
 
@@ -460,6 +469,7 @@ export function renderFileCallGraphClientScript(): string {
 
       return (
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "PUBLIC " : "PRIVATE ") + s[2] + " · " + f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge ' + (s[1] === "pub" ? "b-pass" : "b-warn") + '">' + (s[1] === "pub" ? "PUBLIC" : "PRIVATE") + '</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
+        '<div class="pill-row"><button class="tbtn" data-open-e2e="' + esc(f.p + "::" + selSymIdx) + '">Trace E2E →</button><button class="tbtn" data-copy-ctx="symbol" data-copy-ctx-id="' + selSymIdx + '">Copy Agent Context</button><button class="tbtn" data-copy-share="1">Share</button></div>' +
         renderWhatThisDoesBox(idx, f, s, callersList, calleesList, extsList) +
         callersHtml +
         calleesHtml +

@@ -168,11 +168,29 @@ export function renderDiffClientScript(): string {
       cd.changedFiles.slice(0, 24).map((f) => {
         const canCode = f.status !== "deleted" && ddIdxByPath.has(f.path);
         const attr = canCode ? 'data-open-file-graph="' + esc(f.path) + '"' : (f.moduleId ? 'data-select-node="' + esc(f.moduleId) + '"' : "");
+        const hunkBtn = f.hunk ? '<button class="tbtn" style="padding:2px 6px;font-size:11px" data-toggle-hunk="' + esc(f.path) + '">Diff</button>' : "";
         return '<div class="row">' +
           '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ' + attr + ' title="' + esc(f.path + (canCode ? " — click to inspect symbol callstack & code" : "")) + '">' +
           (f.status === "added" ? "+ " : f.status === "deleted" ? "− " : "~ ") + esc(f.path.split("/").slice(-2).join("/")) +
-          '</span><span class="mono muted" style="flex-shrink:0;white-space:nowrap">+' + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? " · " + f.blastRadius + "c" : "") + "</span></div>";
+          '</span><span style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0"><span class="mono muted" style="white-space:nowrap">+' + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? " · " + f.blastRadius + "c" : "") + "</span>" + hunkBtn + "</span></div>";
       }).join("") +
+      "</div>";
+
+    const activeHunkFile = state.diffSelectedFile ? cd.changedFiles.find((f) => f.path === state.diffSelectedFile) : null;
+    const hunkSec = activeHunkFile ? renderDiffHunkHtml(activeHunkFile) : "";
+    const prKey = activeHunkFile ? activeHunkFile.path : "whole";
+    const prAiRes = prAiCache.get(prKey);
+    const prAiLoad = prAiPending.has(prKey);
+    const prAiErr = prAiErrors.get(prKey) || "";
+    const prAiSec =
+      '<div class="explain-box">' +
+      '<div class="explain-head">' +
+      '<div class="explain-head-left"><span class="sec-title" style="color:var(--text-2)">' + (activeHunkFile ? "File Diff Summary" : "PR Summary") + "</span>" +
+      (prAiRes ? '<span class="badge b-purple">✦ AI · ' + esc(prAiRes.model) + "</span>" : '<span class="badge b-na">Opt-In</span>') + "</div>" +
+      '<button class="tbtn explain-ai-btn" data-pr-ai-ask="' + esc(prKey) + '"' + (prAiLoad ? " disabled" : "") + ">" + (prAiLoad ? "Thinking…" : prAiRes ? "↻ Refresh AI" : "✦ Explain PR with Local AI") + "</button>" +
+      "</div>" +
+      (prAiRes ? '<div class="explain-body">' + esc(prAiRes.does) + "</div>" + (prAiRes.watch ? '<div class="explain-watch"><strong>Watch out:</strong> ' + esc(prAiRes.watch) + "</div>" : "") : '<div class="muted" style="font-size:12.5px">Click <strong>✦ Explain PR with Local AI</strong> for an on-demand plain-English walkthrough of this ' + (activeHunkFile ? "file diff" : "commit") + ".</div>") +
+      (prAiErr ? '<div class="explain-err">' + esc(prAiErr) + "</div>" : "") +
       "</div>";
 
     const bundle = activeDiffBundle();
@@ -194,6 +212,8 @@ export function renderDiffClientScript(): string {
       '<div class="drawer-head"><div><div class="drawer-title">Commit Architecture Diff</div><div class="drawer-sub">' + esc(cd.baseSha + " → " + cd.headSha + " · " + cd.author) + ' · <span style="white-space:nowrap">' + esc(cd.date) + '</span></div></div><span class="badge ' + vCls + '">' + esc(cd.verdict.toUpperCase()) + "</span></div>" +
       selDiffSec +
       '<div class="story-box" style="border-left-color:' + (cd.verdict === "risk" ? "#ef4444" : cd.verdict === "caution" ? "#f59e0b" : "#10b981") + '"><strong>' + esc(cd.commitSubject) + "</strong><br/>" + esc(cd.verdictSummary) + "</div>" +
+      prAiSec +
+      hunkSec +
       '<div class="sec"><div class="sec-title">Before → After State</div>' +
       '<div class="row"><span class="muted">Invariant Failures</span><span class="mono">' + cd.kpis.failures.before + " → " + cd.kpis.failures.after + " (" + kpiDelta(cd.kpis.failures.delta, true) + ")</span></div>" +
       '<div class="row"><span class="muted">Invariant Warnings</span><span class="mono">' + cd.kpis.warnings.before + " → " + cd.kpis.warnings.after + " (" + kpiDelta(cd.kpis.warnings.delta, true) + ")</span></div>" +

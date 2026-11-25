@@ -3,7 +3,8 @@ import { Database } from "bun:sqlite";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { startStudioServer } from "./ai/studioServer.ts";
+import { runDiffViewCommand, runServeCommand, runTimelineCommand } from "./ai/cliCommands.ts";
+import { buildArchTimeline, type ArchTimelineData } from "./extractors/gitMetrics.ts";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
 import type { CommitArchDiff } from "./studio/commitDiff.ts";
@@ -160,8 +161,9 @@ async function main(): Promise<void> {
     console.log(
       [
         "Usage:",
-        "  repospec generate <repoDir> [--out <dir>] [--mode artifact|commit] [--inline]",
-        "  repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434]",
+        "  repospec generate <repoDir> [--out <dir>] [--mode artifact|commit] [--inline] [--diff <range>] [--timeline [N]]",
+        "  repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434] [--watch <repoDir>] [--diff]",
+        "  repospec timeline <repoDir> [--commits 8] [--out <dir>] [--inline]",
         "  repospec check <repoDir> [--spec <path/to/repospec.json>] [--allow-fail]",
         "  repospec explain <path-or-unit> --db <repospec.sqlite>",
         "  repospec impact <base..head> --db <repospec.sqlite> [--repo <repoDir>] [--format json|github]",
@@ -338,70 +340,51 @@ async function main(): Promise<void> {
     }
     const maybeRange = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
     const outArg = parseFlag(args, "--out") ?? path.join(process.cwd(), "out", `${path.basename(path.resolve(repoDir))}-diff`);
-    const writeInline = args.includes("--inline");
-    fs.mkdirSync(outArg, { recursive: true });
-    const sqliteOut = path.join(outArg, "repospec.sqlite");
-    const { head, commitDiff } = await runCommitDiffWorktrees({
+    await runDiffViewCommand({
       repoDir,
       rangeArg: maybeRange,
-      headSqliteOut: sqliteOut,
+      outDir: outArg,
+      writeInline: args.includes("--inline"),
       generateFn: (dir, dbPath) => generateRepoSpec(dir, "artifact", dbPath),
+      renderHtmlFn: renderVisualHtml,
     });
-    const htmlOut = path.join(outArg, "repospec.html");
-    const diffJsonOut = path.join(outArg, "repospec.diff.json");
-    fs.writeFileSync(diffJsonOut, `${JSON.stringify(commitDiff, null, 2)}\n`, "utf8");
-    fs.writeFileSync(
-      htmlOut,
-      renderVisualHtml(head.spec, head.digest, { inline: false, drilldown: head.drilldown, commitDiff }),
-      "utf8",
-    );
-    let inlineOut: string | null = null;
-    if (writeInline) {
-      inlineOut = path.join(outArg, "repospec.inline.html");
-      fs.writeFileSync(
-        inlineOut,
-        renderVisualHtml(head.spec, head.digest, { inline: true, drilldown: head.drilldown, commitDiff }),
-        "utf8",
-      );
-    }
-    console.log(
-      JSON.stringify(
-        {
-          repo: head.spec.repo.name,
-          range: commitDiff.range,
-          baseSha: commitDiff.baseSha,
-          headSha: commitDiff.headSha,
-          verdict: commitDiff.verdict,
-          verdictSummary: commitDiff.verdictSummary,
-          kpis: commitDiff.kpis,
-          artifacts: {
-            html: path.resolve(htmlOut),
-            diffJson: path.resolve(diffJsonOut),
-            ...(inlineOut ? { inlineHtml: path.resolve(inlineOut) } : {}),
-          },
-        },
-        null,
-        2,
-      ),
-    );
     return;
   }
 
   if (cmd === "serve") {
-    const target = args[1];
-    if (!target) {
-      console.error("Usage: repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434]");
-      process.exit(1);
-    }
+    const target = args[1] ?? ".";
     const portFlag = parseFlag(args, "--port");
     const ollamaFlag = parseFlag(args, "--ollama");
-    const started = startStudioServer({
-      targetPath: target,
+    const watchFlag = parseFlag(args, "--watch");
+    await runServeCommand({
+      target,
       port: portFlag ? Number(portFlag) : undefined,
       ollamaUrl: ollamaFlag,
+      watchRepo: watchFlag,
+      liveDiff: args.includes("--diff"),
+      generateFn: (dir, dbPath) => generateRepoSpec(dir, "artifact", dbPath),
+      renderHtmlFn: renderVisualHtml,
     });
-    console.log(JSON.stringify({ url: started.url, html: started.htmlPath, localAiProxy: `${started.url}/api/ai/explain` }, null, 2));
-    await new Promise(() => {});
+    return;
+  }
+
+  if (cmd === "timeline") {
+    const repoDir = args[1];
+    if (!repoDir) {
+      console.error("Usage: repospec timeline <repoDir> [--commits 8] [--out <dir>] [--inline]");
+      process.exit(1);
+    }
+    const commits = Number(parseFlag(args, "--commits") ?? "8") || 8;
+    const outArg = parseFlag(args, "--out") ?? path.join(process.cwd(), "out", `${path.basename(path.resolve(repoDir))}-timeline`);
+    await runTimelineCommand({
+      repoDir,
+      commits,
+      outDir: outArg,
+      writeInline: args.includes("--inline"),
+      generateFn: (dir, dbPath) => generateRepoSpec(dir, "artifact", dbPath),
+      renderHtmlFn: renderVisualHtml,
+    });
+    return;
   }
 
   if (cmd === "generate") {
@@ -414,11 +397,14 @@ async function main(): Promise<void> {
     const storageMode: StorageMode = modeArg === "commit" ? "commit" : "artifact";
     const outArg = parseFlag(args, "--out") ?? path.join(process.cwd(), "out", path.basename(path.resolve(repoDir)));
     const diffFlag = parseFlag(args, "--diff");
+    const timelineIdx = args.indexOf("--timeline");
+    const timelineCount = timelineIdx >= 0 ? Number(args[timelineIdx + 1]) || 8 : 0;
     const writeInline = args.includes("--inline");
 
     fs.mkdirSync(outArg, { recursive: true });
     const sqliteOut = path.join(outArg, "repospec.sqlite");
     let commitDiff: CommitArchDiff | undefined;
+    let timeline: ArchTimelineData | undefined;
     let genRes: Awaited<ReturnType<typeof generateRepoSpec>>;
     if (diffFlag) {
       const diffOut = await runCommitDiffWorktrees({
@@ -432,6 +418,13 @@ async function main(): Promise<void> {
     } else {
       genRes = await generateRepoSpec(repoDir, storageMode, sqliteOut);
     }
+    if (timelineCount > 0) {
+      timeline = await buildArchTimeline({
+        repoDir,
+        count: timelineCount,
+        generateFn: (dir, dbPath) => generateRepoSpec(dir, storageMode, dbPath),
+      });
+    }
     const { spec, digest, idsModule, sdkModule, drilldown } = genRes;
 
     const specOut = path.join(outArg, "repospec.json");
@@ -444,12 +437,12 @@ async function main(): Promise<void> {
     fs.writeFileSync(schemaOut, `${JSON.stringify(buildRepoSpecJsonSchema(), null, 2)}\n`, "utf8");
     fs.writeFileSync(idsOut, idsModule, "utf8");
     fs.writeFileSync(sdkOut, sdkModule, "utf8");
-    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown, commitDiff }), "utf8");
+    fs.writeFileSync(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown, commitDiff, timeline }), "utf8");
 
     let inlineOut: string | null = null;
     if (writeInline) {
       inlineOut = path.join(outArg, "repospec.inline.html");
-      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true, drilldown, commitDiff }), "utf8");
+      fs.writeFileSync(inlineOut, renderVisualHtml(spec, digest, { inline: true, drilldown, commitDiff, timeline }), "utf8");
     }
 
     console.log(

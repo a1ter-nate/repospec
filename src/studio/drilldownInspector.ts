@@ -88,7 +88,13 @@ export function renderDrilldownInspectorScript(): string {
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.u + " · " + f.p) + "</div></div></div>" +
       provenanceLinksHtml(f.p, 1) +
       pills +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Symbol Callstack & Code (' + allSyms.length + ') →</button><button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + '</button><button class="action-btn sec-btn" data-clear-sel="1">Folder Briefing</button></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Symbol Callstack & Code (' + allSyms.length + ') →</button>' +
+      '<button class="action-btn sec-btn" data-toggle-blast="' + esc("file:" + f.p) + '">' + (state.blastSeedId === "file:" + f.p ? "Exit Blast" : "Blast Radius") + "</button>" +
+      '<button class="action-btn sec-btn" data-open-e2e="' + esc(f.p + "::-1") + '">Trace E2E</button>' +
+      '<button class="action-btn sec-btn" data-copy-ctx="file" data-copy-ctx-id="' + esc(f.p) + '">Copy Agent Context</button>' +
+      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus (F)") + "</button>" +
+      '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
       findingsSec +
       surfacePreviewSec +
       symsHtml +

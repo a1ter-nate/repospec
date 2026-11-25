@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AstIndexData, UnitDescriptor } from "../schema.ts";
+import { extractGitChurnMap } from "../extractors/gitMetrics.ts";
 import { isExcludedCodePath } from "../extractors/moduleFacts.ts";
 import { extractFileCallGraph, packSourceArchiveBase64, type FileSymbolTuple } from "./fileSymbols.ts";
 
@@ -15,6 +16,8 @@ export interface DrilldownFile {
   x: string[];
   t: string[];
   v: string[];
+  tc?: 0 | 1;
+  ch?: number;
   m?: FileSymbolTuple[];
   k?: Array<[number, number, number]>;
   o?: Array<[number, string, number]>;
@@ -61,6 +64,13 @@ export function buildDrilldownIndex(
     envByFile.set(ev.file, set);
   }
 
+  const testFiles = new Set(ast.files.filter((f) => f.isTest).map((f) => f.file));
+  const testedProdFiles = new Set<string>();
+  for (const imp of ast.fileImports) {
+    if (testFiles.has(imp.fromFile)) testedProdFiles.add(imp.toFile);
+  }
+  const churnByFile = repoRoot ? extractGitChurnMap(repoRoot) : new Map<string, number>();
+
   const prodFiles = ast.files
     .filter((f) => !f.isTest && f.canonicalLayer !== "ops_script" && !isExcludedCodePath(f.file))
     .sort((a, b) => a.file.localeCompare(b.file));
@@ -102,6 +112,8 @@ export function buildDrilldownIndex(
       x: Array.from(extByFile.get(f.file) ?? []).sort().slice(0, 8),
       t: Array.from(entitiesByFile.get(f.file) ?? []).sort().slice(0, 10),
       v: Array.from(envByFile.get(f.file) ?? []).sort().slice(0, 10),
+      tc: testedProdFiles.has(f.file) ? 1 : 0,
+      ch: churnByFile.get(f.file) ?? 0,
       ...(callGraph && callGraph.m.length > 0 ? { m: callGraph.m, k: callGraph.k, o: callGraph.o } : {}),
     });
   }

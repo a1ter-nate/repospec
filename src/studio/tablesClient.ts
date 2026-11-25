@@ -203,8 +203,12 @@ export function renderTablesClientScript(): string {
         (!q || e.path.toLowerCase().includes(q) || e.unit.toLowerCase().includes(q) || (e.authGuard || "").toLowerCase().includes(q))
       );
       return '<div class="table-wrap" style="position:relative">' + subBtns + renderInfoPopoverHtml() +
-        '<table class="data-tbl"><thead><tr><th>Method</th><th>Path</th><th>Auth Guard</th><th>Unit</th><th>Authority</th></tr></thead><tbody>' +
-        rows.slice(0, 180).map((e) => '<tr><td><span class="badge b-info">' + esc(e.method) + '</span></td><td class="mono">' + esc(e.path) + '</td><td><span class="badge ' + (e.authGuard === "public" || !e.authGuard ? "b-warn" : "b-pass") + '" title="' + (e.authGuard ? "Auth middleware detected" : "No auth guard statically detected — verify route protection") + '">' + esc(e.authGuard || "unannotated") + '</span></td><td class="mono">' + esc(shortPkg(e.unit)) + '</td><td class="mono muted">' + esc(e.resolution || e.source) + "</td></tr>").join("") +
+        '<table class="data-tbl"><thead><tr><th>Method</th><th>Path</th><th>Auth Guard</th><th>Unit</th><th>Authority</th><th>Trace</th></tr></thead><tbody>' +
+        rows.slice(0, 180).map((e) => {
+          const canTrace = e.file && ddIdxByPath.has(e.file);
+          const traceCell = canTrace ? '<button class="tbtn" data-open-e2e="' + esc(e.file + "::-1") + '">Trace E2E →</button>' : '<span class="muted">—</span>';
+          return '<tr><td><span class="badge b-info">' + esc(e.method) + '</span></td><td class="mono">' + esc(e.path) + '</td><td><span class="badge ' + (e.authGuard === "public" || !e.authGuard ? "b-warn" : "b-pass") + '" title="' + (e.authGuard ? "Auth middleware detected" : "No auth guard statically detected — verify route protection") + '">' + esc(e.authGuard || "unannotated") + '</span></td><td class="mono">' + esc(shortPkg(e.unit)) + '</td><td class="mono muted">' + esc(e.resolution || e.source) + "</td><td>" + traceCell + "</td></tr>";
+        }).join("") +
         "</tbody></table></div>";
     }
     if (state.dataSubtab === "env") {
