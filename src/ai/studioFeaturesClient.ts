@@ -383,6 +383,17 @@ export function renderStudioFeaturesClientScript(): string {
       requestPrAiSummary(prAiBtn.getAttribute("data-pr-ai-ask") || "whole");
       return true;
     }
+    const visPrBtn = target.closest("[data-copy-visual-pr]");
+    if (visPrBtn) {
+      const md = buildShowMeVisualPrMarkdown();
+      if (md && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(md).catch(() => {});
+      }
+      visPrBtn.textContent = "✓ PR Outline Copied";
+      visPrBtn.style.color = "#5fd9a0";
+      setTimeout(() => { visPrBtn.textContent = "Copy Visual PR"; visPrBtn.style.color = ""; }, 1400);
+      return true;
+    }
     const tlPt = target.closest("[data-tl-idx]");
     if (tlPt) {
       state.timelineIdx = Number(tlPt.getAttribute("data-tl-idx"));

@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runDiffViewCommand, runServeCommand, runTimelineCommand } from "./ai/cliCommands.ts";
+import { runAggregateCli, runDiffViewCommand, runServeCommand, runTimelineCommand } from "./ai/cliCommands.ts";
 import { buildArchTimeline, type ArchTimelineData } from "./extractors/gitMetrics.ts";
 import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "./canonicalize.ts";
 import { discoverRepo } from "./discover.ts";
@@ -164,6 +164,7 @@ async function main(): Promise<void> {
         "  repospec generate <repoDir> [--out <dir>] [--mode artifact|commit] [--inline] [--diff <range>] [--timeline [N]]",
         "  repospec serve <repospec.html|outDir> [--port 4173] [--ollama http://127.0.0.1:11434] [--watch <repoDir>] [--diff]",
         "  repospec timeline <repoDir> [--commits 8] [--out <dir>] [--inline]",
+        "  repospec aggregate <specOrDir>... [--out <dir>] [--name <title>] [--links <topology.json>] [--inline]",
         "  repospec check <repoDir> [--spec <path/to/repospec.json>] [--allow-fail]",
         "  repospec explain <path-or-unit> --db <repospec.sqlite>",
         "  repospec impact <base..head> --db <repospec.sqlite> [--repo <repoDir>] [--format json|github]",
@@ -384,6 +385,11 @@ async function main(): Promise<void> {
       generateFn: (dir, dbPath) => generateRepoSpec(dir, "artifact", dbPath),
       renderHtmlFn: renderVisualHtml,
     });
+    return;
+  }
+
+  if (cmd === "aggregate") {
+    runAggregateCli(args, renderVisualHtml);
     return;
   }
 

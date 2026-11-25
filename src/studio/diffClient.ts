@@ -1,5 +1,61 @@
 export function renderDiffClientScript(): string {
   return `
+  function buildShowMeVisualPrMarkdown() {
+    const cd = DATA.commitDiff;
+    if (!cd) return "";
+    const notes = [];
+    if (cd.findings.introduced.length > 0) {
+      notes.push("Introduces " + cd.findings.introduced.length + " architectural finding(s): " + cd.findings.introduced.slice(0, 2).map((f) => f.invariantName + " (" + f.file + ")").join(", ") + ".");
+    }
+    if (cd.kpis.coveragePct.delta <= -0.5) {
+      notes.push("Direct test coverage shifted " + cd.kpis.coveragePct.before + "% → " + cd.kpis.coveragePct.after + "% (" + cd.kpis.coveragePct.delta + "%).");
+    }
+    if (cd.surfaces.externalAdded.length > 0) {
+      notes.push("Adds new external dependency: " + cd.surfaces.externalAdded.join(", ") + ".");
+    }
+    if (cd.findings.resolved.length > 0 && notes.length < 3) {
+      notes.push("Resolves " + cd.findings.resolved.length + " existing finding(s).");
+    }
+    const out = [
+      "## Why the change",
+      "",
+      cd.commitSubject + " — " + cd.verdictSummary,
+      "",
+      "## Special things to note",
+      "",
+      ...(notes.length > 0 ? notes.slice(0, 3).map((n) => "- " + n) : ["- None."]),
+      "",
+      "## Change outline",
+      "",
+    ];
+    const fence = String.fromCharCode(96).repeat(3);
+    const hasSurf = cd.surfaces.endpointsAdded.length + cd.surfaces.endpointsRemoved.length + cd.surfaces.entitiesAdded.length + cd.surfaces.envAdded.length > 0;
+    if (hasSurf) {
+      out.push("Contract and runtime surface changes:");
+      out.push(fence + "diff");
+      for (const ep of cd.surfaces.endpointsAdded.slice(0, 8)) out.push("+ endpoint " + ep);
+      for (const ep of cd.surfaces.endpointsRemoved.slice(0, 8)) out.push("- endpoint " + ep);
+      for (const en of cd.surfaces.entitiesAdded.slice(0, 6)) out.push("+ entity   " + en);
+      for (const ev of cd.surfaces.envAdded.slice(0, 6)) out.push("+ env      " + ev);
+      out.push(fence, "");
+    }
+    if (cd.edgeChanges.added.length + cd.edgeChanges.removed.length > 0) {
+      out.push("Dependency & structural wire changes:");
+      out.push(fence + "diff");
+      for (const e of cd.edgeChanges.added.slice(0, 8)) out.push("+ " + shortPkg(e.from) + " -> " + shortPkg(e.to) + " (" + e.kind + ")");
+      for (const e of cd.edgeChanges.removed.slice(0, 8)) out.push("- " + shortPkg(e.from) + " -> " + shortPkg(e.to) + " (" + e.kind + ")");
+      out.push(fence, "");
+    }
+    out.push("Changed file layout (+" + cd.kpis.files.insertions + "/-" + cd.kpis.files.deletions + "):");
+    out.push(fence + "diff");
+    for (const f of cd.changedFiles.slice(0, 20)) {
+      const sig = f.status === "added" ? "+" : f.status === "deleted" ? "-" : "~";
+      out.push(sig + " " + f.path + " (+" + f.insertions + "/-" + f.deletions + (f.blastRadius > 0 ? ", " + f.blastRadius + " callers" : "") + ")");
+    }
+    out.push(fence);
+    return out.join("\\n");
+  }
+
   function activeDiffBundle() {
     const cd = DATA.commitDiff;
     if (!cd || !cd.diagrams || cd.diagrams.length === 0) return null;
@@ -187,7 +243,8 @@ export function renderDiffClientScript(): string {
       '<div class="explain-head">' +
       '<div class="explain-head-left"><span class="sec-title" style="color:var(--text-2)">' + (activeHunkFile ? "File Diff Summary" : "PR Summary") + "</span>" +
       (prAiRes ? '<span class="badge b-purple">✦ AI · ' + esc(prAiRes.model) + "</span>" : '<span class="badge b-na">Opt-In</span>') + "</div>" +
-      '<button class="tbtn explain-ai-btn" data-pr-ai-ask="' + esc(prKey) + '"' + (prAiLoad ? " disabled" : "") + ">" + (prAiLoad ? "Thinking…" : prAiRes ? "↻ Refresh AI" : "✦ Explain PR with Local AI") + "</button>" +
+      '<div style="display:flex;gap:6px;align-items:center"><button class="tbtn" data-copy-visual-pr="1" title="Copy HumanLayer /show-me style PR Markdown outline">Copy Visual PR</button>' +
+      '<button class="tbtn explain-ai-btn" data-pr-ai-ask="' + esc(prKey) + '"' + (prAiLoad ? " disabled" : "") + ">" + (prAiLoad ? "Thinking…" : prAiRes ? "↻ Refresh AI" : "✦ Explain PR") + "</button></div>" +
       "</div>" +
       (prAiRes ? '<div class="explain-body">' + esc(prAiRes.does) + "</div>" + (prAiRes.watch ? '<div class="explain-watch"><strong>Watch out:</strong> ' + esc(prAiRes.watch) + "</div>" : "") : '<div class="muted" style="font-size:12.5px">Click <strong>✦ Explain PR with Local AI</strong> for an on-demand plain-English walkthrough of this ' + (activeHunkFile ? "file diff" : "commit") + ".</div>") +
       (prAiErr ? '<div class="explain-err">' + esc(prAiErr) + "</div>" : "") +

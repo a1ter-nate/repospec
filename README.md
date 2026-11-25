@@ -73,6 +73,7 @@ bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --inlin
 bunx repospec serve ./out/my-repo --port 4173 --watch /path/to/repo
 bunx repospec diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
 bunx repospec timeline /path/to/repo --commits 12 --out ./out/my-repo-timeline
+bunx repospec aggregate ./out/web-app ./out/orders-svc ./out/billing-svc --name "platform-mesh" --out ./out/distributed-system
 
 # Or develop from a local clone
 git clone https://github.com/a1ter-nate/repospec.git
