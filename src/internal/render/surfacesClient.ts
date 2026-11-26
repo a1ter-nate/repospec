@@ -83,10 +83,13 @@ export function renderSurfacesCss(): string {
   .surf-det-row.is-static { cursor: default; grid-template-columns: minmax(0, 1fr) auto auto; border-bottom: 1px solid rgba(22,30,48,0.65); }
   .surf-det-row:hover { background: rgba(255,255,255,0.04); }
   .surf-det-row[aria-selected="true"] { box-shadow: inset 2px 0 0 var(--accent); background: #151c2c; }
-  .surf-meth { font-size: 11.5px; font-weight: 600; }
-  .surf-meth.m-read { color: var(--text-3); }
-  .surf-meth.m-write { color: var(--text-1); }
-  .surf-meth.m-del { color: var(--err); }
+  .surf-meth { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; padding: 1px 5px; border-radius: 4px; text-align: center; border: 1px solid transparent; }
+  .surf-meth.m-get { color: #7cc8ff; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.28); }
+  .surf-meth.m-post { color: #6ee7b0; background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.28); }
+  .surf-meth.m-put { color: #f5c26b; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
+  .surf-meth.m-patch { color: #d8b4fe; background: rgba(192,132,252,0.12); border-color: rgba(192,132,252,0.3); }
+  .surf-meth.m-del { color: #ff9a9a; background: rgba(248,113,113,0.13); border-color: rgba(248,113,113,0.32); }
+  .surf-meth.m-other { color: var(--text-3); background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.2); }
   .surf-path { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .surf-path-dim { color: var(--text-4); }
   .surf-guard-col { font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
@@ -334,7 +337,7 @@ export function renderSurfacesClientScript(): string {
     const grpBtn = target.closest("[data-surf-select-group]");
     if (grpBtn) { state.surfGroup = grpBtn.getAttribute("data-surf-select-group") || null; state.surfRow = null; rerenderSurfacesBody(); return true; }
     const rowBtn = target.closest("[data-surf-select-row]");
-    if (rowBtn) { const rid = rowBtn.getAttribute("data-surf-select-row") || ""; const toggle = rowBtn.getAttribute("data-surf-row-toggle") === "1"; state.surfRow = toggle && state.surfRow === rid ? null : rid; rerenderSurfacesBody(); return true; }
+    if (rowBtn) { const rid = rowBtn.getAttribute("data-surf-select-row") || ""; const toggle = rowBtn.getAttribute("data-surf-row-toggle") === "1"; state.surfRow = toggle && state.surfRow === rid ? null : rid; if (state.surfRow) ensureFileSourcesLoaded(); rerenderSurfacesBody(); return true; }
     if (target.closest("[data-surf-toggle-tail]")) { state.surfTailOpen = !state.surfTailOpen; rerenderSurfacesBody(); return true; }
     return false;
   }

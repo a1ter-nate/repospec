@@ -130,6 +130,15 @@ export function queryEntityOwnership(db: Database): EntityOwnership[] {
     .sort((a, b) => b.totalRefs - a.totalRefs || a.entity.localeCompare(b.entity));
 }
 
+function normEpPath(p: string): string {
+  return p.replace(/\{([^}]+)\}/g, ":$1").replace(/:[^/]+/g, ":_").replace(/\/+$/, "").toLowerCase() || "/";
+}
+
+function scoreHandlerPath(file: string, topSeg: string, secondSeg: string): number {
+  const lf = file.toLowerCase();
+  return (topSeg && lf.includes(topSeg) ? 2 : 0) + (secondSeg && lf.includes(secondSeg) ? 1 : 0);
+}
+
 export function querySurfaces(db: Database): {
   endpoints: HttpEndpointSummary[];
   foreignKeys: ForeignKeySummary[];
@@ -159,19 +168,53 @@ export function querySurfaces(db: Database): {
   }>;
 
   const unitsWithCanonical = new Set<string>();
+  const astByUnitMethod = new Map<string, Array<{ path: string; normPath: string; file: string; line: number }>>();
+
   for (const r of rawEpRows) {
     if (r.resolution === "contract" || r.resolution === "mounted") {
       unitsWithCanonical.add(r.unit);
     }
+    if (r.source === "ast" && r.handler_file) {
+      const k = `${r.unit}|${r.method}`;
+      const list = astByUnitMethod.get(k) ?? [];
+      list.push({ path: r.path, normPath: normEpPath(r.path), file: r.handler_file, line: r.line });
+      astByUnitMethod.set(k, list);
+    }
   }
+
+  const resolveAstHandler = (
+    unit: string,
+    method: string,
+    contractPath: string,
+  ): { file: string; line: number } | null => {
+    const cands = astByUnitMethod.get(`${unit}|${method}`);
+    if (!cands || cands.length === 0) return null;
+    const np = normEpPath(contractPath);
+    const exact = cands.find((c) => c.normPath === np);
+    if (exact) return { file: exact.file, line: exact.line };
+    const suffixMatches = cands.filter((c) => c.normPath !== "/" && c.normPath.startsWith("/") && np.endsWith(c.normPath));
+    if (suffixMatches.length === 0) return null;
+    const segs = np.split("/").filter(Boolean);
+    const topSeg = segs[0] ?? "";
+    const secondSeg = segs[1] ?? "";
+    suffixMatches.sort((a, b) => {
+      if (b.normPath.length !== a.normPath.length) return b.normPath.length - a.normPath.length;
+      return scoreHandlerPath(b.file, topSeg, secondSeg) - scoreHandlerPath(a.file, topSeg, secondSeg);
+    });
+    const best = suffixMatches[0];
+    return best ? { file: best.file, line: best.line } : null;
+  };
 
   const reconciledEndpoints = new Map<string, HttpEndpointSummary>();
   for (const r of rawEpRows) {
     if (r.resolution === "fragment" && unitsWithCanonical.has(r.unit)) continue;
-    const normPath = r.path.replace(/\{([^}]+)\}/g, ":$1").replace(/\/+$/, "") || "/";
+    const normPath = normEpPath(r.path);
     const key = `${r.unit}|${r.method}|${normPath}`;
     const existing = reconciledEndpoints.get(key);
     if (!existing) {
+      const matched = r.source === "openapi" ? resolveAstHandler(r.unit, r.method, r.path) : null;
+      const resolvedFile = matched ? matched.file : r.handler_file;
+      const resolvedLine = matched && matched.line > 0 ? matched.line : (r.line > 0 ? r.line : undefined);
       reconciledEndpoints.set(key, {
         unit: r.unit,
         method: r.method,
@@ -179,8 +222,8 @@ export function querySurfaces(db: Database): {
         authGuard: r.auth_guard,
         source: r.source,
         resolution: r.resolution,
-        file: r.handler_file,
-        line: r.line > 0 ? r.line : undefined,
+        file: resolvedFile,
+        line: resolvedLine,
       });
     } else if (existing.source === "openapi" && r.source === "ast" && r.handler_file) {
       reconciledEndpoints.set(key, {

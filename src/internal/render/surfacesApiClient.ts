@@ -63,9 +63,19 @@ export function renderSurfacesApiClientScript(): string {
     return major;
   }
 
+  function methodToneClass(method) {
+    const m = String(method || "").toUpperCase();
+    if (m === "GET" || m === "HEAD") return "m-get";
+    if (m === "POST") return "m-post";
+    if (m === "PUT") return "m-put";
+    if (m === "PATCH") return "m-patch";
+    if (m === "DELETE") return "m-del";
+    return "m-other";
+  }
+
   function renderApiRowHtml(ep, prefixToDim, dominantGuard, expandedId) {
     const isExp = expandedId === ep.id;
-    const mCls = ep.method === "DELETE" ? "m-del" : ep.isWrite ? "m-write" : "m-read";
+    const mCls = methodToneClass(ep.method);
     let pathHtml = esc(ep.path);
     if (prefixToDim && ep.path.startsWith(prefixToDim) && ep.path.length > prefixToDim.length) {
       pathHtml = '<span class="surf-path-dim">' + esc(prefixToDim) + "</span>" + esc(ep.path.slice(prefixToDim.length));
@@ -79,16 +89,22 @@ export function renderSurfacesApiClientScript(): string {
       guardHtml = '<span class="surf-guard-txt mono">' + esc(ep.guardName) + "</span>";
     }
     const locText = ep.hasSource ? (ep.file.split("/").pop() + ":" + ep.line) : "";
+    const excerptHtml = isExp && ep.hasSource && typeof renderCheckExcerpt === "function"
+      ? renderCheckExcerpt(ep.file, ep.line)
+      : "";
+    const gh = isExp && ep.file ? githubUrl(ep.file, ep.line) : null;
     const detailHtml = isExp
       ? '<div class="surf-row-exp">' +
         '<div class="surf-exp-meta">' +
         '<span><span class="muted">service</span> <span class="mono">' + esc(shortPkg(ep.unit)) + "</span></span>" +
-        '<span><span class="muted">source</span> <span class="mono">' + esc(ep.file + (ep.line > 1 ? ":" + ep.line : "")) + "</span></span>" +
+        '<span><span class="muted">handler</span> <span class="mono">' + esc(ep.file + (ep.line > 1 ? ":" + ep.line : "")) + "</span></span>" +
         (ep.guardClass === "guarded" ? '<span><span class="muted">guard</span> <span class="mono">' + esc(ep.guardExpr || ep.guardName) + "</span></span>" : (ep.guardClass === "unknown" ? '<span class="surf-warn-txt">no guard seen statically</span>' : "")) +
         "</div>" +
+        excerptHtml +
         '<div class="surf-exp-acts">' +
-        (ep.hasSource ? '<button class="tbtn" data-open-file="' + esc(ep.file) + '" data-open-file-line="' + ep.line + '">Open code →</button>' : "") +
+        (ep.hasSource ? '<button class="tbtn tbtn-accent" data-open-file="' + esc(ep.file) + '" data-open-file-line="' + ep.line + '">Open full file →</button>' : "") +
         (ep.hasSource ? '<button class="tbtn" data-open-e2e="' + esc(ep.file + "::-1") + '">Trace E2E →</button>' : "") +
+        (gh ? '<a class="tbtn" style="text-decoration:none" href="' + esc(gh) + '" target="_blank" rel="noopener">GitHub ↗</a>' : "") +
         "</div></div>"
       : "";
     return (
