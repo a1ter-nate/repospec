@@ -1,0 +1,80 @@
+name: RepoSpec Show-Me Architectural Diff
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repospec-show-me-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  show-me:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Generate priority-ranked architectural diff screenshots
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          IMAGE_BASE_URL: ${{ vars.REPOSPEC_IMAGE_BASE_URL }}
+        run: |
+          git fetch --no-tags --depth=50 origin "$BASE_REF"
+          EXTRA_ARGS=()
+          if [ -n "$IMAGE_BASE_URL" ]; then
+            EXTRA_ARGS+=(--image-base-url "${IMAGE_BASE_URL}/pr-${{ github.event.pull_request.number }}/${{ github.sha }}")
+          fi
+          bunx repospec show-me . "origin/${BASE_REF}..HEAD" \
+            --out .repospec-show-me \
+            --top 3 \
+            --rank risk \
+            --format both \
+            --focus auto \
+            --theme dark \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Upload Show-Me screenshots & manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repospec-show-me-pr-${{ github.event.pull_request.number }}
+          path: .repospec-show-me/
+          retention-days: 14
+
+      - name: Post or update sticky /show-me PR comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const raw = fs.readFileSync(".repospec-show-me/pr-comment.md", "utf8");
+            const body = `${raw}\n\n📦 **Screenshots & Manifest Artifact:** [Download from workflow run](${runUrl})\n`;
+            const marker = "<!-- repospec-show-me -->";
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => typeof c.body === "string" && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

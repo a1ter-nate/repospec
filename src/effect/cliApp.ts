@@ -12,6 +12,7 @@ import {
   buildUnitPassport,
   formatImpactAsGithubMarkdown,
 } from "../passport.ts";
+import { runShowMeBundle } from "../internal/showme/runner.ts";
 import { renderVisualHtml } from "../render.ts";
 import { buildRepoSpecJsonSchema, type StorageMode } from "../schema.ts";
 import type { CommitArchDiff } from "../studio/commitDiff.ts";
@@ -396,6 +397,42 @@ const generateCmd = Command.make(
     }),
 ).pipe(Command.withDescription("Generate canonical RepoSpec IR, SQLite graph index, SDK, and visual Studio HTML."));
 
+const showMeCmd = Command.make(
+  "show-me",
+  {
+    repoDir: Argument.withDefault(Argument.String("repoDir"), "."),
+    range: Argument.optional(Argument.String("range")),
+    out: Flag.optional(Flag.String("out")),
+    top: Flag.withDefault(Flag.Int("top"), 3),
+    rank: Flag.withDefault(Flag.String("rank"), "risk"),
+    format: Flag.withDefault(Flag.String("format"), "both"),
+    focus: Flag.withDefault(Flag.String("focus"), "auto"),
+    theme: Flag.withDefault(Flag.String("theme"), "dark"),
+    imageBaseUrl: Flag.optional(Flag.String("image-base-url")),
+    noTopFile: Flag.withDefault(Flag.Boolean("no-top-file"), false),
+  },
+  (cfg) =>
+    Effect.tryPromise({
+      try: () =>
+        runShowMeBundle({
+          repoDir: cfg.repoDir,
+          rangeArg: Option.getOrUndefined(cfg.range),
+          outDir:
+            Option.getOrUndefined(cfg.out) ??
+            path.join(process.cwd(), "out", `${path.basename(path.resolve(cfg.repoDir))}-show-me`),
+          top: cfg.top,
+          rank: cfg.rank,
+          format: cfg.format,
+          focus: cfg.focus,
+          theme: cfg.theme,
+          includeTopFile: !cfg.noTopFile,
+          imageBaseUrl: Option.getOrUndefined(cfg.imageBaseUrl),
+          generateFn: (dir, dbPath) => runGenerateRepoSpec(dir, "artifact", dbPath),
+        }),
+      catch: (err) => new CliUsageError({ message: err instanceof Error ? err.message : String(err) }),
+    }).pipe(Effect.flatMap(printJson)),
+).pipe(Command.withDescription("Generate priority-ranked architectural diff screenshots (SVG/PNG) and a /show-me PR comment."));
+
 export const repospecCommand = Command.make("repospec").pipe(
   Command.withDescription("Deterministic canonical RepoSpec IR, SQLite graph index, and interactive visual Studio."),
   Command.withSubcommands([
@@ -410,6 +447,7 @@ export const repospecCommand = Command.make("repospec").pipe(
     validateCmd,
     diffCmd,
     diffViewCmd,
+    showMeCmd,
     queryCmd,
     schemaCmd,
   ]),
