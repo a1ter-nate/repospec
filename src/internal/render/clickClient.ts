@@ -18,6 +18,7 @@ export function renderClickClientScript(): string {
       state.focusMode = false;
       state.selectedEdgeId = null;
       state.selectedNodeId = null;
+      state.drawerSubtab = null;
       render();
       return;
     }
@@ -39,6 +40,13 @@ export function renderClickClientScript(): string {
     if (viewModeBtn) {
       state.viewMode = viewModeBtn.getAttribute("data-view-mode") || "flow";
       state.focusMode = false;
+      render();
+      return;
+    }
+
+    const drawerSubBtn = target.closest("[data-drawer-sub]");
+    if (drawerSubBtn) {
+      state.drawerSubtab = drawerSubBtn.getAttribute("data-drawer-sub") || null;
       render();
       return;
     }
@@ -407,6 +415,7 @@ export function renderClickClientScript(): string {
     if (selNodeEl) {
       state.selectedNodeId = selNodeEl.getAttribute("data-select-node");
       state.selectedEdgeId = null;
+      state.drawerSubtab = null;
       render();
       return;
     }
@@ -425,6 +434,7 @@ export function renderClickClientScript(): string {
       }
       state.selectedNodeId = id;
       state.selectedEdgeId = null;
+      state.drawerSubtab = null;
       render();
       return;
     }

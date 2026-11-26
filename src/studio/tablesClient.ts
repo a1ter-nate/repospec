@@ -302,6 +302,19 @@ export function renderTablesClientScript(): string {
             }
             return renderFindingDisclosure(inv, { open: inv.status === "fail", hideChecksLink: true });
           }).join("")) +
+      "</div>" +
+      '<div style="margin-top:12px">' +
+      renderDisclosure({
+        title: "Verification Scope",
+        meta: DATA.verification && DATA.verification.coverageSource !== "static_reachability_1hop"
+          ? DATA.verification.coverageSource + " coverage"
+          : "static 1-hop reach",
+        open: false,
+        bodyHtml:
+          '<div class="muted" style="font-size:11px;line-height:1.5">' +
+          esc((DATA.verification && DATA.verification.scopeNotes && DATA.verification.scopeNotes[0]) || "Static structural graph & local invariant analysis only. Behavioral semantics, runtime auth enforcement, and cross-repo wire contracts require runtime E2E/contract proofs.") +
+          "</div>",
+      }) +
       "</div></div>"
     );
   }

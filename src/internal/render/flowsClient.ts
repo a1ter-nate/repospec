@@ -82,11 +82,23 @@ export function renderFlowsClientScript(): string {
             ).join("") + "</div>"
           : "";
 
+        const ctxCount = up.routes.length + up.callers.length + (wf.hazards || []).length;
+        const flSub = state.drawerSubtab === "context" && ctxCount > 0 ? "context" : "code";
+        const flTabs = ctxCount > 0
+          ? '<div class="drawer-tabs">' +
+            '<button class="drawer-tab' + (flSub === "code" ? " active" : "") + '" data-drawer-sub="code">Code</button>' +
+            '<button class="drawer-tab' + (flSub === "context" ? " active" : "") + '" data-drawer-sub="context">Triggers &amp; Tradeoffs (' + ctxCount + ")</button>" +
+            "</div>"
+          : "";
+        const flBody = flSub === "context"
+          ? (upHtml + hazHtml)
+          : (stepBox + renderFlowCodeSnippet(focusFile, focusLine));
+
         drawerHtml =
           '<div class="drawer-head"><div><div class="drawer-title">' + esc(wf.name) + '</div><div class="mono muted">' + esc(wf.file) + ":" + wf.line + '</div></div>' +
           '<button class="tbtn" data-copy-flow-ctx="' + esc(wf.id) + '" title="Copy DDIA flow brief for an agent">Copy Context</button></div>' +
-          '<div class="drawer-body">' + stepBox + upHtml + hazHtml +
-          '<div style="margin-top:12px"><div class="sec-title">Code Reference</div>' + renderFlowCodeSnippet(focusFile, focusLine) + "</div></div>";
+          flTabs +
+          '<div class="drawer-body">' + flBody + "</div>";
       }
     } else if (sub === "hubs") {
       const hubBanner =

@@ -74,7 +74,7 @@ export function renderNodeInspectorClientScript(): string {
 
     const findingsList = node.findings || [];
     const findingsSec = findingsList.length > 0
-      ? '<div class="sec"><div class="sec-title"><span>1. Active Findings (' + findingsList.length + ')</span><span class="muted">expandable</span></div>' +
+      ? '<div class="sec" style="border-top:0;padding-top:4px"><div class="sec-title"><span>Findings (' + findingsList.length + ')</span></div>' +
         findingsList.map((f) => {
           const inv = invById.get(f.ruleId);
           if (!inv) {
@@ -89,7 +89,7 @@ export function renderNodeInspectorClientScript(): string {
           }
           return renderFindingDisclosure(inv, {
             countOverride: f.count,
-            open: f.severity === "error" || findingsList.length <= 2,
+            open: false,
             filterEv: (ev) =>
               ev.targetNodeId === nodeId ||
               ev.edgeFromId === nodeId ||
@@ -102,14 +102,15 @@ export function renderNodeInspectorClientScript(): string {
       : "";
 
     const connGroups = [...groupEdgesForInspector(outEdges, "out"), ...groupEdgesForInspector(inEdges, "in")];
+    const totalConnCount = connGroups.reduce((s, g) => s + g.items.length, 0);
     const connSec =
-      '<div class="sec"><div class="sec-title"><span>' + (findingsList.length > 0 ? "2. " : "1. ") + "Connections (" + connGroups.reduce((s, g) => s + g.items.length, 0) + ')</span><span class="muted">grouped</span></div>' +
+      '<div class="sec" style="border-top:0;padding-top:4px"><div class="sec-title"><span>Connections (' + totalConnCount + ")</span></div>" +
       (connGroups.length === 0
-        ? '<div class="muted" style="font-size:11px">No direct graph connections indexed.</div>'
+        ? '<div class="muted" style="font-size:12px">No direct graph connections indexed.</div>'
         : connGroups.map((g, gi) => {
             const rows = g.items
               .sort((a, b) => (b.violation ? 1 : 0) - (a.violation ? 1 : 0) || (b.weight || 1) - (a.weight || 1))
-              .slice(0, 25)
+              .slice(0, 20)
               .map((e) => {
                 const peerId = g.dir === "out" ? e.to : e.from;
                 const peerLabel = shortPkg(nodeById.get(peerId)?.label || peerId);
@@ -117,13 +118,13 @@ export function renderNodeInspectorClientScript(): string {
                 const extra = e.violation ? '<span class="badge b-fail">violation</span>' : (e.weight && e.weight > 1 ? '<span class="muted mono">' + e.weight + "</span>" : "");
                 return '<div class="row"><span class="row-link mono" data-select-node="' + esc(peerId) + '">' + arrow + esc(peerLabel) + "</span>" + extra + "</div>";
               }).join("");
-            const more = g.items.length > 25 ? '<div class="muted" style="font-size:10px">+' + (g.items.length - 25) + " more</div>" : "";
+            const more = g.items.length > 20 ? '<div class="muted" style="font-size:10px">+' + (g.items.length - 20) + " more</div>" : "";
             return renderDisclosure({
               title: g.title,
               badge: g.items.length,
               badgeClass: g.hasViol ? "b-fail" : g.kind === "verifies" ? "b-pass" : "b-info",
               tone: g.hasViol ? "fail" : g.kind === "verifies" ? "pass" : "info",
-              open: g.hasViol || (gi === 0 && g.items.length <= 8),
+              open: gi === 0 && g.items.length <= 6,
               bodyHtml: rows + more,
             });
           }).join("")) +
@@ -221,20 +222,29 @@ export function renderNodeInspectorClientScript(): string {
     const sourceCodeSec = provFile
       ? renderInlineSourceDisclosure(provFile, node.provenance?.line, { open: true })
       : "";
-    const flowsFromHereSec = typeof renderLocationFlowsSection === "function"
-      ? renderLocationFlowsSection({ dirPrefix: unitDir, nodeKind: node.kind, nodeLabel: node.label })
+    const flowOpts = { dirPrefix: unitDir, nodeKind: node.kind, nodeLabel: node.label };
+    const flowMeta = typeof collectLocationFlows === "function" ? collectLocationFlows(flowOpts) : { total: 0 };
+    const detailsCount = findingsList.length + (unitEndpoints.length > 0 ? 1 : 0) + (unitEnvs.length > 0 ? 1 : 0) + (unitGovs.length > 0 ? 1 : 0);
+    const subTabs = [
+      { id: "conn", label: "Connections (" + totalConnCount + ")" },
+      ...(flowMeta.total > 0 ? [{ id: "flows", label: "Flows (" + flowMeta.total + ")" }] : []),
+      ...(detailsCount > 0 ? [{ id: "details", label: "Details (" + detailsCount + ")" }] : []),
+    ];
+    const activeSub = subTabs.some((t) => t.id === state.drawerSubtab) ? state.drawerSubtab : "conn";
+    const subTabBar = subTabs.length > 1
+      ? '<div class="drawer-tabs">' + subTabs.map((t) => '<button class="drawer-tab' + (activeSub === t.id ? " active" : "") + '" data-drawer-sub="' + t.id + '">' + esc(t.label) + "</button>").join("") + "</div>"
       : "";
+    const subBody = activeSub === "flows"
+      ? (typeof renderLocationFlowsTabBody === "function" ? renderLocationFlowsTabBody(flowOpts) : "")
+      : activeSub === "details"
+        ? (findingsSec + surfaceSec + govSec)
+        : (connSec + layerAnatomySec + sourceCodeSec);
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(shortPkg(node.label)) + '</div><div class="drawer-sub">' + esc(node.kind) + (node.meta?.archetype ? " · " + esc(node.meta.archetype) : "") + (node.meta?.layerAxis ? " · " + esc(node.meta.layerAxis) : "") + "</div></div></div>" +
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + actions + "</div>" +
-      connSec +
-      layerAnatomySec +
-      flowsFromHereSec +
-      sourceCodeSec +
-      findingsSec +
-      surfaceSec +
-      govSec
+      subTabBar +
+      subBody
     );
   }
 

@@ -248,45 +248,52 @@ export function renderInspectorClientScript(): string {
           })) +
       "</div>";
 
-    const scopedTraces = scopedUnitSlug ? DATA.traces.filter((t) => t.diagramId === curDiag?.id) : DATA.traces;
-    const traceHtml = scopedTraces.length > 0
-      ? '<div class="sec"><div class="sec-title">Static Paths (click to trace)</div>' +
-        scopedTraces.map((t) => {
-          const active = state.activeTraceId === t.id ? " active" : "";
-          return '<div class="trace-card' + active + '" data-trace="' + esc(t.id) + '">' +
-            '<div style="font-weight:600;font-size:12px">' + esc(t.title) + " (" + t.steps.length + " steps)</div>" +
-            '<div class="trace-note">' + esc(t.disclaimer) + "</div></div>";
-        }).join("") +
-        "</div>"
-      : "";
-
-    const drawerHeading = scopedUnitSlug ? scopedUnitSlug + " Briefing" : "Architecture Briefing";
     const drawerSub = scopedUnitSlug
-      ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click any module or folder"
-      : DATA.repo.name + " · " + DATA.repo.languages.join(", ");
-    const tierKindLabel = scopedUnitSlug
-      ? (curDiag?.category === "layers" ? "Enforced Clean Architecture Layers" : "Inferred Topological Tiers (L0–L4)")
+      ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click to drill in"
+      : DATA.repo.ecosystem + " · " + DATA.summary.indexedSourceFiles + " files";
+
+    const edgeDegree = new Map();
+    for (const e of DATA.edges || []) {
+      edgeDegree.set(e.from, (edgeDegree.get(e.from) || 0) + 1);
+      edgeDegree.set(e.to, (edgeDegree.get(e.to) || 0) + 1);
+    }
+    const topApp = [...apps].sort((a, b) => (edgeDegree.get(b.id) || 0) - (edgeDegree.get(a.id) || 0))[0] || pkgs[0] || null;
+    const topStore = stores[0] || null;
+    const hottestFlow = typeof ALL_FLOWS !== "undefined" && ALL_FLOWS.length > 0
+      ? [...ALL_FLOWS].sort((a, b) => (b.hazardCount || 0) - (a.hazardCount || 0) || (b.serialAwaitCount || 0) - (a.serialAwaitCount || 0))[0]
       : null;
+    const topBlocker = fails[0] || null;
 
-    const ver = DATA.verification;
-    const hasRealCov = ver.realLineCoveragePct !== null && ver.realLineCoveragePct !== undefined;
-    const covMetricRow = hasRealCov
-      ? '<div class="row"><span class="muted">Execution Coverage (' + esc(ver.coverageSource || "report") + ')</span><span class="mono">' + ver.realLineCoveragePct + "% lines" + (ver.realBranchCoveragePct !== null && ver.realBranchCoveragePct !== undefined ? " · " + ver.realBranchCoveragePct + "% branches" : "") + "</span></div>"
-      : '<div class="row"><span class="muted">Static Test Reachability (1-hop)</span><span class="mono">' + ver.directTestCoveragePct + "% (no lcov/cobertura)</span></div>";
-    const scopeBoxHtml =
-      '<div class="sec"><div class="sec-title"><span>Verification Scope</span><span class="muted">' + (hasRealCov ? "real coverage" : "static structural") + "</span></div>" +
-      covMetricRow +
-      '<div class="row"><span class="muted">Invariants</span><span class="mono">' + ver.invariantsPassed + " pass · " + ver.invariantsWarned + " warn · " + ver.invariantsFailed + " fail · " + ver.invariantsNa + " N/A</span></div>" +
-      (tierKindLabel ? '<div class="row"><span class="muted">Lane Basis</span><span class="mono">' + esc(tierKindLabel) + "</span></div>" : "") +
-      '<div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">Structural graph + coverage only; cross-repo wire contracts &amp; behavioral semantics (stubs, swallowed errors) require runtime E2E/contract proofs.</div>' +
-      "</div>";
-
-    const topFlowsPreview = !scopedUnitSlug && typeof ALL_FLOWS !== "undefined" && ALL_FLOWS.length > 0
-      ? '<div class="sec"><div class="sec-title"><span>Key Work Flows (' + ALL_FLOWS.length + ')</span><button class="tbtn" data-tab="flows">All Flows →</button></div>' +
-        ALL_FLOWS.slice(0, 5).map((wf) =>
-          '<div class="row"><span class="row-link mono" data-jump-flow="' + esc(wf.id) + '">▶ ' + esc(wf.name) + '</span><span class="mono muted">' + wf.serialAwaitCount + " awaits" + (wf.hazardCount > 0 ? " · " + wf.hazardCount + "!" : "") + "</span></div>"
-        ).join("") + "</div>"
-      : "";
+    const startCards = [];
+    if (!scopedUnitSlug && topApp) {
+      const deg = edgeDegree.get(topApp.id) || 0;
+      startCards.push(
+        '<button class="start-card" data-select-node="' + esc(topApp.id) + '">' +
+        '<div><div class="start-title">' + esc(shortPkg(topApp.label)) + '</div><div class="start-why">Core ' + esc(topApp.kind) + " · " + deg + " connections</div></div>" +
+        '<span class="badge b-info">Inspect →</span></button>'
+      );
+    }
+    if (!scopedUnitSlug && topStore) {
+      startCards.push(
+        '<button class="start-card" data-select-node="' + esc(topStore.id) + '">' +
+        '<div><div class="start-title">' + esc(shortPkg(topStore.label)) + '</div><div class="start-why">Primary datastore · ' + DATA.summary.datastoreEntities + " collections</div></div>" +
+        '<span class="badge b-purple">Data →</span></button>'
+      );
+    }
+    if (!scopedUnitSlug && hottestFlow) {
+      startCards.push(
+        '<button class="start-card" data-jump-flow="' + esc(hottestFlow.id) + '">' +
+        '<div><div class="start-title">▶ ' + esc(hottestFlow.name) + '</div><div class="start-why">Hottest flow · ' + hottestFlow.serialAwaitCount + " serial awaits" + (hottestFlow.hazardCount > 0 ? " · " + hottestFlow.hazardCount + " flags" : "") + "</div></div>" +
+        '<span class="badge ' + (hottestFlow.hazardCount > 0 ? "b-warn" : "b-cyan") + '">Flows →</span></button>'
+      );
+    }
+    if (topBlocker) {
+      startCards.push(
+        '<button class="start-card" data-jump-checks="1">' +
+        '<div><div class="start-title">' + esc(topBlocker.name) + '</div><div class="start-why">' + topBlocker.violationCount + " architectural blocker" + (topBlocker.violationCount === 1 ? "" : "s") + "</div></div>" +
+        '<span class="badge b-fail">Fix →</span></button>'
+      );
+    }
 
     const statStrip = !scopedUnitSlug
       ? '<div class="stat-strip">' +
@@ -296,26 +303,21 @@ export function renderInspectorClientScript(): string {
         "</div>"
       : (storyHtml || "");
 
-    const makeLinkList = (list) =>
-      list.slice(0, 5).map((n) => '<span class="row-link mono" data-select-node="' + esc(n.id) + '">' + esc(shortPkg(n.label)) + "</span>").join(", ") +
-      (list.length > 5 ? ' <span class="muted">+' + (list.length - 5) + "</span>" : "");
+    const startSec = startCards.length > 0
+      ? '<div class="sec"><div class="sec-title"><span>Worth Looking At First</span></div>' + startCards.join("") + "</div>"
+      : "";
+
+    const scopedHealthSec = scopedUnitSlug ? findingsHtml : "";
+    const tipFoot = '<div class="muted" style="font-size:11.5px;line-height:1.5;margin-top:auto;padding-top:10px;border-top:1px solid #161e30">Click any card on the map to inspect · Double-click to drill into files · Press <span class="keycap">]</span> to hide this panel.</div>';
 
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(scopedUnitSlug ? scopedUnitSlug : DATA.repo.name) + '</div><div class="drawer-sub">' + esc(scopedUnitSlug ? drawerSub : DATA.repo.ecosystem + " · " + DATA.summary.indexedSourceFiles + " files") + "</div></div></div>" +
       (DATA.customUi?.briefingHtml ? '<div class="sec">' + DATA.customUi.briefingHtml + "</div>" : "") +
       statStrip +
-      (!scopedUnitSlug
-        ? '<div class="sec"><div class="sec-title">Start Exploring</div>' +
-          (apps.length > 0 ? '<div class="row"><span class="muted">Apps</span><span style="text-align:right">' + makeLinkList(apps) + "</span></div>" : "") +
-          (pkgs.length > 0 ? '<div class="row"><span class="muted">Packages</span><span style="text-align:right">' + makeLinkList(pkgs) + "</span></div>" : "") +
-          (stores.length > 0 ? '<div class="row"><span class="muted">Datastores</span><span style="text-align:right">' + makeLinkList(stores) + "</span></div>" : "") +
-          (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span style="text-align:right">' + makeLinkList(exts) + "</span></div>" : "") +
-          "</div>"
-        : "") +
-      topFlowsPreview +
+      startSec +
       tangleBanner +
-      findingsHtml +
-      traceHtml
+      scopedHealthSec +
+      tipFoot
     );
   }
 

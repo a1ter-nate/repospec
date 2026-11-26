@@ -352,5 +352,13 @@ export function renderStudioCss(inline: boolean): string {
   .more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 176px; background: #111726; border: 1px solid var(--rs-border-hi); border-radius: 8px; padding: 4px; box-shadow: var(--rs-shadow); display: flex; flex-direction: column; gap: 2px; }
   .more-menu button, .more-menu a { width: 100%; text-align: left; justify-content: flex-start; padding: 6px 9px; border-radius: 5px; font-size: 12px; text-decoration: none; color: var(--text-1); }
   .doc-note { font-size: 12.5px; line-height: 1.5; color: var(--text-2); border-left: 2px solid rgba(124,200,255,0.45); padding: 3px 10px; background: rgba(124,200,255,0.04); border-radius: 0 5px 5px 0; }
+  .drawer-tabs { display: flex; gap: 2px; border-bottom: 1px solid #161e30; margin: 2px 0 -4px; }
+  .drawer-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--text-3); padding: 6px 10px; font-size: 12px; font-weight: 500; cursor: pointer; transition: color 0.12s ease, border-color 0.12s ease; }
+  .drawer-tab:hover { color: var(--text-1); }
+  .drawer-tab.active { color: var(--text-1); font-weight: 600; border-bottom-color: var(--accent); }
+  .start-card { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 8px; background: #111622; border: 1px solid var(--rs-border); cursor: pointer; text-align: left; width: 100%; transition: border-color 0.12s ease, background 0.12s ease; }
+  .start-card:hover { border-color: rgba(124,200,255,0.5); background: #151c2c; }
+  .start-title { font-family: var(--font-mono, monospace); font-size: 12.5px; font-weight: 600; color: var(--text-1); }
+  .start-why { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 `;
 }

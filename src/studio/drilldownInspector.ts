@@ -100,20 +100,26 @@ export function renderDrilldownInspectorScript(): string {
       '<button class="tbtn" data-clear-sel="1">Back to Overview</button>' +
       "</div></details>";
 
+    const linkCount = inLinks.length + outLinks.length + fileFindings.length;
+    const fileSub = state.drawerSubtab === "links" && linkCount > 0 ? "links" : "code";
+    const fileTabBar = linkCount > 0 || f.s.length > 0 || surfaceRows.length > 0
+      ? '<div class="drawer-tabs">' +
+        '<button class="drawer-tab' + (fileSub === "code" ? " active" : "") + '" data-drawer-sub="code">Code</button>' +
+        '<button class="drawer-tab' + (fileSub === "links" ? " active" : "") + '" data-drawer-sub="links">Links' + (linkCount > 0 ? " (" + linkCount + ")" : "") + "</button>" +
+        "</div>"
+      : "";
+    const fileBody = fileSub === "links"
+      ? (findingsSec + callersSec + importsSec + surfacePreviewSec + symsHtml + surfacesSec + (typeof renderFileFlowFootnote === "function" ? renderFileFlowFootnote(f.p) : ""))
+      : renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false);
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(subMeta) + "</div></div></div>" +
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
       '<button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Callstack (' + allSyms.length + ") →</button>" +
       fileMore + "</div>" +
       (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p) : "") +
-      renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false) +
-      findingsSec +
-      callersSec +
-      importsSec +
-      surfacePreviewSec +
-      symsHtml +
-      surfacesSec +
-      (typeof renderFileFlowFootnote === "function" ? renderFileFlowFootnote(f.p) : "")
+      fileTabBar +
+      fileBody
     );
   }
 

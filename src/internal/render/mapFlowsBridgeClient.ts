@@ -113,14 +113,14 @@ export function renderMapFlowsBridgeClientScript(): string {
     }) + "</div>";
   }
 
-  function renderLocationFlowsSection(opts) {
+  function collectLocationFlows(opts) {
     const prefix = opts.dirPrefix ? opts.dirPrefix.replace(/\\/+$/, "") + "/" : "";
     const fileSet = opts.files && opts.files.length > 0 ? new Set(opts.files) : null;
     const flows = ALL_FLOWS.filter((wf) => {
       if (fileSet && fileSet.has(wf.file)) return true;
       if (prefix && wf.file.startsWith(prefix)) return true;
       return false;
-    });
+    }).sort((a, b) => (b.hazardCount || 0) - (a.hazardCount || 0) || (b.serialAwaitCount || 0) - (a.serialAwaitCount || 0));
     const asyncs = ALL_ASYNCS.filter((ah) => {
       const pf = ah.producer?.file || "";
       const cf = ah.consumer?.file || "";
@@ -134,54 +134,56 @@ export function renderMapFlowsBridgeClientScript(): string {
       return false;
     });
     const hubs = opts.nodeKind === "datastore" ? ALL_HUBS : [];
-    if (flows.length === 0 && asyncs.length === 0 && hubs.length === 0) return "";
+    return { flows, asyncs, hubs, total: flows.length + asyncs.length + hubs.length };
+  }
 
-    const disclosures = [];
-    if (flows.length > 0) {
-      const hazCount = flows.reduce((s, w) => s + (w.hazardCount || 0), 0);
-      disclosures.push(renderDisclosure({
-        title: "Flows Kicking Off Here",
-        meta: hazCount > 0 ? flows.length + " entrypoints · " + hazCount + " DDIA flags" : flows.length + " entrypoints",
-        badge: flows.length,
-        badgeClass: hazCount > 0 ? "b-warn" : "b-cyan",
-        tone: hazCount > 0 ? "warn" : "info",
-        open: false,
-        bodyHtml: flows.slice(0, 14).map((wf) =>
+  function renderLocationFlowsTabBody(opts) {
+    const m = collectLocationFlows(opts);
+    if (m.total === 0) return "";
+    const blocks = [];
+    if (m.flows.length > 0) {
+      blocks.push(
+        '<div class="sec" style="border-top:0;padding-top:4px"><div class="sec-title"><span>Work Flows Starting Here (' + m.flows.length + ')</span><span class="muted">highest impact first</span></div>' +
+        m.flows.slice(0, 14).map((wf) =>
           '<div class="row">' +
           '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-jump-flow="' + esc(wf.id) + '" title="Open ' + esc(wf.name) + ' in Flows tab">▶ ' + esc(wf.name) + "</span>" +
           '<span style="display:flex;gap:4px;align-items:center;flex-shrink:0">' +
           '<span class="muted mono" style="font-size:11px">' + wf.serialAwaitCount + "a</span>" +
           (wf.hazardCount > 0 ? '<span class="badge b-warn">' + wf.hazardCount + "!</span>" : '<span class="badge b-na">' + esc(wf.triggerKind || "http") + "</span>") +
           "</span></div>"
-        ).join("") + (flows.length > 14 ? '<div class="muted" style="font-size:11px">+' + (flows.length - 14) + " more in Flows tab</div>" : ""),
-      }));
+        ).join("") + (m.flows.length > 14 ? '<div class="muted" style="font-size:11px">+' + (m.flows.length - 14) + " more in Flows tab</div>" : "") + "</div>"
+      );
     }
-    if (asyncs.length > 0) {
-      disclosures.push(renderDisclosure({
-        title: "Async Triggers & Channels",
-        badge: asyncs.length,
-        badgeClass: "b-purple",
-        tone: "info",
-        open: false,
-        bodyHtml: asyncs.slice(0, 10).map((ah) => {
+    if (m.asyncs.length > 0) {
+      blocks.push(
+        '<div class="sec"><div class="sec-title"><span>Async Channels (' + m.asyncs.length + ")</span></div>" +
+        m.asyncs.slice(0, 10).map((ah) => {
           const idx = ALL_ASYNCS.indexOf(ah);
           return '<div class="row"><span class="row-link mono" data-jump-async="' + Math.max(0, idx) + '">⚡ ' + esc(ah.channel) + '</span><span class="badge b-na">' + esc(ah.transport) + "</span></div>";
-        }).join(""),
-      }));
+        }).join("") + "</div>"
+      );
     }
-    if (hubs.length > 0) {
-      disclosures.push(renderDisclosure({
-        title: "Entity Data Hubs",
-        badge: hubs.length,
-        badgeClass: "b-purple",
-        tone: "info",
-        open: false,
-        bodyHtml: hubs.slice(0, 10).map((h) =>
+    if (m.hubs.length > 0) {
+      blocks.push(
+        '<div class="sec"><div class="sec-title"><span>Entity Data Hubs (' + m.hubs.length + ")</span></div>" +
+        m.hubs.slice(0, 10).map((h) =>
           '<div class="row"><span class="row-link mono" data-jump-hub="' + esc(h.entity + "::" + (h.fields?.[0]?.field || "")) + '">' + esc(h.entity) + '</span><span class="muted mono">' + h.fieldCount + " fields</span></div>"
-        ).join(""),
-      }));
+        ).join("") + "</div>"
+      );
     }
-    return '<div class="sec"><div class="sec-title"><span>Flows From This Location</span><span class="muted">opens in Flows</span></div>' + disclosures.join("") + "</div>";
+    return blocks.join("");
+  }
+
+  function renderLocationFlowsSection(opts) {
+    const m = collectLocationFlows(opts);
+    if (m.total === 0) return "";
+    return '<div class="sec">' + renderDisclosure({
+      title: "Flows Starting Here",
+      badge: m.total,
+      badgeClass: m.flows.some((w) => w.hazardCount > 0) ? "b-warn" : "b-cyan",
+      open: false,
+      bodyHtml: renderLocationFlowsTabBody(opts),
+    }) + "</div>";
   }
 
   function handleMapFlowClick(target) {
