@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { aggregateRepoSpecs } from "../src/extractors/federate.ts";
 import { renderVisualHtml } from "../src/render.ts";
-import { RepoSpecV4Schema, type RepoSpecV4 } from "../src/schema.ts";
+import { parseRepoSpec, type RepoSpecV4 } from "../src/schema.ts";
 import type { CommitArchDiff } from "../src/studio/commitDiff.ts";
 
 function makeSmokeSpec(name: string, opts?: { externals?: string[]; entities?: Array<{ datastore: string; entity: string }> }): RepoSpecV4 {
-  return RepoSpecV4Schema.parse({
+  return parseRepoSpec({
     schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
     repo: {

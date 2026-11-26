@@ -17,6 +17,7 @@ direct_tested AS (
   SELECT DISTINCT fi.to_file AS file
   FROM file_imports fi
   JOIN files tf ON tf.file = fi.from_file AND tf.is_test = 1
+  WHERE fi.type_only = 0
 ),
 one_hop_tested AS (
   SELECT file FROM direct_tested
@@ -24,6 +25,7 @@ one_hop_tested AS (
   SELECT DISTINCT fi.to_file AS file
   FROM file_imports fi
   JOIN direct_tested dt ON dt.file = fi.from_file
+  WHERE fi.type_only = 0
 )
 SELECT
   f.file AS subject,

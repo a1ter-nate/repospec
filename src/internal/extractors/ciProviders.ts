@@ -89,7 +89,7 @@ export function isAzurePipelineFile(relFile: string): boolean {
   if (/(?:^|\/)env0\.workflow\.ya?ml$/i.test(relFile)) return false;
   return (
     /(?:^|\/)azure-pipelines(?:[-_.][^/]+)?\.ya?ml$/i.test(relFile) ||
-    /^(?:\.azure-pipelines|ci|pipelines|\.pipelines)\/[^/]+\.ya?ml$/i.test(relFile)
+    /^(?:\.azure-pipelines|\.azure|ci|pipelines|\.pipelines)\/.+\.ya?ml$/i.test(relFile)
   );
 }
 

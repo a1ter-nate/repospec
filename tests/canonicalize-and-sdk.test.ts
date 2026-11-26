@@ -293,7 +293,7 @@ describe("Canonicalization & SDK generation (R2 pure unit)", () => {
     ]);
   });
 
-  test("generateIdsModule and generateSqliteSdkModule emit typed IDs, z.never fallbacks, and readonly query helpers", () => {
+  test("generateIdsModule and generateSqliteSdkModule emit Effect Schema IDs, Schema.Never fallbacks, and readonly query helpers", () => {
     const spec = makeSpec([makeNode("arch:app:web", "app"), makeNode("arch:pkg:ui", "package")], []);
     const digest = hashSpec(spec);
     const idsSrc = generateIdsModule(spec, digest);
@@ -303,7 +303,7 @@ describe("Canonicalization & SDK generation (R2 pure unit)", () => {
     expect(idsSrc).toContain('export type AppId = "arch:app:web";');
     expect(idsSrc).toContain('export type PackageId = "arch:pkg:ui";');
     expect(idsSrc).toContain('export type EntityName = "orders";');
-    expect(idsSrc).toContain("export const StateMachineIdSchema = z.never();");
+    expect(idsSrc).toContain("export const StateMachineIdSchema = Schema.Never;");
     expect(sdkSrc).toContain('export const REPOSPEC_SDK_RUNTIME = "bun:sqlite" as const;');
     expect(sdkSrc).toContain("new Database(dbPath, { readonly: true })");
   });

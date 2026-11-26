@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { DomainSchema, EdgeKindSchema, NodeKindSchema, PRIMITIVE_SCHEMAS } from "./primitives.ts";
+import { Effect, Schema } from "effect";
+import { SchemaValidationError } from "../../effect/errors.ts";
+import { DomainSchema, PRIMITIVE_SCHEMAS, type DeepMutable } from "./primitives.ts";
 
 const {
   EcosystemSchema,
   ModuleCardSchema,
   StorageModeSchema,
   IacPlaneSchema,
-  RungSchema,
   LayerAxisSchema,
   NodeRoleSchema,
   ProvenanceSchema,
@@ -19,373 +19,276 @@ const {
   EntityOwnershipSchema,
   StateMachineRecordSchema,
   LoopRecordSchema,
+  NonNegInt,
+  PosInt,
 } = PRIMITIVE_SCHEMAS;
 
-const LayoutPointSchema = z.object({
-  x: z.number(),
-  y: z.number(),
+const PctSchema = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(100));
+
+const LayoutPointSchema = Schema.Struct({
+  x: Schema.Finite,
+  y: Schema.Finite,
 });
 
-const LayoutNodeSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  sublabel: z.string().optional(),
-  group: z.string().optional(),
-  lane: z.string().optional(),
-  layerAxis: LayerAxisSchema.optional(),
-  layerRank: z.number().int().nonnegative().optional(),
-  kind: z.string().min(1),
-  role: NodeRoleSchema.optional(),
+const LayoutNodeSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  label: Schema.NonEmptyString,
+  sublabel: Schema.optional(Schema.String),
+  group: Schema.optional(Schema.String),
+  lane: Schema.optional(Schema.String),
+  layerAxis: Schema.optional(LayerAxisSchema),
+  layerRank: Schema.optional(NonNegInt),
+  kind: Schema.NonEmptyString,
+  role: Schema.optional(NodeRoleSchema),
   domain: DomainSchema,
-  shape: z.enum(["box", "pill", "db", "hex"]),
-  expandable: z.boolean().optional(),
-  ambientBadges: z.array(z.string()).optional(),
-  findings: z.array(NodeFindingSummarySchema).optional(),
-  x: z.number(),
-  y: z.number(),
-  w: z.number(),
-  h: z.number(),
-  provenance: ProvenanceSchema.optional(),
+  shape: Schema.Literals(["box", "pill", "db", "hex"]),
+  expandable: Schema.optional(Schema.Boolean),
+  ambientBadges: Schema.optional(Schema.Array(Schema.String)),
+  findings: Schema.optional(Schema.Array(NodeFindingSummarySchema)),
+  x: Schema.Finite,
+  y: Schema.Finite,
+  w: Schema.Finite,
+  h: Schema.Finite,
+  provenance: Schema.optional(ProvenanceSchema),
 });
-export type LayoutNode = z.infer<typeof LayoutNodeSchema>;
+export type LayoutNode = DeepMutable<typeof LayoutNodeSchema.Type>;
 
-const LayoutEdgeSchema = z.object({
-  id: z.string().min(1),
-  from: z.string().min(1),
-  to: z.string().min(1),
-  kind: z.string().min(1),
-  tier: z.enum(["spine", "violation", "detail"]).optional(),
-  label: z.string().optional(),
-  weight: z.number().int().positive().optional(),
-  violation: z.boolean().optional(),
-  bidirectional: z.boolean().optional(),
-  confidence: z.enum(["observed", "inferred"]).default("observed"),
-  ruleIds: z.array(z.string()).optional(),
-  evidence: z.array(EdgeEvidenceItemSchema).optional(),
-  points: z.array(LayoutPointSchema),
+const LayoutEdgeSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  from: Schema.NonEmptyString,
+  to: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  tier: Schema.optional(Schema.Literals(["spine", "violation", "detail"])),
+  label: Schema.optional(Schema.String),
+  weight: Schema.optional(PosInt),
+  violation: Schema.optional(Schema.Boolean),
+  bidirectional: Schema.optional(Schema.Boolean),
+  confidence: Schema.Literals(["observed", "inferred"]).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => "observed" as const)),
+  ),
+  ruleIds: Schema.optional(Schema.Array(Schema.String)),
+  evidence: Schema.optional(Schema.Array(EdgeEvidenceItemSchema)),
+  points: Schema.Array(LayoutPointSchema),
 });
-export type LayoutEdge = z.infer<typeof LayoutEdgeSchema>;
+export type LayoutEdge = DeepMutable<typeof LayoutEdgeSchema.Type>;
 
-const DiagramLaneSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  x: z.number(),
-  y: z.number(),
-  w: z.number(),
-  h: z.number(),
-  lateral: z.boolean().optional(),
+const DiagramLaneSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  label: Schema.NonEmptyString,
+  x: Schema.Finite,
+  y: Schema.Finite,
+  w: Schema.Finite,
+  h: Schema.Finite,
+  lateral: Schema.optional(Schema.Boolean),
 });
-export type DiagramLane = z.infer<typeof DiagramLaneSchema>;
+export type DiagramLane = DeepMutable<typeof DiagramLaneSchema.Type>;
 
-const StaticTraceStepSchema = z.object({
-  nodeId: z.string().min(1),
-  edgeId: z.string().optional(),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
+const StaticTraceStepSchema = Schema.Struct({
+  nodeId: Schema.NonEmptyString,
+  edgeId: Schema.optional(Schema.String),
+  file: Schema.optional(Schema.String),
+  line: Schema.optional(PosInt),
 });
 
-const StaticTraceSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  disclaimer: z.literal("Static path — imports & declared wiring, not observed runtime flow."),
-  diagramId: z.string().min(1),
-  steps: z.array(StaticTraceStepSchema),
+const StaticTraceSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+  disclaimer: Schema.Literal("Static path — imports & declared wiring, not observed runtime flow."),
+  diagramId: Schema.NonEmptyString,
+  steps: Schema.Array(StaticTraceStepSchema),
 });
-export type StaticTrace = z.infer<typeof StaticTraceSchema>;
+export type StaticTrace = DeepMutable<typeof StaticTraceSchema.Type>;
 
-const DiagramLayoutSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  subtitle: z.string().min(1),
-  category: z.enum(["runtime", "modules", "subsystem", "packages", "domains", "layers", "behavior", "delivery"]),
-  ownerId: z.string().optional(),
-  parentDiagramId: z.string().optional(),
-  rankdir: z.enum(["LR", "TB"]),
-  width: z.number(),
-  height: z.number(),
-  lanes: z.array(DiagramLaneSchema).optional(),
-  unconnectedNodes: z.array(z.object({ id: z.string(), label: z.string(), kind: z.string() })).optional(),
-  foldedCount: z.number().int().nonnegative().optional(),
-  nodes: z.array(LayoutNodeSchema),
-  edges: z.array(LayoutEdgeSchema),
+const DiagramLayoutSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+  subtitle: Schema.NonEmptyString,
+  category: Schema.Literals(["runtime", "modules", "subsystem", "packages", "domains", "layers", "behavior", "delivery"]),
+  tierKind: Schema.optional(Schema.Literals(["inferred_dag_tiers", "enforced_layer_policy"])),
+  ownerId: Schema.optional(Schema.String),
+  parentDiagramId: Schema.optional(Schema.String),
+  rankdir: Schema.Literals(["LR", "TB"]),
+  width: Schema.Finite,
+  height: Schema.Finite,
+  lanes: Schema.optional(Schema.Array(DiagramLaneSchema)),
+  unconnectedNodes: Schema.optional(
+    Schema.Array(Schema.Struct({ id: Schema.String, label: Schema.String, kind: Schema.String })),
+  ),
+  foldedCount: Schema.optional(NonNegInt),
+  nodes: Schema.Array(LayoutNodeSchema),
+  edges: Schema.Array(LayoutEdgeSchema),
 });
-export type DiagramLayout = z.infer<typeof DiagramLayoutSchema>;
+export type DiagramLayout = DeepMutable<typeof DiagramLayoutSchema.Type>;
 
-const CoverageSourceSchema = z.enum(["lcov", "istanbul", "cobertura", "static_reachability_1hop"]);
-export type CoverageSource = z.infer<typeof CoverageSourceSchema>;
+const CoverageSourceSchema = Schema.Literals(["lcov", "istanbul", "cobertura", "static_reachability_1hop"]);
+export type CoverageSource = typeof CoverageSourceSchema.Type;
 
-const VerificationCoverageSchema = z.object({
-  totalSourceFiles: z.number().int().nonnegative(),
-  directlyTestedSourceFiles: z.number().int().nonnegative(),
-  directTestCoveragePct: z.number().min(0).max(100),
-  coverageSource: CoverageSourceSchema.optional(),
-  realLineCoveragePct: z.number().min(0).max(100).nullable().optional(),
-  realBranchCoveragePct: z.number().min(0).max(100).nullable().optional(),
-  coverageReportFile: z.string().nullable().optional(),
-  registeredGates: z.number().int().nonnegative(),
-  ciWiredGates: z.number().int().nonnegative(),
-  unwiredGateNames: z.array(z.string()),
-  invariantsPassed: z.number().int().nonnegative(),
-  invariantsWarned: z.number().int().nonnegative(),
-  invariantsFailed: z.number().int().nonnegative(),
-  invariantsNa: z.number().int().nonnegative(),
+const VerificationCoverageSchema = Schema.Struct({
+  totalSourceFiles: NonNegInt,
+  directlyTestedSourceFiles: NonNegInt,
+  directTestCoveragePct: PctSchema,
+  coverageSource: Schema.optional(CoverageSourceSchema),
+  realLineCoveragePct: Schema.optional(Schema.NullOr(PctSchema)),
+  realBranchCoveragePct: Schema.optional(Schema.NullOr(PctSchema)),
+  coverageReportFile: Schema.optional(Schema.NullOr(Schema.String)),
+  registeredGates: NonNegInt,
+  ciWiredGates: NonNegInt,
+  unwiredGateNames: Schema.Array(Schema.String),
+  invariantsPassed: NonNegInt,
+  invariantsWarned: NonNegInt,
+  invariantsFailed: NonNegInt,
+  invariantsNa: NonNegInt,
 });
-export type VerificationCoverage = z.infer<typeof VerificationCoverageSchema>;
+export type VerificationCoverage = DeepMutable<typeof VerificationCoverageSchema.Type>;
 
-const DiagnosticSchema = z.object({
-  code: z.string().min(1),
-  severity: z.enum(["error", "warn", "info"]),
-  message: z.string().min(1),
+const DiagnosticSchema = Schema.Struct({
+  code: Schema.NonEmptyString,
+  severity: Schema.Literals(["error", "warn", "info"]),
+  message: Schema.NonEmptyString,
 });
-export type SpecDiagnostic = z.infer<typeof DiagnosticSchema>;
+export type SpecDiagnostic = DeepMutable<typeof DiagnosticSchema.Type>;
 
-const CatalogArtifactSchema = z.object({
-  id: z.string().min(1),
-  kind: z.enum(["openapi", "formal_spec", "schema", "governance_doc"]),
-  file: z.string().min(1),
-  ownerUnitId: z.string().nullable(),
+const CatalogArtifactSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  kind: Schema.Literals(["openapi", "formal_spec", "schema", "governance_doc"]),
+  file: Schema.NonEmptyString,
+  ownerUnitId: Schema.NullOr(Schema.String),
 });
-export type CatalogArtifact = z.infer<typeof CatalogArtifactSchema>;
+export type CatalogArtifact = DeepMutable<typeof CatalogArtifactSchema.Type>;
 
-const SpecSummarySchema = z.object({
-  totalNodes: z.number().int().nonnegative(),
-  totalEdges: z.number().int().nonnegative(),
-  totalRules: z.number().int().nonnegative(),
-  crossDomainEdges: z.number().int().nonnegative(),
-  countsByDomain: z.record(DomainSchema, z.number().int().nonnegative()),
-  countsByNodeKind: z.record(z.string(), z.number().int().nonnegative()),
-  countsByEdgeKind: z.record(z.string(), z.number().int().nonnegative()),
-  testFilesByRung: z.record(z.string(), z.number().int().nonnegative()),
-  iacByPlane: z.record(IacPlaneSchema, z.number().int().nonnegative()),
-  workflowCount: z.number().int().nonnegative(),
-  ciJobCount: z.number().int().nonnegative(),
-  indexedSourceFiles: z.number().int().nonnegative(),
-  indexedImportEdges: z.number().int().nonnegative(),
-  datastoreEntities: z.number().int().nonnegative(),
-  externalServices: z.number().int().nonnegative(),
-  stateMachines: z.number().int().nonnegative(),
-  loops: z.number().int().nonnegative(),
-  httpEndpoints: z.number().int().nonnegative(),
-  foreignKeys: z.number().int().nonnegative(),
-  envBindings: z.number().int().nonnegative(),
-  govRules: z.number().int().nonnegative(),
-  docDriftCount: z.number().int().nonnegative(),
+const SpecSummarySchema = Schema.Struct({
+  totalNodes: NonNegInt,
+  totalEdges: NonNegInt,
+  totalRules: NonNegInt,
+  crossDomainEdges: NonNegInt,
+  countsByDomain: Schema.Record(DomainSchema, NonNegInt),
+  countsByNodeKind: Schema.Record(Schema.String, NonNegInt),
+  countsByEdgeKind: Schema.Record(Schema.String, NonNegInt),
+  testFilesByRung: Schema.Record(Schema.String, NonNegInt),
+  iacByPlane: Schema.Record(IacPlaneSchema, NonNegInt),
+  workflowCount: NonNegInt,
+  ciJobCount: NonNegInt,
+  indexedSourceFiles: NonNegInt,
+  indexedImportEdges: NonNegInt,
+  datastoreEntities: NonNegInt,
+  externalServices: NonNegInt,
+  stateMachines: NonNegInt,
+  loops: NonNegInt,
+  httpEndpoints: NonNegInt,
+  foreignKeys: NonNegInt,
+  envBindings: NonNegInt,
+  govRules: NonNegInt,
+  docDriftCount: NonNegInt,
 });
-export type SpecSummary = z.infer<typeof SpecSummarySchema>;
+export type SpecSummary = DeepMutable<typeof SpecSummarySchema.Type>;
 
-const HttpEndpointSummarySchema = z.object({
-  unit: z.string().min(1),
-  method: z.string().min(1),
-  path: z.string().min(1),
-  authGuard: z.string().nullable(),
-  source: z.enum(["openapi", "ast"]),
-  resolution: z.enum(["contract", "mounted", "fragment"]).optional(),
-  file: z.string().min(1),
-  line: z.number().int().positive().optional(),
+const HttpEndpointSummarySchema = Schema.Struct({
+  unit: Schema.NonEmptyString,
+  method: Schema.NonEmptyString,
+  path: Schema.NonEmptyString,
+  authGuard: Schema.NullOr(Schema.String),
+  source: Schema.Literals(["openapi", "ast"]),
+  resolution: Schema.optional(Schema.Literals(["contract", "mounted", "fragment"])),
+  file: Schema.NonEmptyString,
+  line: Schema.optional(PosInt),
 });
-export type HttpEndpointSummary = z.infer<typeof HttpEndpointSummarySchema>;
+export type HttpEndpointSummary = DeepMutable<typeof HttpEndpointSummarySchema.Type>;
 
-const ForeignKeySummarySchema = z.object({
-  fromTable: z.string().min(1),
-  fromColumn: z.string().min(1),
-  toTable: z.string().min(1),
-  toColumn: z.string().min(1),
-  onDelete: z.string().nullable(),
-  file: z.string().min(1),
+const ForeignKeySummarySchema = Schema.Struct({
+  fromTable: Schema.NonEmptyString,
+  fromColumn: Schema.NonEmptyString,
+  toTable: Schema.NonEmptyString,
+  toColumn: Schema.NonEmptyString,
+  onDelete: Schema.NullOr(Schema.String),
+  file: Schema.NonEmptyString,
 });
-export type ForeignKeySummary = z.infer<typeof ForeignKeySummarySchema>;
+export type ForeignKeySummary = DeepMutable<typeof ForeignKeySummarySchema.Type>;
 
-const EnvBindingSummarySchema = z.object({
-  name: z.string().min(1),
-  sources: z.array(z.string()),
-  units: z.array(z.string()),
-  isSecret: z.boolean(),
-  sampleFile: z.string().min(1),
+const EnvBindingSummarySchema = Schema.Struct({
+  name: Schema.NonEmptyString,
+  sources: Schema.Array(Schema.String),
+  units: Schema.Array(Schema.String),
+  isSecret: Schema.Boolean,
+  sampleFile: Schema.NonEmptyString,
 });
-export type EnvBindingSummary = z.infer<typeof EnvBindingSummarySchema>;
+export type EnvBindingSummary = DeepMutable<typeof EnvBindingSummarySchema.Type>;
 
-const GovRuleSummarySchema = z.object({
-  id: z.string().min(1),
-  kind: z.enum(["instruction", "prohibition", "owner", "diagnostic", "lint_ratchet"]),
-  scopePrefix: z.string(),
-  symbol: z.string().nullable(),
-  text: z.string().min(1),
-  rationale: z.string().nullable(),
-  file: z.string().min(1),
-  line: z.number().int().positive().optional(),
+const GovRuleSummarySchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  kind: Schema.Literals(["instruction", "prohibition", "owner", "diagnostic", "lint_ratchet"]),
+  scopePrefix: Schema.String,
+  symbol: Schema.NullOr(Schema.String),
+  text: Schema.NonEmptyString,
+  rationale: Schema.NullOr(Schema.String),
+  file: Schema.NonEmptyString,
+  line: Schema.optional(PosInt),
 });
-export type GovRuleSummary = z.infer<typeof GovRuleSummarySchema>;
+export type GovRuleSummary = DeepMutable<typeof GovRuleSummarySchema.Type>;
 
-export const RepoSpecV4Schema = z.object({
-  schemaVersion: z.literal("5.0.0"),
-  specKind: z.literal("repospec.canonical"),
-  repo: z.object({
-    name: z.string().min(1),
+export const RepoSpecV4Schema = Schema.Struct({
+  schemaVersion: Schema.Literal("5.0.0"),
+  specKind: Schema.Literal("repospec.canonical"),
+  repo: Schema.Struct({
+    name: Schema.NonEmptyString,
     ecosystem: EcosystemSchema,
-    languages: z.array(z.string()),
-    commitSha: z.string().nullable(),
-    branch: z.string().nullable(),
-    remote: z.string().nullable(),
-    scopeRootRel: z.string().min(1),
+    languages: Schema.Array(Schema.String),
+    commitSha: Schema.NullOr(Schema.String),
+    branch: Schema.NullOr(Schema.String),
+    remote: Schema.NullOr(Schema.String),
+    scopeRootRel: Schema.NonEmptyString,
     storageMode: StorageModeSchema,
-    extractors: z.array(z.string()),
+    extractors: Schema.Array(Schema.String),
   }),
-  nodes: z.array(SpecNodeSchema),
-  edges: z.array(SpecEdgeSchema),
-  rules: z.array(SpecRuleSchema),
-  invariants: z.array(SqlInvariantResultSchema),
-  entities: z.array(EntityOwnershipSchema),
-  stateMachines: z.array(StateMachineRecordSchema),
-  loops: z.array(LoopRecordSchema),
-  catalogArtifacts: z.array(CatalogArtifactSchema),
-  modules: z.array(ModuleCardSchema).default([]),
-  traces: z.array(StaticTraceSchema),
-  surfaces: z.object({
-    endpoints: z.array(HttpEndpointSummarySchema),
-    foreignKeys: z.array(ForeignKeySummarySchema),
-    envBindings: z.array(EnvBindingSummarySchema),
-    govRules: z.array(GovRuleSummarySchema),
+  nodes: Schema.Array(SpecNodeSchema),
+  edges: Schema.Array(SpecEdgeSchema),
+  rules: Schema.Array(SpecRuleSchema),
+  invariants: Schema.Array(SqlInvariantResultSchema),
+  entities: Schema.Array(EntityOwnershipSchema),
+  stateMachines: Schema.Array(StateMachineRecordSchema),
+  loops: Schema.Array(LoopRecordSchema),
+  catalogArtifacts: Schema.Array(CatalogArtifactSchema),
+  modules: Schema.Array(ModuleCardSchema).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly (typeof ModuleCardSchema.Encoded)[])),
+  ),
+  traces: Schema.Array(StaticTraceSchema),
+  surfaces: Schema.Struct({
+    endpoints: Schema.Array(HttpEndpointSummarySchema),
+    foreignKeys: Schema.Array(ForeignKeySummarySchema),
+    envBindings: Schema.Array(EnvBindingSummarySchema),
+    govRules: Schema.Array(GovRuleSummarySchema),
   }),
-  diagrams: z.array(DiagramLayoutSchema),
+  diagrams: Schema.Array(DiagramLayoutSchema),
   verification: VerificationCoverageSchema,
-  diagnostics: z.array(DiagnosticSchema),
+  diagnostics: Schema.Array(DiagnosticSchema),
   summary: SpecSummarySchema,
 });
-export type RepoSpecV4 = z.infer<typeof RepoSpecV4Schema>;
+export type RepoSpecV4 = DeepMutable<typeof RepoSpecV4Schema.Type>;
+
+export function parseRepoSpec(input: unknown): RepoSpecV4 {
+  return Schema.decodeUnknownSync(RepoSpecV4Schema)(input) as RepoSpecV4;
+}
+
+export function decodeRepoSpecEffect(input: unknown): Effect.Effect<RepoSpecV4, SchemaValidationError> {
+  return Effect.try({
+    try: () => parseRepoSpec(input),
+    catch: (cause) =>
+      new SchemaValidationError({
+        subject: "RepoSpecV4",
+        message: cause instanceof Error ? cause.message : String(cause),
+      }),
+  });
+}
 
 export function buildRepoSpecJsonSchema(): Record<string, unknown> {
-  return {
+  const doc = Schema.toJsonSchemaDocument(RepoSpecV4Schema);
+  const out: Record<string, unknown> = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://repospec.dev/schemas/repospec.v5.schema.json",
     title: "RepoSpec Canonical IR v5.0.0",
-    type: "object",
-    required: [
-      "schemaVersion",
-      "specKind",
-      "repo",
-      "nodes",
-      "edges",
-      "rules",
-      "invariants",
-      "entities",
-      "stateMachines",
-      "loops",
-      "catalogArtifacts",
-      "modules",
-      "traces",
-      "surfaces",
-      "diagrams",
-      "verification",
-      "diagnostics",
-      "summary",
-    ],
-    additionalProperties: false,
-    properties: {
-      schemaVersion: { const: "5.0.0" },
-      specKind: { const: "repospec.canonical" },
-      repo: {
-        type: "object",
-        required: [
-          "name",
-          "ecosystem",
-          "languages",
-          "commitSha",
-          "branch",
-          "remote",
-          "scopeRootRel",
-          "storageMode",
-          "extractors",
-        ],
-        properties: {
-          name: { type: "string", minLength: 1 },
-          ecosystem: { enum: [...EcosystemSchema.options] },
-          languages: { type: "array", items: { type: "string" } },
-          commitSha: { type: ["string", "null"] },
-          branch: { type: ["string", "null"] },
-          remote: { type: ["string", "null"] },
-          scopeRootRel: { type: "string", minLength: 1 },
-          storageMode: { enum: [...StorageModeSchema.options] },
-          extractors: { type: "array", items: { type: "string" } },
-        },
-      },
-      nodes: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["id", "domain", "kind", "label", "provenance", "tags", "meta"],
-          properties: {
-            id: { type: "string" },
-            domain: { enum: [...DomainSchema.options] },
-            kind: { enum: [...NodeKindSchema.options] },
-            role: { enum: [...NodeRoleSchema.options] },
-            label: { type: "string" },
-            group: { type: "string" },
-            ownerId: { type: "string" },
-            provenance: {
-              type: "object",
-              required: ["file"],
-              properties: { file: { type: "string" }, line: { type: "integer", minimum: 1 } },
-            },
-            tags: { type: "array", items: { type: "string" } },
-            findings: { type: "array" },
-            meta: { type: "object" },
-          },
-        },
-      },
-      edges: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["from", "to", "kind", "confidence"],
-          properties: {
-            from: { type: "string" },
-            to: { type: "string" },
-            kind: { enum: [...EdgeKindSchema.options] },
-            label: { type: "string" },
-            weight: { type: "integer", minimum: 1 },
-            violation: { type: "boolean" },
-            ruleIds: { type: "array", items: { type: "string" } },
-            confidence: { enum: ["observed", "inferred"] },
-          },
-        },
-      },
-      rules: { type: "array", items: { type: "object" } },
-      invariants: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["id", "name", "rung", "severity", "status", "sqlFile", "statement", "why", "fix", "violationCount", "evidence"],
-          properties: {
-            id: { type: "string" },
-            name: { type: "string" },
-            rung: { enum: [...RungSchema.options] },
-            severity: { enum: ["error", "warn", "info"] },
-            status: { enum: ["pass", "warn", "fail", "na"] },
-            applicabilityReason: { type: "string" },
-            violationCount: { type: "integer", minimum: 0 },
-          },
-        },
-      },
-      entities: { type: "array", items: { type: "object" } },
-      stateMachines: { type: "array", items: { type: "object" } },
-      loops: { type: "array", items: { type: "object" } },
-      catalogArtifacts: { type: "array", items: { type: "object" } },
-      modules: { type: "array", items: { type: "object" } },
-      traces: { type: "array", items: { type: "object" } },
-      surfaces: {
-        type: "object",
-        required: ["endpoints", "foreignKeys", "envBindings", "govRules"],
-        properties: {
-          endpoints: { type: "array" },
-          foreignKeys: { type: "array" },
-          envBindings: { type: "array" },
-          govRules: { type: "array" },
-        },
-      },
-      diagrams: { type: "array", items: { type: "object" } },
-      verification: { type: "object" },
-      diagnostics: { type: "array", items: { type: "object" } },
-      summary: { type: "object" },
-    },
+    ...(doc.schema as Record<string, unknown>),
   };
+  if (Object.keys(doc.definitions).length > 0) {
+    out.$defs = doc.definitions;
+  }
+  return out;
 }

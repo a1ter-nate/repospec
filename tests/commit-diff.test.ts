@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { RepoSpecV4Schema, type RepoSpecV4 } from "../src/schema.ts";
+import { parseRepoSpec, type RepoSpecV4 } from "../src/schema.ts";
 import { buildCommitArchDiff } from "../src/studio/commitDiff.ts";
 
 function makeBaseSpec(overrides: {
@@ -16,7 +16,7 @@ function makeBaseSpec(overrides: {
   const endpoints = overrides.endpoints ?? [];
   const envNames = overrides.envNames ?? [];
   const entities = overrides.entities ?? [];
-  return RepoSpecV4Schema.parse({
+  return parseRepoSpec({
     schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
     repo: {

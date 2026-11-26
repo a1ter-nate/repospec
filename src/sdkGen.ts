@@ -5,11 +5,11 @@ function formatUnion(values: string[]): string {
   return values.map((v) => JSON.stringify(v)).join(" | ");
 }
 
-function formatZodEnum(name: string, values: string[]): string {
+function formatSchemaEnum(name: string, values: string[]): string {
   if (values.length === 0) {
-    return `export const ${name} = z.never();`;
+    return `export const ${name} = Schema.Never;`;
   }
-  return `export const ${name} = z.enum([${values.map((v) => JSON.stringify(v)).join(", ")}]);`;
+  return `export const ${name} = Schema.Literals([${values.map((v) => JSON.stringify(v)).join(", ")}]);`;
 }
 
 export function generateIdsModule(spec: RepoSpecV4, digest: string): string {
@@ -22,16 +22,16 @@ export function generateIdsModule(spec: RepoSpecV4, digest: string): string {
   const invariantIds = spec.invariants.map((i) => i.id);
   const stateMachineIds = spec.stateMachines.map((m) => m.id);
 
-  return `import { z } from "zod";
+  return `import { Schema } from "effect";
 
 export const REPOSPEC_SCHEMA_VERSION = ${JSON.stringify(spec.schemaVersion)} as const;
 export const REPOSPEC_DIGEST = ${JSON.stringify(digest)} as const;
 export const REPOSPEC_REPO = ${JSON.stringify(spec.repo.name)} as const;
 export const REPOSPEC_ECOSYSTEM = ${JSON.stringify(spec.repo.ecosystem)} as const;
 
-export type Domain = ${formatUnion([...DomainSchema.options])};
-export type NodeKind = ${formatUnion([...NodeKindSchema.options])};
-export type EdgeKind = ${formatUnion([...EdgeKindSchema.options])};
+export type Domain = ${formatUnion([...DomainSchema.literals])};
+export type NodeKind = ${formatUnion([...NodeKindSchema.literals])};
+export type EdgeKind = ${formatUnion([...EdgeKindSchema.literals])};
 export type UnitId = ${formatUnion(unitIds)};
 export type AppId = ${formatUnion(appIds)};
 export type PackageId = ${formatUnion(pkgIds)};
@@ -39,87 +39,89 @@ export type EntityName = ${formatUnion(entityNames)};
 export type InvariantId = ${formatUnion(invariantIds)};
 export type StateMachineId = ${formatUnion(stateMachineIds)};
 
-export const DomainSchema = z.enum(${JSON.stringify([...DomainSchema.options])});
-export const NodeKindSchema = z.enum(${JSON.stringify([...NodeKindSchema.options])});
-export const EdgeKindSchema = z.enum(${JSON.stringify([...EdgeKindSchema.options])});
-${formatZodEnum("UnitIdSchema", unitIds)}
-${formatZodEnum("AppIdSchema", appIds)}
-${formatZodEnum("PackageIdSchema", pkgIds)}
-${formatZodEnum("EntityNameSchema", entityNames)}
-${formatZodEnum("InvariantIdSchema", invariantIds)}
-${formatZodEnum("StateMachineIdSchema", stateMachineIds)}
+export const DomainSchema = Schema.Literals(${JSON.stringify([...DomainSchema.literals])});
+export const NodeKindSchema = Schema.Literals(${JSON.stringify([...NodeKindSchema.literals])});
+export const EdgeKindSchema = Schema.Literals(${JSON.stringify([...EdgeKindSchema.literals])});
+${formatSchemaEnum("UnitIdSchema", unitIds)}
+${formatSchemaEnum("AppIdSchema", appIds)}
+${formatSchemaEnum("PackageIdSchema", pkgIds)}
+${formatSchemaEnum("EntityNameSchema", entityNames)}
+${formatSchemaEnum("InvariantIdSchema", invariantIds)}
+${formatSchemaEnum("StateMachineIdSchema", stateMachineIds)}
 `;
 }
 
 export function generateSqliteSdkModule(): string {
   return `import { Database } from "bun:sqlite";
-import { z } from "zod";
+import { Schema } from "effect";
 import type { Domain, EdgeKind, EntityName, InvariantId, NodeKind, UnitId } from "./repospec.ids.ts";
 
 export const REPOSPEC_SDK_RUNTIME = "bun:sqlite" as const;
 
-export const NodeRowSchema = z.object({
-  id: z.string(),
-  domain: z.string(),
-  kind: z.string(),
-  role: z.string().nullable(),
-  label: z.string(),
-  grp: z.string().nullable(),
-  owner_id: z.string().nullable(),
-  file: z.string(),
-  line: z.number().nullable(),
+export const NodeRowSchema = Schema.Struct({
+  id: Schema.String,
+  domain: Schema.String,
+  kind: Schema.String,
+  role: Schema.NullOr(Schema.String),
+  label: Schema.String,
+  grp: Schema.NullOr(Schema.String),
+  owner_id: Schema.NullOr(Schema.String),
+  file: Schema.String,
+  line: Schema.NullOr(Schema.Number),
 });
-export type NodeRow = z.infer<typeof NodeRowSchema>;
+export type NodeRow = typeof NodeRowSchema.Type;
 
-export const EdgeRowSchema = z.object({
-  from_id: z.string(),
-  to_id: z.string(),
-  kind: z.string(),
-  label: z.string().nullable(),
-  weight: z.number(),
-  violation: z.number(),
-  confidence: z.string(),
-  file: z.string().nullable(),
-  line: z.number().nullable(),
+export const EdgeRowSchema = Schema.Struct({
+  from_id: Schema.String,
+  to_id: Schema.String,
+  kind: Schema.String,
+  label: Schema.NullOr(Schema.String),
+  weight: Schema.Number,
+  violation: Schema.Number,
+  confidence: Schema.String,
+  file: Schema.NullOr(Schema.String),
+  line: Schema.NullOr(Schema.Number),
 });
-export type EdgeRow = z.infer<typeof EdgeRowSchema>;
+export type EdgeRow = typeof EdgeRowSchema.Type;
 
-export const InvariantRowSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  rung: z.string(),
-  severity: z.string(),
-  status: z.string(),
-  applicability_reason: z.string().nullable(),
-  statement: z.string(),
-  violation_count: z.number(),
+export const InvariantRowSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  rung: Schema.String,
+  severity: Schema.String,
+  status: Schema.String,
+  applicability_reason: Schema.NullOr(Schema.String),
+  statement: Schema.String,
+  violation_count: Schema.Number,
 });
-export type InvariantRow = z.infer<typeof InvariantRowSchema>;
+export type InvariantRow = typeof InvariantRowSchema.Type;
 
-export const FilePassportRowSchema = z.object({
-  file: z.string(),
-  unit: z.string(),
-  unit_id: z.string(),
-  unit_archetype: z.string(),
-  layer_policy: z.string(),
-  language: z.string(),
-  raw_layer: z.string(),
-  canonical_layer: z.string(),
-  domain_area: z.string().nullable(),
-  layer_source: z.string(),
-  domain_source: z.string(),
-  is_test: z.number(),
-  is_barrel: z.number(),
-  lines: z.number(),
-  exports_count: z.number(),
-  prod_fan_in: z.number(),
-  fan_out: z.number(),
-  direct_test_importers: z.number(),
-  active_violation_count: z.number(),
+export const FilePassportRowSchema = Schema.Struct({
+  file: Schema.String,
+  unit: Schema.String,
+  unit_id: Schema.String,
+  unit_archetype: Schema.String,
+  layer_policy: Schema.String,
+  language: Schema.String,
+  raw_layer: Schema.String,
+  canonical_layer: Schema.String,
+  domain_area: Schema.NullOr(Schema.String),
+  layer_source: Schema.String,
+  domain_source: Schema.String,
+  is_test: Schema.Number,
+  is_barrel: Schema.Number,
+  lines: Schema.Number,
+  exports_count: Schema.Number,
+  prod_fan_in: Schema.Number,
+  fan_out: Schema.Number,
+  direct_test_importers: Schema.Number,
+  active_violation_count: Schema.Number,
 });
-export type FilePassportRow = z.infer<typeof FilePassportRowSchema>;
+export type FilePassportRow = typeof FilePassportRowSchema.Type;
 
 export type LookupResult<T> = { found: true; data: T } | { found: false; reason: string };
+
+const decodeFilePassport = Schema.decodeUnknownSync(FilePassportRowSchema);
 
 export function openRepoSpec(dbPath: string) {
   const db = new Database(dbPath, { readonly: true });
@@ -179,7 +181,7 @@ export function openRepoSpec(dbPath: string) {
     explainFile(relFile: string): LookupResult<FilePassportRow> {
       const row = db.query("SELECT * FROM v_file_passport WHERE file = ?").get(relFile) as FilePassportRow | null;
       if (!row) return { found: false, reason: \`File "\${relFile}" not found in repospec.sqlite\` };
-      return { found: true, data: FilePassportRowSchema.parse(row) };
+      return { found: true, data: decodeFilePassport(row) };
     },
 
     ownersOfEntity(entity: EntityName): LookupResult<{

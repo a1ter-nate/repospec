@@ -1,7 +1,7 @@
 import { hashSpec } from "../canonicalize.ts";
 import { buildAllDiagrams, buildStaticTraces, resolveEvidenceAnchors } from "../layout.ts";
 import {
-  RepoSpecV4Schema,
+  parseRepoSpec,
   type DiagramLayout,
   type EnvBindingSummary,
   type HttpEndpointSummary,
@@ -398,7 +398,7 @@ export function aggregateRepoSpecs(params: {
   const countsByEdgeKind: Record<string, number> = {};
   for (const e of edges) countsByEdgeKind[e.kind] = (countsByEdgeKind[e.kind] ?? 0) + 1;
 
-  const spec: RepoSpecV4 = RepoSpecV4Schema.parse({
+  const spec: RepoSpecV4 = parseRepoSpec({
     schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
     repo: {

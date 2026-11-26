@@ -13,7 +13,7 @@ import type {
   UnitDescriptor,
 } from "../../schema.ts";
 import { resolveLayerSemantics } from "../../taxonomy.ts";
-import type { RealCoverageReport } from "../coverage.ts";
+import { resolveCoveragePctForFile, type RealCoverageReport } from "../coverage.ts";
 import { initIndexDbSchema } from "./ddl.ts";
 
 export function createAndPopulateIndexDb(params: {
@@ -231,6 +231,10 @@ export function createAndPopulateIndexDb(params: {
     if (realCoverage) {
       for (const [covFile, pct] of realCoverage.fileLinePct) {
         insertFileCoverage.run(covFile, pct);
+      }
+      for (const f of ast.files) {
+        const matched = resolveCoveragePctForFile(f.file, realCoverage);
+        if (matched !== undefined) insertFileCoverage.run(f.file, matched);
       }
     }
     for (const m of modules) {

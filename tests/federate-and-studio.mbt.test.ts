@@ -6,7 +6,7 @@ import fc from "fast-check";
 import { startStudioServer } from "../src/ai/studioServer.ts";
 import { aggregateRepoSpecs } from "../src/extractors/federate.ts";
 import { computeTopologicalLevels } from "../src/internal/topoLevels.ts";
-import { RepoSpecV4Schema, type RepoSpecV4 } from "../src/schema.ts";
+import { parseRepoSpec, type RepoSpecV4 } from "../src/schema.ts";
 
 interface MeshModel {
   repos: Map<string, { role: "client" | "service" | "library"; externals: Set<string>; entities: Set<string> }>;
@@ -25,7 +25,7 @@ function buildRepoSpecFromModel(
 ): RepoSpecV4 {
   const externals = Array.from(state.externals).sort();
   const entities = Array.from(state.entities).sort();
-  return RepoSpecV4Schema.parse({
+  return parseRepoSpec({
     schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
     repo: {

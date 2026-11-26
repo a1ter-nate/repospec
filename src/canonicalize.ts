@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   createEmptyAst,
-  RepoSpecV4Schema,
+  parseRepoSpec,
   type AstIndexData,
   type CatalogArtifact,
   type DiagramLayout,
@@ -343,7 +343,7 @@ export function buildCanonicalSpec(params: {
     },
   };
 
-  return RepoSpecV4Schema.parse(spec);
+  return parseRepoSpec(spec);
 }
 
 export function serializeSpec(spec: RepoSpecV4): string {

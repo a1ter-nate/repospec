@@ -152,6 +152,7 @@ export function extractBunServeEndpoints(
   const fetchRoots: ts.Node[] = [];
   const referencedHandlerNames = new Set<string>();
   const localFunctions = new Map<string, ts.Node>();
+  const declarativeRoutes: Array<{ method: string; path: string; line: number }> = [];
 
   const scanTop = (node: ts.Node): void => {
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
@@ -187,6 +188,31 @@ export function extractBunServeEndpoints(
               }
             } else if (ts.isShorthandPropertyAssignment(p) && p.name.text === "fetch") {
               referencedHandlerNames.add("fetch");
+            } else if (
+              ts.isPropertyAssignment(p) &&
+              ts.isIdentifier(p.name) &&
+              p.name.text === "routes" &&
+              ts.isObjectLiteralExpression(p.initializer)
+            ) {
+              for (const rp of p.initializer.properties) {
+                if (!ts.isPropertyAssignment(rp)) continue;
+                const routeKey = ts.isStringLiteral(rp.name) || ts.isNoSubstitutionTemplateLiteral(rp.name) ? rp.name.text : null;
+                if (!routeKey || !routeKey.startsWith("/")) continue;
+                const line = sf.getLineAndCharacterOfPosition(rp.name.getStart(sf)).line + 1;
+                if (ts.isObjectLiteralExpression(rp.initializer)) {
+                  let matchedMethod = false;
+                  for (const mp of rp.initializer.properties) {
+                    const mName = mp.name && (ts.isIdentifier(mp.name) || ts.isStringLiteral(mp.name)) ? mp.name.text : "";
+                    if (HTTP_METHOD_LITERAL_RE.test(mName)) {
+                      matchedMethod = true;
+                      declarativeRoutes.push({ method: mName.toUpperCase(), path: routeKey, line });
+                    }
+                  }
+                  if (!matchedMethod) declarativeRoutes.push({ method: "ANY", path: routeKey, line });
+                } else {
+                  declarativeRoutes.push({ method: "ANY", path: routeKey, line });
+                }
+              }
             }
           }
         }
@@ -202,10 +228,26 @@ export function extractBunServeEndpoints(
     const fnBody = localFunctions.get(name);
     if (fnBody) fetchRoots.push(fnBody);
   }
-  if (fetchRoots.length === 0) fetchRoots.push(sf);
+  if (fetchRoots.length === 0 && declarativeRoutes.length === 0) fetchRoots.push(sf);
 
   const out: HttpEndpointFact[] = [];
   const seen = new Set<string>();
+  for (const dr of declarativeRoutes) {
+    const key = `${dr.method}|${dr.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      unit: unitName,
+      method: dr.method,
+      path: dr.path,
+      authGuard: null,
+      source: "ast",
+      resolution: "mounted",
+      handlerFile: relFile,
+      line: dr.line,
+      operationId: null,
+    });
+  }
   for (const root of fetchRoots) {
     collectRoutesFromBody(root, sf, unitName, relFile, out, seen);
   }

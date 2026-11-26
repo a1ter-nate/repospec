@@ -3,7 +3,7 @@ import path from "node:path";
 import type { AstIndexData, UnitDescriptor } from "../schema.ts";
 import { extractGitChurnMap } from "../extractors/gitMetrics.ts";
 import { isExcludedCodePath } from "../extractors/moduleFacts.ts";
-import type { RealCoverageReport } from "../internal/coverage.ts";
+import { resolveCoveragePctForFile, type RealCoverageReport } from "../internal/coverage.ts";
 import { extractFileCallGraph, packSourceArchiveBase64, type FileSymbolTuple } from "./fileSymbols.ts";
 
 export interface DrilldownFile {
@@ -116,7 +116,7 @@ export function buildDrilldownIndex(
       t: Array.from(entitiesByFile.get(f.file) ?? []).sort().slice(0, 10),
       v: Array.from(envByFile.get(f.file) ?? []).sort().slice(0, 10),
       tc: testedProdFiles.has(f.file) ? 1 : 0,
-      fc: realCoverage?.fileLinePct.get(f.file),
+      fc: resolveCoveragePctForFile(f.file, realCoverage),
       ch: churnByFile.get(f.file) ?? 0,
       m: callGraph && callGraph.m.length > 0 ? callGraph.m : undefined,
       k: callGraph && callGraph.m.length > 0 ? callGraph.k : undefined,

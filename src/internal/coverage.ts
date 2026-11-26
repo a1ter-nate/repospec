@@ -196,6 +196,21 @@ export function discoverRealCoverageReport(repoRoot: string): RealCoverageReport
   return null;
 }
 
+export function resolveCoveragePctForFile(
+  filePath: string,
+  realCoverage: RealCoverageReport | null | undefined,
+): number | undefined {
+  if (!realCoverage) return undefined;
+  const exact = realCoverage.fileLinePct.get(filePath);
+  if (exact !== undefined) return exact;
+  for (const [covKey, pct] of realCoverage.fileLinePct) {
+    if (filePath.endsWith(`/${covKey}`) || covKey.endsWith(`/${filePath}`)) {
+      return pct;
+    }
+  }
+  return undefined;
+}
+
 export function buildVerificationScopeSummary(v: VerificationCoverage): {
   coverage: {
     source: string;

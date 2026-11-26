@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  RepoSpecV4Schema,
+  parseRepoSpec,
   type DiagramLayout,
   type EntityOwnership,
   type RepoSpecV4,
@@ -35,7 +35,7 @@ export function loadFederationInputs(inputPaths: string[]): FederationInput[] {
     if (!fs.existsSync(specPath)) {
       throw new Error(`RepoSpec JSON not found at ${specPath}`);
     }
-    const spec = RepoSpecV4Schema.parse(JSON.parse(fs.readFileSync(specPath, "utf8")));
+    const spec = parseRepoSpec(JSON.parse(fs.readFileSync(specPath, "utf8")));
     const dir = path.dirname(specPath);
     const diffPath = path.join(dir, "repospec.diff.json");
     let diff: CommitArchDiff | undefined;

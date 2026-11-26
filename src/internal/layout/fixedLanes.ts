@@ -331,11 +331,19 @@ export function layoutFixedLanes(
     };
   });
 
+  const tierKind =
+    category === "modules" || category === "subsystem"
+      ? ("inferred_dag_tiers" as const)
+      : category === "layers"
+        ? ("enforced_layer_policy" as const)
+        : undefined;
+
   return {
     id,
     title,
     subtitle,
     category,
+    tierKind,
     ownerId: opts?.ownerId,
     parentDiagramId: opts?.parentDiagramId,
     rankdir: "LR",

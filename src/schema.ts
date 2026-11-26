@@ -33,7 +33,12 @@ export type {
   UnitArchetype,
 } from "./internal/schema/primitives.ts";
 
-export { buildRepoSpecJsonSchema, RepoSpecV4Schema } from "./internal/schema/specSchema.ts";
+export {
+  buildRepoSpecJsonSchema,
+  decodeRepoSpecEffect,
+  parseRepoSpec,
+  RepoSpecV4Schema,
+} from "./internal/schema/specSchema.ts";
 export type {
   CatalogArtifact,
   DiagramLane,

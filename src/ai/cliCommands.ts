@@ -200,30 +200,6 @@ export async function runTimelineCommand(params: {
   return timeline;
 }
 
-export function runAggregateCli(args: string[], renderHtmlFn: RenderVisualHtmlFn): void {
-  const flagVal = (f: string): string | undefined => {
-    const i = args.indexOf(f);
-    return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
-  };
-  const outDir = flagVal("--out") ?? path.join(process.cwd(), "out", "distributed-system");
-  const name = flagVal("--name");
-  const linksPath = flagVal("--links");
-  const inputPaths: string[] = [];
-  for (let i = 1; i < args.length; i += 1) {
-    const a = args[i] ?? "";
-    if (a === "--out" || a === "--name" || a === "--links") {
-      i += 1;
-      continue;
-    }
-    if (!a.startsWith("--")) inputPaths.push(a);
-  }
-  if (inputPaths.length === 0) {
-    console.error("Usage: repospec aggregate <specOrDir>... [--out <dir>] [--name <title>] [--links <topology.json>] [--inline]");
-    process.exit(1);
-  }
-  runAggregateCommand({ inputPaths, outDir, name, linksPath, writeInline: args.includes("--inline"), renderHtmlFn });
-}
-
 export function runAggregateCommand(params: {
   inputPaths: string[];
   outDir: string;

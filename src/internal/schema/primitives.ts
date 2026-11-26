@@ -1,66 +1,75 @@
-import { z } from "zod";
+import { Effect, Schema } from "effect";
 
-export const DomainSchema = z.enum(["arch", "ci", "test", "iac", "rules"]);
-export type Domain = z.infer<typeof DomainSchema>;
+export type DeepMutable<T> = T extends readonly (infer U)[]
+  ? DeepMutable<U>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+    : T;
 
-const EcosystemSchema = z.enum(["typescript", "javascript", "rust", "python", "csharp", "polyglot"]);
-export type Ecosystem = z.infer<typeof EcosystemSchema>;
+export const DomainSchema = Schema.Literals(["arch", "ci", "test", "iac", "rules"]);
+export type Domain = typeof DomainSchema.Type;
 
-const CapabilityTagSchema = z.enum(["FS", "DB", "HTTP", "PROC", "ENV", "PURE"]);
-export type CapabilityTag = z.infer<typeof CapabilityTagSchema>;
+const EcosystemSchema = Schema.Literals(["typescript", "javascript", "rust", "python", "csharp", "polyglot"]);
+export type Ecosystem = typeof EcosystemSchema.Type;
 
-const ExportedSymbolSchema = z.object({
-  name: z.string().min(1),
-  kind: z.enum(["function", "class", "type", "const", "command", "route"]),
-  file: z.string().min(1),
-  line: z.number().int().positive(),
+const CapabilityTagSchema = Schema.Literals(["FS", "DB", "HTTP", "PROC", "ENV", "PURE"]);
+export type CapabilityTag = typeof CapabilityTagSchema.Type;
+
+const NonNegInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const PosInt = Schema.Int.check(Schema.isGreaterThan(0));
+
+const ExportedSymbolSchema = Schema.Struct({
+  name: Schema.NonEmptyString,
+  kind: Schema.Literals(["function", "class", "type", "const", "command", "route"]),
+  file: Schema.NonEmptyString,
+  line: PosInt,
 });
-export type ExportedSymbol = z.infer<typeof ExportedSymbolSchema>;
+export type ExportedSymbol = DeepMutable<typeof ExportedSymbolSchema.Type>;
 
-const ModuleRoleSchema = z.enum(["entry", "orchestrator", "core", "adapter", "foundation", "standalone"]);
-export type ModuleRole = z.infer<typeof ModuleRoleSchema>;
+const ModuleRoleSchema = Schema.Literals(["entry", "orchestrator", "core", "adapter", "foundation", "standalone"]);
+export type ModuleRole = typeof ModuleRoleSchema.Type;
 
-const ModuleDepthSchema = z.enum(["deep", "balanced", "shallow", "contract"]);
-export type ModuleDepth = z.infer<typeof ModuleDepthSchema>;
+const ModuleDepthSchema = Schema.Literals(["deep", "balanced", "shallow", "contract"]);
+export type ModuleDepth = typeof ModuleDepthSchema.Type;
 
-const ModuleFileEntrySchema = z.object({
-  file: z.string().min(1),
-  lines: z.number().int().nonnegative(),
-  exports: z.number().int().nonnegative(),
-  capabilities: z.array(CapabilityTagSchema),
+const ModuleFileEntrySchema = Schema.Struct({
+  file: Schema.NonEmptyString,
+  lines: NonNegInt,
+  exports: NonNegInt,
+  capabilities: Schema.Array(CapabilityTagSchema),
 });
-export type ModuleFileEntry = z.infer<typeof ModuleFileEntrySchema>;
+export type ModuleFileEntry = DeepMutable<typeof ModuleFileEntrySchema.Type>;
 
-const ModuleCardSchema = z.object({
-  id: z.string().min(1),
-  unitId: z.string().min(1),
-  unitName: z.string().min(1),
-  unitSlug: z.string().min(1),
-  name: z.string().min(1),
-  kind: z.enum(["file", "directory"]),
-  relPath: z.string().min(1),
-  language: z.string().min(1),
-  level: z.number().int().nonnegative(),
+const ModuleCardSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  unitId: Schema.NonEmptyString,
+  unitName: Schema.NonEmptyString,
+  unitSlug: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  kind: Schema.Literals(["file", "directory"]),
+  relPath: Schema.NonEmptyString,
+  language: Schema.NonEmptyString,
+  level: NonNegInt,
   role: ModuleRoleSchema,
   depth: ModuleDepthSchema,
-  fileCount: z.number().int().nonnegative(),
-  lines: z.number().int().nonnegative(),
-  exportCount: z.number().int().nonnegative(),
-  fanIn: z.number().int().nonnegative(),
-  fanOut: z.number().int().nonnegative(),
-  inTangle: z.boolean(),
-  tangleId: z.string().nullable(),
-  hasSubsystemDiagram: z.boolean(),
-  capabilities: z.array(CapabilityTagSchema),
-  topExports: z.array(ExportedSymbolSchema),
-  files: z.array(ModuleFileEntrySchema),
+  fileCount: NonNegInt,
+  lines: NonNegInt,
+  exportCount: NonNegInt,
+  fanIn: NonNegInt,
+  fanOut: NonNegInt,
+  inTangle: Schema.Boolean,
+  tangleId: Schema.NullOr(Schema.String),
+  hasSubsystemDiagram: Schema.Boolean,
+  capabilities: Schema.Array(CapabilityTagSchema),
+  topExports: Schema.Array(ExportedSymbolSchema),
+  files: Schema.Array(ModuleFileEntrySchema),
 });
-export type ModuleCard = z.infer<typeof ModuleCardSchema>;
+export type ModuleCard = DeepMutable<typeof ModuleCardSchema.Type>;
 
-const StorageModeSchema = z.enum(["artifact", "commit"]);
-export type StorageMode = z.infer<typeof StorageModeSchema>;
+const StorageModeSchema = Schema.Literals(["artifact", "commit"]);
+export type StorageMode = typeof StorageModeSchema.Type;
 
-const IacPlaneSchema = z.enum([
+const IacPlaneSchema = Schema.Literals([
   "network",
   "compute",
   "data",
@@ -70,12 +79,12 @@ const IacPlaneSchema = z.enum([
   "governance",
   "ci_infra",
 ]);
-export type IacPlane = z.infer<typeof IacPlaneSchema>;
+export type IacPlane = typeof IacPlaneSchema.Type;
 
-const RungSchema = z.enum(["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"]);
-export type Rung = z.infer<typeof RungSchema>;
+const RungSchema = Schema.Literals(["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"]);
+export type Rung = typeof RungSchema.Type;
 
-const CanonicalLayerSchema = z.enum([
+const CanonicalLayerSchema = Schema.Literals([
   "transport",
   "orchestration",
   "domain",
@@ -89,12 +98,12 @@ const CanonicalLayerSchema = z.enum([
   "tests",
   "unclassified",
 ]);
-export type CanonicalLayer = z.infer<typeof CanonicalLayerSchema>;
+export type CanonicalLayer = typeof CanonicalLayerSchema.Type;
 
-const LayerAxisSchema = z.enum(["pipeline", "integration", "foundation"]);
-export type LayerAxis = z.infer<typeof LayerAxisSchema>;
+const LayerAxisSchema = Schema.Literals(["pipeline", "integration", "foundation"]);
+export type LayerAxis = typeof LayerAxisSchema.Type;
 
-const UnitArchetypeSchema = z.enum([
+const UnitArchetypeSchema = Schema.Literals([
   "http_service",
   "frontend_app",
   "library_crate",
@@ -102,17 +111,17 @@ const UnitArchetypeSchema = z.enum([
   "analyzer_plugin",
   "test_suite",
 ]);
-export type UnitArchetype = z.infer<typeof UnitArchetypeSchema>;
+export type UnitArchetype = typeof UnitArchetypeSchema.Type;
 
-const LayerPolicySchema = z.enum([
+const LayerPolicySchema = Schema.Literals([
   "layered_backend",
   "layered_frontend",
   "layered_clean_arch",
   "flat_library",
 ]);
-export type LayerPolicy = z.infer<typeof LayerPolicySchema>;
+export type LayerPolicy = typeof LayerPolicySchema.Type;
 
-const NodeRoleSchema = z.enum([
+const NodeRoleSchema = Schema.Literals([
   "client",
   "ingress",
   "service",
@@ -128,15 +137,15 @@ const NodeRoleSchema = z.enum([
   "domain",
   "module",
 ]);
-export type NodeRole = z.infer<typeof NodeRoleSchema>;
+export type NodeRole = typeof NodeRoleSchema.Type;
 
-const ProvenanceSchema = z.object({
-  file: z.string().min(1),
-  line: z.number().int().positive().optional(),
+const ProvenanceSchema = Schema.Struct({
+  file: Schema.NonEmptyString,
+  line: Schema.optional(PosInt),
 });
-export type Provenance = z.infer<typeof ProvenanceSchema>;
+export type Provenance = DeepMutable<typeof ProvenanceSchema.Type>;
 
-export const NodeKindSchema = z.enum([
+export const NodeKindSchema = Schema.Literals([
   "app",
   "package",
   "test_package",
@@ -159,9 +168,9 @@ export const NodeKindSchema = z.enum([
   "ownership_rule",
   "linter_config",
 ]);
-export type NodeKind = z.infer<typeof NodeKindSchema>;
+export type NodeKind = typeof NodeKindSchema.Type;
 
-export const EdgeKindSchema = z.enum([
+export const EdgeKindSchema = Schema.Literals([
   "depends_on",
   "analyzes",
   "imports_layer",
@@ -180,147 +189,163 @@ export const EdgeKindSchema = z.enum([
   "references",
   "denies_dependency",
 ]);
-export type EdgeKind = z.infer<typeof EdgeKindSchema>;
+export type EdgeKind = typeof EdgeKindSchema.Type;
 
-const EdgeEvidenceItemSchema = z.object({
-  file: z.string().min(1),
-  line: z.number().int().positive().optional(),
-  detail: z.string().min(1),
+const EdgeEvidenceItemSchema = Schema.Struct({
+  file: Schema.NonEmptyString,
+  line: Schema.optional(PosInt),
+  detail: Schema.NonEmptyString,
 });
-export type EdgeEvidenceItem = z.infer<typeof EdgeEvidenceItemSchema>;
+export type EdgeEvidenceItem = DeepMutable<typeof EdgeEvidenceItemSchema.Type>;
 
-const NodeFindingSummarySchema = z.object({
-  ruleId: z.string().min(1),
-  severity: z.enum(["error", "warn", "info"]),
-  count: z.number().int().positive(),
+const NodeFindingSummarySchema = Schema.Struct({
+  ruleId: Schema.NonEmptyString,
+  severity: Schema.Literals(["error", "warn", "info"]),
+  count: PosInt,
 });
-export type NodeFindingSummary = z.infer<typeof NodeFindingSummarySchema>;
+export type NodeFindingSummary = DeepMutable<typeof NodeFindingSummarySchema.Type>;
 
-const SpecNodeSchema = z.object({
-  id: z.string().min(1),
+const MetaValueSchema = Schema.Union([
+  Schema.String,
+  Schema.Finite,
+  Schema.Boolean,
+  Schema.Array(Schema.String),
+  Schema.Null,
+]);
+
+type MetaValue = string | number | boolean | readonly string[] | null;
+
+const SpecNodeSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
   domain: DomainSchema,
   kind: NodeKindSchema,
-  role: NodeRoleSchema.optional(),
-  label: z.string().min(1),
-  group: z.string().min(1).optional(),
-  ownerId: z.string().min(1).optional(),
+  role: Schema.optional(NodeRoleSchema),
+  label: Schema.NonEmptyString,
+  group: Schema.optional(Schema.NonEmptyString),
+  ownerId: Schema.optional(Schema.NonEmptyString),
   provenance: ProvenanceSchema,
-  tags: z.array(z.string()).default([]),
-  findings: z.array(NodeFindingSummarySchema).optional(),
-  meta: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]))
-    .default({}),
+  tags: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly string[])),
+  ),
+  findings: Schema.optional(Schema.Array(NodeFindingSummarySchema)),
+  meta: Schema.Record(Schema.String, MetaValueSchema).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => ({} as Record<string, MetaValue>))),
+  ),
 });
-export type SpecNode = z.infer<typeof SpecNodeSchema>;
+export type SpecNode = DeepMutable<typeof SpecNodeSchema.Type>;
 
-const SpecEdgeSchema = z.object({
-  from: z.string().min(1),
-  to: z.string().min(1),
+const SpecEdgeSchema = Schema.Struct({
+  from: Schema.NonEmptyString,
+  to: Schema.NonEmptyString,
   kind: EdgeKindSchema,
-  label: z.string().optional(),
-  weight: z.number().int().positive().optional(),
-  violation: z.boolean().optional(),
-  ruleIds: z.array(z.string()).optional(),
-  confidence: z.enum(["observed", "inferred"]).default("observed"),
-  provenance: ProvenanceSchema.optional(),
-  evidence: z.array(EdgeEvidenceItemSchema).optional(),
+  label: Schema.optional(Schema.String),
+  weight: Schema.optional(PosInt),
+  violation: Schema.optional(Schema.Boolean),
+  ruleIds: Schema.optional(Schema.Array(Schema.String)),
+  confidence: Schema.Literals(["observed", "inferred"]).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => "observed" as const)),
+  ),
+  provenance: Schema.optional(ProvenanceSchema),
+  evidence: Schema.optional(Schema.Array(EdgeEvidenceItemSchema)),
 });
-export type SpecEdge = z.infer<typeof SpecEdgeSchema>;
+export type SpecEdge = DeepMutable<typeof SpecEdgeSchema.Type>;
 
-const RuleEnforcementSchema = z.enum(["static", "executed", "ci_gate", "ownership", "sql_invariant"]);
-export type RuleEnforcement = z.infer<typeof RuleEnforcementSchema>;
+const RuleEnforcementSchema = Schema.Literals(["static", "executed", "ci_gate", "ownership", "sql_invariant"]);
+export type RuleEnforcement = typeof RuleEnforcementSchema.Type;
 
-const SpecRuleSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  category: z.enum(["boundary", "quality_gate", "ownership", "lint_ratchet", "security_rule", "sql_invariant"]),
+const SpecRuleSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  category: Schema.Literals(["boundary", "quality_gate", "ownership", "lint_ratchet", "security_rule", "sql_invariant"]),
   enforcement: RuleEnforcementSchema,
   rung: RungSchema,
-  statement: z.string().min(1),
-  targets: z.array(z.string()).default([]),
+  statement: Schema.NonEmptyString,
+  targets: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly string[])),
+  ),
   provenance: ProvenanceSchema,
 });
-export type SpecRule = z.infer<typeof SpecRuleSchema>;
+export type SpecRule = DeepMutable<typeof SpecRuleSchema.Type>;
 
-const EvidenceAnchorSchema = z.object({
-  diagramId: z.string().min(1),
-  nodeIds: z.array(z.string()),
-  edgeIds: z.array(z.string()),
+const EvidenceAnchorSchema = Schema.Struct({
+  diagramId: Schema.NonEmptyString,
+  nodeIds: Schema.Array(Schema.String),
+  edgeIds: Schema.Array(Schema.String),
 });
-export type EvidenceAnchor = z.infer<typeof EvidenceAnchorSchema>;
+export type EvidenceAnchor = DeepMutable<typeof EvidenceAnchorSchema.Type>;
 
-const InvariantEvidenceSchema = z.object({
-  subject: z.string().min(1),
-  detail: z.string().min(1),
-  file: z.string().min(1),
-  line: z.number().int().positive().optional(),
-  targetNodeId: z.string().optional(),
-  edgeFromId: z.string().optional(),
-  edgeToId: z.string().optional(),
-  edgeKind: z.string().optional(),
-  anchors: z.array(EvidenceAnchorSchema).optional(),
+const InvariantEvidenceSchema = Schema.Struct({
+  subject: Schema.NonEmptyString,
+  detail: Schema.NonEmptyString,
+  file: Schema.NonEmptyString,
+  line: Schema.optional(PosInt),
+  targetNodeId: Schema.optional(Schema.String),
+  edgeFromId: Schema.optional(Schema.String),
+  edgeToId: Schema.optional(Schema.String),
+  edgeKind: Schema.optional(Schema.String),
+  anchors: Schema.optional(Schema.Array(EvidenceAnchorSchema)),
 });
-export type InvariantEvidence = z.infer<typeof InvariantEvidenceSchema>;
+export type InvariantEvidence = DeepMutable<typeof InvariantEvidenceSchema.Type>;
 
-const SqlInvariantResultSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
+const SqlInvariantResultSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
   rung: RungSchema,
-  severity: z.enum(["error", "warn", "info"]),
-  status: z.enum(["pass", "warn", "fail", "na"]),
-  applicabilityReason: z.string().optional(),
-  sqlFile: z.string().min(1),
-  statement: z.string().min(1),
-  why: z.string().min(1),
-  fix: z.string().min(1),
-  violationCount: z.number().int().nonnegative(),
-  evidence: z.array(InvariantEvidenceSchema),
+  severity: Schema.Literals(["error", "warn", "info"]),
+  status: Schema.Literals(["pass", "warn", "fail", "na"]),
+  applicabilityReason: Schema.optional(Schema.String),
+  sqlFile: Schema.NonEmptyString,
+  statement: Schema.NonEmptyString,
+  why: Schema.NonEmptyString,
+  fix: Schema.NonEmptyString,
+  violationCount: NonNegInt,
+  evidence: Schema.Array(InvariantEvidenceSchema),
 });
-export type SqlInvariantResult = z.infer<typeof SqlInvariantResultSchema>;
+export type SqlInvariantResult = DeepMutable<typeof SqlInvariantResultSchema.Type>;
 
-const EntityOwnershipSchema = z.object({
-  datastore: z.string().min(1),
-  entity: z.string().min(1),
-  declared: z.boolean(),
-  authorizedShared: z.boolean(),
-  totalRefs: z.number().int().nonnegative(),
-  layers: z.array(z.string()),
-  domains: z.array(z.string()),
-  hasBypass: z.boolean(),
-  fkCount: z.number().int().nonnegative().default(0),
-  hasTenancyKey: z.boolean().default(false),
-  sampleFiles: z.array(z.string()),
+const EntityOwnershipSchema = Schema.Struct({
+  datastore: Schema.NonEmptyString,
+  entity: Schema.NonEmptyString,
+  declared: Schema.Boolean,
+  authorizedShared: Schema.Boolean,
+  totalRefs: NonNegInt,
+  layers: Schema.Array(Schema.String),
+  domains: Schema.Array(Schema.String),
+  hasBypass: Schema.Boolean,
+  fkCount: NonNegInt.pipe(Schema.withDecodingDefaultKey(Effect.sync(() => 0))),
+  hasTenancyKey: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.sync(() => false))),
+  sampleFiles: Schema.Array(Schema.String),
 });
-export type EntityOwnership = z.infer<typeof EntityOwnershipSchema>;
+export type EntityOwnership = DeepMutable<typeof EntityOwnershipSchema.Type>;
 
-const StateMachineTransitionSchema = z.object({
-  from: z.string().min(1),
-  event: z.string().min(1),
-  to: z.string().min(1),
-  guard: z.string().optional(),
+const StateMachineTransitionSchema = Schema.Struct({
+  from: Schema.NonEmptyString,
+  event: Schema.NonEmptyString,
+  to: Schema.NonEmptyString,
+  guard: Schema.optional(Schema.String),
 });
 
-const StateMachineRecordSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  language: z.string().min(1),
-  unit: z.string().min(1),
-  evidence: z.enum(["declared", "inferred"]),
-  states: z.array(z.string()),
-  transitions: z.array(StateMachineTransitionSchema),
+const StateMachineRecordSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  language: Schema.NonEmptyString,
+  unit: Schema.NonEmptyString,
+  evidence: Schema.Literals(["declared", "inferred"]),
+  states: Schema.Array(Schema.String),
+  transitions: Schema.Array(StateMachineTransitionSchema),
   provenance: ProvenanceSchema,
 });
-export type StateMachineRecord = z.infer<typeof StateMachineRecordSchema>;
+export type StateMachineRecord = DeepMutable<typeof StateMachineRecordSchema.Type>;
 
-const LoopRecordSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  kind: z.enum(["cron", "scheduler", "interval", "background_service", "webhook", "queue_consumer"]),
-  schedule: z.string().nullable(),
-  unit: z.string().min(1),
+const LoopRecordSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  kind: Schema.Literals(["cron", "scheduler", "interval", "background_service", "webhook", "queue_consumer"]),
+  schedule: Schema.NullOr(Schema.String),
+  unit: Schema.NonEmptyString,
   provenance: ProvenanceSchema,
 });
-export type LoopRecord = z.infer<typeof LoopRecordSchema>;
+export type LoopRecord = DeepMutable<typeof LoopRecordSchema.Type>;
 
 export const PRIMITIVE_SCHEMAS = {
   EcosystemSchema,
@@ -330,6 +355,8 @@ export const PRIMITIVE_SCHEMAS = {
   RungSchema,
   CanonicalLayerSchema,
   LayerAxisSchema,
+  UnitArchetypeSchema,
+  LayerPolicySchema,
   NodeRoleSchema,
   ProvenanceSchema,
   EdgeEvidenceItemSchema,
@@ -341,4 +368,6 @@ export const PRIMITIVE_SCHEMAS = {
   EntityOwnershipSchema,
   StateMachineRecordSchema,
   LoopRecordSchema,
+  NonNegInt,
+  PosInt,
 } as const;

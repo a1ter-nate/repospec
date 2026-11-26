@@ -298,7 +298,8 @@ export function queryVerificationCoverage(
       `SELECT COUNT(DISTINCT fi.to_file) AS cnt
        FROM file_imports fi
        JOIN files tf ON tf.file = fi.from_file AND tf.is_test = 1
-       JOIN v_prod_files pf ON pf.file = fi.to_file AND pf.is_barrel = 0`,
+       JOIN v_prod_files pf ON pf.file = fi.to_file AND pf.is_barrel = 0
+       WHERE fi.type_only = 0`,
     )
     .get() as { cnt: number };
   const gatesRow = db
