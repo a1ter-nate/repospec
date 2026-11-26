@@ -2,6 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import type { ExtractorPlugin, GraphFragment, RepoContext, SpecEdge, SpecNode } from "../schema.ts";
+import {
+  isAzurePipelineDoc,
+  isAzurePipelineFile,
+  isEnv0WorkflowFile,
+  parseAzurePipelineWorkflow,
+  parseEnv0Workflow,
+} from "../internal/extractors/ciProviders.ts";
 
 interface RawWorkflow {
   name?: string;
@@ -86,7 +93,7 @@ function normalizeRunner(runsOn: string | string[] | undefined): string {
 }
 
 export const ciExtractor: ExtractorPlugin = {
-  id: "ci.github-actions.v1",
+  id: "ci.delivery-workflows.v2",
   domain: "ci",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
     const nodes: SpecNode[] = [];
@@ -235,6 +242,39 @@ export const ciExtractor: ExtractorPlugin = {
           confidence: "observed",
           provenance: { file: item.file },
         });
+      }
+    }
+
+    const azureFiles = ctx.allFiles.filter((f) => isAzurePipelineFile(f)).sort();
+    for (const relFile of azureFiles) {
+      let parsed: unknown = null;
+      try {
+        parsed = yaml.load(fs.readFileSync(path.join(ctx.rootDir, relFile), "utf8"));
+      } catch {
+        continue;
+      }
+      if (!isAzurePipelineDoc(parsed)) continue;
+      const res = parseAzurePipelineWorkflow({
+        relFile,
+        parsed,
+        classifyCategory: classifyWorkflowCategory,
+      });
+      nodes.push(...res.nodes);
+      edges.push(...res.edges);
+    }
+
+    const env0Files = ctx.allFiles.filter((f) => isEnv0WorkflowFile(f)).sort();
+    for (const relFile of env0Files) {
+      let parsed: unknown = null;
+      try {
+        parsed = yaml.load(fs.readFileSync(path.join(ctx.rootDir, relFile), "utf8"));
+      } catch {
+        continue;
+      }
+      const res = parseEnv0Workflow({ relFile, parsed });
+      if (res) {
+        nodes.push(...res.nodes);
+        edges.push(...res.edges);
       }
     }
 

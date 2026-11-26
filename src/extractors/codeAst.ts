@@ -152,8 +152,16 @@ export const codeAstExtractor: ExtractorPlugin = {
       const uInfo = unitInfoFor(rel);
       const isTest = isTestPath(rel) || uInfo.unit?.kind === "test_package";
       const pathInfo = resolveFeatureOrLayerPath(rel, uInfo.unitDir);
-      const rawLayer = isTest ? "tests" : pathInfo.rawLayer;
-      const canonicalLayer: CanonicalLayer = isTest ? "tests" : pathInfo.canonicalLayer;
+      const unitRel = uInfo.unitDir !== "." && rel.startsWith(`${uInfo.unitDir}/`) ? rel.slice(uInfo.unitDir.length + 1) : rel;
+      const inSrcRoot = /^(?:src|app|functions)\//.test(unitRel);
+      const sfText = sourceFileCache.get(rel)?.getFullText() ?? "";
+      const isStandaloneShebangScript = !isTest && !inSrcRoot && sfText.startsWith("#!");
+      const rawLayer = isTest ? "tests" : isStandaloneShebangScript ? "scripts" : pathInfo.rawLayer;
+      const canonicalLayer: CanonicalLayer = isTest
+        ? "tests"
+        : isStandaloneShebangScript
+          ? "ops_script"
+          : pathInfo.canonicalLayer;
 
       let domainArea: string | null = null;
       let domainSource: "declared_manifest" | "path_convention" | "none" = "none";

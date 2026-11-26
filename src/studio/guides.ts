@@ -93,8 +93,8 @@ export function renderGuidesClientScript(): string {
         };
       }
       return {
-        title: "Unit Module Topology (DAG)",
-        what: "Shows every top-level module in this service ordered from entry points (L0 left) down to shared foundations (right).",
+        title: "Inferred Module Topology (L0–L4 DAG)",
+        what: "Shows every top-level module in this unit ordered by inferred import-graph tiers from entry points (L0 left) down to foundations (right). These are inferred topological tiers, distinct from enforced Clean Architecture layer policies.",
         how: [
           "Hover any card to light up its direct outgoing (blue) and incoming (green) wires. Double-click any folder with › to drill inside.",
           "Red borders indicate modules caught in a circular dependency tangle — switch to Matrix (DSM) to see the exact loop.",

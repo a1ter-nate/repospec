@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { GraphFragment, RepoContext, SpecEdge, SpecNode } from "../schema.ts";
 import { CROSS_LINK_GATES } from "../internal/extractors/crossLinkGates.ts";
+import { isDeployableComputeResource } from "./iac.ts";
 
 const {
   normalizeToken,
@@ -172,9 +173,16 @@ export function buildCrossDomainLinks(
     const wfContent = readTextSafe(path.join(ctx.rootDir, wfFile));
     const isDeployWf =
       wf.group === "deploy_release" ||
+      wf.group === "release" ||
       wfBase.includes("deploy") ||
       wfBase.includes("release") ||
-      wfBase.includes("infra");
+      wfBase.includes("infra") ||
+      wfBase.includes("env0") ||
+      wf.tags.includes("env0") ||
+      /\b(?:terraform|tofu)\s+(?:apply|plan)\b/i.test(wfContent);
+    const wfIacDirs = Array.isArray(wf.meta.iacDirectories)
+      ? wf.meta.iacDirectories.filter((d): d is string => typeof d === "string")
+      : [];
     const runsCargoWorkspace = /\bcargo\s+(?:test|nextest|clippy|check|build)\b[\s\S]{0,120}--workspace/.test(wfContent);
 
     for (const unit of archUnits) {
@@ -264,13 +272,23 @@ export function buildCrossDomainLinks(
       }
       if (iac.kind === "iac_resource") {
         const tfDir = path.posix.dirname(iac.provenance.file);
-        if (isDeployWf && tfDir !== "." && wfContent.includes(tfDir)) {
+        const resName = typeof iac.meta.resourceName === "string" ? iac.meta.resourceName : "";
+        const cloudName = typeof iac.meta.cloudName === "string" ? iac.meta.cloudName : "";
+        const wfDirMatch =
+          (tfDir !== "." && wfContent.includes(tfDir)) ||
+          wfIacDirs.some((d) => d === "." || d === tfDir || tfDir.startsWith(`${d}/`) || d.startsWith(`${tfDir}/`));
+        const wfAppliesIac =
+          wf.tags.includes("env0") ||
+          /\b(?:terraform|tofu)\s+(?:apply|plan|init)\b/i.test(wfContent) ||
+          (resName.length >= 3 && wfContent.includes(resName)) ||
+          (cloudName.length >= 3 && wfContent.includes(cloudName));
+        if (isDeployWf && (wfDirMatch || (iac.meta.deployableCompute === true && wfAppliesIac))) {
           edges.push({
             from: wf.id,
             to: iac.id,
             kind: "deploys",
-            label: "terraform",
-            confidence: "inferred",
+            label: wf.tags.includes("env0") ? "env0" : "terraform",
+            confidence: wfDirMatch ? "observed" : "inferred",
             provenance: { file: wfFile },
           });
         }
@@ -314,14 +332,14 @@ export function buildCrossDomainLinks(
       const resName = typeof iac.meta.resourceName === "string" ? iac.meta.resourceName : "";
       const usesApiImage = iac.meta.usesApiImage === true;
 
-      if (resType === "google_cloud_run_v2_service") {
+      if (resType === "google_cloud_run_v2_service" || isDeployableComputeResource(resType)) {
         const matchUnit = matchCloudRunUnit(resName, usesApiImage);
         if (matchUnit) {
           edges.push({
             from: iac.id,
             to: matchUnit.id,
             kind: "deploys",
-            label: "cloud-run",
+            label: resType.startsWith("google_cloud_run") ? "cloud-run" : "compute",
             confidence: "observed",
             provenance: iac.provenance,
           });

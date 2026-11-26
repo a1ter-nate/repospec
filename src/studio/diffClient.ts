@@ -276,7 +276,7 @@ export function renderDiffClientScript(): string {
       '<div class="sec"><div class="sec-title">Before → After State</div>' +
       '<div class="row"><span class="muted">Invariant Failures</span><span class="mono">' + cd.kpis.failures.before + " → " + cd.kpis.failures.after + " (" + kpiDelta(cd.kpis.failures.delta, true) + ")</span></div>" +
       '<div class="row"><span class="muted">Invariant Warnings</span><span class="mono">' + cd.kpis.warnings.before + " → " + cd.kpis.warnings.after + " (" + kpiDelta(cd.kpis.warnings.delta, true) + ")</span></div>" +
-      '<div class="row"><span class="muted">Direct Test Coverage</span><span class="mono">' + cd.kpis.coveragePct.before + "% → " + cd.kpis.coveragePct.after + "% (" + kpiDelta(cd.kpis.coveragePct.delta, false) + "%)</span></div>" +
+      '<div class="row"><span class="muted">Static Test Reachability (1-hop)</span><span class="mono">' + cd.kpis.coveragePct.before + "% → " + cd.kpis.coveragePct.after + "% (" + kpiDelta(cd.kpis.coveragePct.delta, false) + "%)</span></div>" +
       '<div class="row"><span class="muted">Canvas Nodes</span><span class="mono"><span class="status-pass">+' + cd.kpis.nodes.added + '</span> · <span class="status-warn">~' + cd.kpis.nodes.modified + '</span> · <span class="status-fail">−' + cd.kpis.nodes.removed + "</span></span></div>" +
       "</div>" +
       introSec +

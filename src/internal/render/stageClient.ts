@@ -16,10 +16,14 @@ export function renderStageClientScript(): string {
     }
 
     const v = DATA.verification;
+    const hasRealCov = v.realLineCoveragePct !== null && v.realLineCoveragePct !== undefined;
+    const covHeaderLabel = hasRealCov
+      ? v.realLineCoveragePct + "% line cov (" + esc(v.coverageSource || "report") + ")"
+      : v.directTestCoveragePct + "% static 1-hop reach";
     const statusHtml =
-      '<button class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '" data-jump-checks-filter="fail" title="Click to view failing architectural checks">' + v.invariantsFailed + " fail</button>" +
+      '<button class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '" data-jump-checks-filter="fail" title="Failing structural invariants (' + v.invariantsPassed + " pass, " + v.invariantsNa + ' N/A)">' + v.invariantsFailed + " fail</button>" +
       (v.invariantsWarned > 0 ? '<button class="s-dot warn status-warn" data-jump-checks-filter="warn" title="Click to view architectural warnings">' + v.invariantsWarned + " warn</button>" : "") +
-      "<span>" + DATA.summary.indexedSourceFiles + " files · " + v.directTestCoveragePct + "% tested</span>" +
+      '<span title="' + (hasRealCov ? "Execution line coverage ingested from " + esc(v.coverageReportFile || v.coverageSource || "coverage report") : "Static 1-hop test import reachability — not execution line/branch coverage") + '">' + DATA.summary.indexedSourceFiles + " files · " + covHeaderLabel + "</span>" +
       (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
 
     const tabs = [
@@ -166,7 +170,7 @@ export function renderStageClientScript(): string {
       const lensHtml = !inMatrix && !state.activeFileGraph && !state.e2eTraceSeed && DD_FILES.length > 0
         ? '<span class="seg-group" title="Heatmap lens overlay">' +
           '<button class="seg-btn' + (state.canvasLens === "default" ? " active" : "") + '" data-lens="default">Normal</button>' +
-          '<button class="seg-btn' + (state.canvasLens === "coverage" ? " active" : "") + '" data-lens="coverage" title="Tint modules & files by direct test coverage %">Coverage</button>' +
+          '<button class="seg-btn' + (state.canvasLens === "coverage" ? " active" : "") + '" data-lens="coverage" title="' + (hasRealCov ? "Tint modules & files by real line coverage %" : "Tint modules & files by static 1-hop test import reachability (no coverage report ingested)") + '">' + (hasRealCov ? "Coverage" : "Reachability") + "</button>" +
           '<button class="seg-btn' + (state.canvasLens === "churn" ? " active" : "") + '" data-lens="churn" title="Tint modules & files by git commit churn hotspots">Churn</button>' +
           "</span>"
         : "";

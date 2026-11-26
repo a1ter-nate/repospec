@@ -111,10 +111,17 @@ const DiagramLayoutSchema = z.object({
 });
 export type DiagramLayout = z.infer<typeof DiagramLayoutSchema>;
 
+const CoverageSourceSchema = z.enum(["lcov", "istanbul", "cobertura", "static_reachability_1hop"]);
+export type CoverageSource = z.infer<typeof CoverageSourceSchema>;
+
 const VerificationCoverageSchema = z.object({
   totalSourceFiles: z.number().int().nonnegative(),
   directlyTestedSourceFiles: z.number().int().nonnegative(),
   directTestCoveragePct: z.number().min(0).max(100),
+  coverageSource: CoverageSourceSchema.optional(),
+  realLineCoveragePct: z.number().min(0).max(100).nullable().optional(),
+  realBranchCoveragePct: z.number().min(0).max(100).nullable().optional(),
+  coverageReportFile: z.string().nullable().optional(),
   registeredGates: z.number().int().nonnegative(),
   ciWiredGates: z.number().int().nonnegative(),
   unwiredGateNames: z.array(z.string()),

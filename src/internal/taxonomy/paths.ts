@@ -64,8 +64,9 @@ export function resolveFeatureOrLayerPath(
   relFile: string,
   unitDir: string,
 ): { rawLayer: string; canonicalLayer: CanonicalLayer; inferredDomain: string | null } {
-  let inner = unitDir !== "." && relFile.startsWith(`${unitDir}/`) ? relFile.slice(unitDir.length + 1) : relFile;
-  inner = inner.replace(/^(?:functions|src|app)\//, "");
+  const unitRel = unitDir !== "." && relFile.startsWith(`${unitDir}/`) ? relFile.slice(unitDir.length + 1) : relFile;
+  const inRuntimeSourceRoot = /^(?:functions|src|app)\//.test(unitRel);
+  const inner = unitRel.replace(/^(?:functions|src|app)\//, "");
   const parts = inner.split("/");
   if (parts.length <= 1) {
     return { rawLayer: "root", canonicalLayer: "unclassified", inferredDomain: null };
@@ -79,7 +80,8 @@ export function resolveFeatureOrLayerPath(
       const seg = parts[i] ?? "";
       const canonical = resolveCanonicalLayer(seg);
       if (canonical !== "unclassified") {
-        return { rawLayer: seg, canonicalLayer: canonical, inferredDomain };
+        const guarded = inRuntimeSourceRoot && canonical === "ops_script" ? "support" : canonical;
+        return { rawLayer: seg, canonicalLayer: guarded, inferredDomain };
       }
     }
     const baseName = parts[parts.length - 1] ?? "";
@@ -87,15 +89,19 @@ export function resolveFeatureOrLayerPath(
     if (suffixMatch?.[1]) {
       const canonical = resolveCanonicalLayer(suffixMatch[1]);
       if (canonical !== "unclassified") {
-        return { rawLayer: suffixMatch[1], canonicalLayer: canonical, inferredDomain };
+        const guarded = inRuntimeSourceRoot && canonical === "ops_script" ? "support" : canonical;
+        return { rawLayer: suffixMatch[1], canonicalLayer: guarded, inferredDomain };
       }
     }
     const rawLayer = parts[2] ?? "root";
-    return { rawLayer, canonicalLayer: resolveCanonicalLayer(rawLayer), inferredDomain };
+    const resolved = resolveCanonicalLayer(rawLayer);
+    return { rawLayer, canonicalLayer: inRuntimeSourceRoot && resolved === "ops_script" ? "support" : resolved, inferredDomain };
   }
 
   const rawLayer = parts[0] ?? "root";
-  const canonicalLayer = resolveCanonicalLayer(rawLayer);
+  const resolvedLayer = resolveCanonicalLayer(rawLayer);
+  const canonicalLayer: CanonicalLayer =
+    inRuntimeSourceRoot && resolvedLayer === "ops_script" ? "support" : resolvedLayer;
   let inferredDomain: string | null = null;
   if (parts.length >= 3) {
     const candidate = parts[1] ?? "";

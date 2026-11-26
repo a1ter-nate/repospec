@@ -2,11 +2,75 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ExtractorPlugin, GraphFragment, IacPlane, LoopRecord, RepoContext, SpecEdge, SpecNode, SpecRule } from "../schema.ts";
 
-function classifyTerraformPlane(resourceType: string, fileBase: string): IacPlane {
+const DEPLOYABLE_COMPUTE_EXACT = new Set([
+  "azurerm_container_app",
+  "azurerm_container_app_job",
+  "azurerm_linux_web_app",
+  "azurerm_windows_web_app",
+  "azurerm_app_service",
+  "azurerm_linux_function_app",
+  "azurerm_windows_function_app",
+  "azurerm_function_app",
+  "azurerm_function_app_flex_consumption",
+  "azurerm_spring_cloud_app",
+  "azurerm_kubernetes_cluster",
+  "azurerm_virtual_machine",
+  "azurerm_linux_virtual_machine",
+  "azurerm_windows_virtual_machine",
+  "azurerm_batch_pool",
+  "aws_ecs_service",
+  "aws_ecs_task_definition",
+  "aws_lambda_function",
+  "aws_apprunner_service",
+  "aws_instance",
+  "aws_autoscaling_group",
+  "aws_eks_cluster",
+  "aws_batch_job_definition",
+  "google_cloud_run_v2_service",
+  "google_cloud_run_v2_job",
+  "google_cloud_run_service",
+  "google_cloudfunctions_function",
+  "google_cloudfunctions2_function",
+  "google_compute_instance",
+  "google_container_cluster",
+  "google_app_engine_standard_app_version",
+  "kubernetes_deployment",
+  "kubernetes_stateful_set",
+  "kubernetes_cron_job_v1",
+  "helm_release",
+]);
+
+export function isDeployableComputeResource(resourceType: string): boolean {
+  const t = resourceType.toLowerCase();
+  if (DEPLOYABLE_COMPUTE_EXACT.has(t)) return true;
+  if (/^azurerm_(?:linux|windows)_function_app/.test(t)) return true;
+  if (/^azurerm_(?:linux|windows)_web_app/.test(t)) return true;
+  if (/^google_cloud_run_v\d+_(?:service|job)$/.test(t)) return true;
+  return false;
+}
+
+export function classifyTerraformPlane(resourceType: string, fileBase: string): IacPlane {
   const t = resourceType.toLowerCase();
   const f = fileBase.toLowerCase();
-  if (f.includes("ci_runner") || f.includes("turbo_cache")) return "ci_infra";
   if (
+    f.includes("ci_runner") ||
+    f.includes("turbo_cache") ||
+    t.startsWith("github_actions") ||
+    t.startsWith("azuredevops_") ||
+    t.startsWith("env0_")
+  ) {
+    return "ci_infra";
+  }
+  if (isDeployableComputeResource(t)) {
+    return "compute";
+  }
+  if (
+    t.startsWith("azuread_") ||
+    t.includes("role_assignment") ||
+    t.includes("role_definition") ||
+    t.includes("key_vault") ||
+    t.includes("managed_identity") ||
+    t.includes("user_assigned_identity") ||
     t.includes("iam") ||
     t.includes("secret") ||
     t.includes("service_account") ||
@@ -14,48 +78,114 @@ function classifyTerraformPlane(resourceType: string, fileBase: string): IacPlan
     t.includes("ssl") ||
     t.includes("firewall") ||
     t.includes("security_policy") ||
+    t.includes("security_group") ||
+    t.includes("policy_assignment") ||
+    t.includes("waf") ||
     t.includes("kms")
   ) {
     return "security";
   }
   if (
+    t.includes("application_insights") ||
+    t.includes("log_analytics") ||
+    t.includes("monitor_") ||
     t.includes("monitoring") ||
     t.includes("logging") ||
     t.includes("uptime") ||
     t.includes("alert") ||
     t.includes("dashboard") ||
+    t.includes("workbook") ||
+    t.includes("cloudwatch") ||
+    t.includes("datadog") ||
     f.includes("canaries")
   ) {
     return "observability";
   }
   if (
-    t.includes("firestore") ||
-    t.includes("storage_bucket") ||
-    t.includes("sql") ||
-    t.includes("redis") ||
+    t.includes("eventhub") ||
+    t.includes("servicebus") ||
+    t.includes("iothub") ||
+    t.includes("eventgrid") ||
     t.includes("pubsub") ||
+    t.includes("sqs") ||
+    t.includes("sns") ||
+    t.includes("kafka") ||
+    t.includes("msk_") ||
+    t.includes("kinesis") ||
+    t.includes("rabbitmq") ||
+    t.includes("queue")
+  ) {
+    return "messaging";
+  }
+  if (
+    t.includes("container_app_environment_storage") ||
+    t.includes("storage_account") ||
+    t.includes("storage_container") ||
+    t.includes("storage_blob") ||
+    t.includes("storage_share") ||
+    t.includes("storage_bucket") ||
+    t.includes("firestore") ||
+    t.includes("sql") ||
+    t.includes("postgres") ||
+    t.includes("mysql") ||
+    t.includes("cosmosdb") ||
+    t.includes("dynamodb") ||
+    t.includes("rds_") ||
+    t.includes("db_instance") ||
+    t.includes("redis") ||
+    t.includes("elasticache") ||
     t.includes("bigquery") ||
     t.includes("artifact_registry") ||
+    t.includes("container_registry") ||
+    t.includes("s3_bucket") ||
     t.includes("database")
   ) {
     return "data";
   }
   if (
+    t.includes("container_app_custom_domain") ||
+    t.includes("container_app_environment") ||
     t.includes("compute_url_map") ||
     t.includes("backend_service") ||
     t.includes("forwarding_rule") ||
+    t.includes("virtual_network") ||
     t.includes("network") ||
+    t.includes("subnet") ||
     t.includes("dns") ||
     t.includes("vpc") ||
     t.includes("neg") ||
     t.includes("target_https_proxy") ||
     t.includes("target_http_proxy") ||
     t.includes("global_address") ||
-    t.includes("load_balancer")
+    t.includes("load_balancer") ||
+    t.includes("frontdoor") ||
+    t.includes("cdn_") ||
+    t.includes("nat_gateway") ||
+    t.includes("private_endpoint") ||
+    t.includes("public_ip") ||
+    t.includes("route_table") ||
+    t.includes("api_management") ||
+    t.includes("ingress") ||
+    t.includes("gateway")
   ) {
     return "network";
   }
-  return "compute";
+  if (
+    t.includes("resource_group") ||
+    t.includes("consumption_budget") ||
+    t.includes("budget") ||
+    t.includes("management_lock") ||
+    t.includes("subscription") ||
+    t.includes("cost_management") ||
+    t.includes("project_service") ||
+    t.startsWith("random_") ||
+    t.startsWith("null_") ||
+    t.startsWith("time_") ||
+    t === "terraform_data"
+  ) {
+    return "governance";
+  }
+  return "governance";
 }
 
 function lineOf(text: string, index: number): number {
@@ -85,7 +215,7 @@ function extractTopLevelStringAttr(body: string, attrName: string): string | nul
 }
 
 export const iacExtractor: ExtractorPlugin = {
-  id: "iac.terraform-docker-firebase.v3",
+  id: "iac.terraform-docker-firebase.v4",
   domain: "iac",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
     const nodes: SpecNode[] = [];
@@ -116,6 +246,7 @@ export const iacExtractor: ExtractorPlugin = {
           const address = `${resType}.${resName}`;
           const id = `iac:tf:${address}`;
           const plane = classifyTerraformPlane(resType, fileBase);
+          const deployableCompute = isDeployableComputeResource(resType);
           const line = lineOf(text, match.index);
 
           const startIdx = match.index + match[0].length;
@@ -132,8 +263,8 @@ export const iacExtractor: ExtractorPlugin = {
           const topName = extractTopLevelStringAttr(body, "name");
           const displayName = topName ? `${resName} (${topName})` : resName;
 
-          if (resType === "google_cloud_scheduler_job") {
-            const sched = extractTopLevelStringAttr(body, "schedule");
+          if (resType === "google_cloud_scheduler_job" || resType === "azurerm_container_app_job") {
+            const sched = extractTopLevelStringAttr(body, "schedule") ?? extractTopLevelStringAttr(body, "cron_expression");
             loops.push({
               id: `arch:loop:tf:${resName}`,
               name: topName ?? resName,
@@ -151,13 +282,14 @@ export const iacExtractor: ExtractorPlugin = {
             label: displayName,
             group: plane,
             provenance: { file: relFile, line },
-            tags: ["terraform", plane, fileBase],
+            tags: ["terraform", plane, fileBase, ...(deployableCompute ? ["deployable_compute"] : [])],
             meta: {
               provider: resType.split("_")[0] ?? "terraform",
               resourceType: resType,
               resourceName: resName,
               address,
               plane,
+              deployableCompute,
               tfFile: fileBase,
               cloudName: topName,
               usesApiImage: body.includes("google_cloud_run_v2_service.api"),

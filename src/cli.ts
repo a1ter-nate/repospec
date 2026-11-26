@@ -31,6 +31,7 @@ import {
   storeDigestInDb,
 } from "./indexDb.ts";
 import { buildAllDiagrams, buildStaticTraces, resolveEvidenceAnchors } from "./layout.ts";
+import { buildVerificationScopeSummary, discoverRealCoverageReport } from "./internal/coverage.ts";
 import { buildModuleArchitecture } from "./moduleGraph.ts";
 import {
   buildFilePassport,
@@ -84,6 +85,7 @@ export async function generateRepoSpec(
     dbOutPath ?? path.join(os.tmpdir(), `repospec-${process.pid}-${ctx.repoName.replace(/[^a-zA-Z0-9_-]/g, "_")}.sqlite`);
 
   const moduleArch = buildModuleArchitecture({ units: ctx.units, ast: merged.ast });
+  const realCoverage = discoverRealCoverageReport(ctx.rootDir);
 
   const db = createAndPopulateIndexDb({
     dbPath: targetDbPath,
@@ -99,6 +101,7 @@ export async function generateRepoSpec(
     loops: merged.loops,
     catalogArtifacts: merged.catalogArtifacts,
     modules: moduleArch.modules,
+    realCoverage,
   });
 
   let invariants = [];
@@ -109,7 +112,7 @@ export async function generateRepoSpec(
     invariants = runSqlInvariants(db, RULES_DIR, merged.diagnostics);
     entities = queryEntityOwnership(db);
     surfaces = querySurfaces(db);
-    verification = queryVerificationCoverage(db, invariants);
+    verification = queryVerificationCoverage(db, invariants, realCoverage);
   } finally {
     db.close();
   }
@@ -143,7 +146,7 @@ export async function generateRepoSpec(
   storeDigestInDb(targetDbPath, digest);
   const idsModule = generateIdsModule(spec, digest);
   const sdkModule = generateSqliteSdkModule();
-  const drilldown = buildDrilldownIndex(ctx.units, merged.ast, ctx.rootDir);
+  const drilldown = buildDrilldownIndex(ctx.units, merged.ast, ctx.rootDir, realCoverage);
   return { spec, digest, idsModule, sdkModule, dbPath: targetDbPath, drilldown };
 }
 
@@ -307,6 +310,7 @@ async function main(): Promise<void> {
             digest,
             errorDiagnostics,
             failedInvariants: failedInvariants.map((i) => ({ id: i.id, name: i.name, count: i.violationCount })),
+            scopeSummary: buildVerificationScopeSummary(spec.verification),
             verification: spec.verification,
           },
           null,

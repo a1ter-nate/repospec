@@ -253,11 +253,27 @@ export function renderInspectorClientScript(): string {
     const drawerSub = scopedUnitSlug
       ? (curDiag?.category === "layers" ? "Clean Architecture Layers" : "Module Dependency Topology") + " · double-click any module or folder"
       : DATA.repo.name + " · " + DATA.repo.languages.join(", ");
+    const tierKindLabel = scopedUnitSlug
+      ? (curDiag?.category === "layers" ? "Enforced Clean Architecture Layers" : "Inferred Topological Tiers (L0–L4)")
+      : null;
+
+    const ver = DATA.verification;
+    const hasRealCov = ver.realLineCoveragePct !== null && ver.realLineCoveragePct !== undefined;
+    const covMetricRow = hasRealCov
+      ? '<div class="row"><span class="muted">Execution Coverage (' + esc(ver.coverageSource || "report") + ')</span><span class="mono">' + ver.realLineCoveragePct + "% lines" + (ver.realBranchCoveragePct !== null && ver.realBranchCoveragePct !== undefined ? " · " + ver.realBranchCoveragePct + "% branches" : "") + "</span></div>"
+      : '<div class="row"><span class="muted">Static Test Reachability (1-hop)</span><span class="mono">' + ver.directTestCoveragePct + "% (no lcov/cobertura)</span></div>";
+    const scopeBoxHtml =
+      '<div class="sec"><div class="sec-title"><span>Verification Scope</span><span class="muted">' + (hasRealCov ? "real coverage" : "static structural") + "</span></div>" +
+      covMetricRow +
+      '<div class="row"><span class="muted">Invariants</span><span class="mono">' + ver.invariantsPassed + " pass · " + ver.invariantsWarned + " warn · " + ver.invariantsFailed + " fail · " + ver.invariantsNa + " N/A</span></div>" +
+      (tierKindLabel ? '<div class="row"><span class="muted">Lane Basis</span><span class="mono">' + esc(tierKindLabel) + "</span></div>" : "") +
+      "</div>";
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
       (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
       tangleBanner +
+      scopeBoxHtml +
       findingsHtml +
       traceHtml +
       (!scopedUnitSlug

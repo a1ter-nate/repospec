@@ -86,7 +86,7 @@ function makeSmokeSpec(name: string, opts?: { externals?: string[]; entities?: A
       countsByNodeKind: { app: 1 },
       countsByEdgeKind: {},
       testFilesByRung: {},
-      iacByPlane: { network: 0, compute: 0, data: 0, security: 0, observability: 0, ci_infra: 0 },
+      iacByPlane: { network: 0, compute: 0, data: 0, security: 0, observability: 0, messaging: 0, governance: 0, ci_infra: 0 },
       workflowCount: 0,
       ciJobCount: 0,
       indexedSourceFiles: 10,

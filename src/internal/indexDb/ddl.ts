@@ -77,7 +77,13 @@ export function initIndexDbSchema(db: Database): void {
       is_test INTEGER NOT NULL,
       is_barrel INTEGER NOT NULL,
       lines INTEGER NOT NULL,
-      exports_count INTEGER NOT NULL
+      exports_count INTEGER NOT NULL,
+      runtime_exports_count INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE file_coverage (
+      file TEXT PRIMARY KEY,
+      line_pct REAL NOT NULL
     );
 
     CREATE TABLE file_imports (

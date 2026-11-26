@@ -14,7 +14,7 @@ const DB_RE =
   /\b(?:bun:sqlite|better-sqlite3|sqlite3|psycopg|sqlalchemy|drizzle-orm|prisma|typeorm|mongoose|sqlx::|diesel::|rusqlite|EntityFramework|DbContext|DbSet<|Npgsql|SqlConnection|Firestore|collectionGroup|\.collection\(|CREATE\s+TABLE|SELECT\s+.+\s+FROM\s+|INSERT\s+INTO\s+|UPDATE\s+\w+\s+SET\s+)/i;
 
 const HTTP_RE =
-  /\b(?:fetch\s*\(|axios|got\(|ky\.|undici|http\.createServer|https\.request|node:http|express\(|fastify\(|new\s+Hono|reqwest::|axum::|actix_web|hyper::|HttpClient|ControllerBase|MapGet|MapPost|FastAPI|APIRouter|Flask\(|requests\.(?:get|post|put|delete|patch)|httpx\.|aiohttp\.|urllib\.request)/;
+  /\b(?:fetch\s*\(|Bun\.serve\s*\(|axios|got\(|ky\.|undici|http\.createServer|https\.request|node:http|express\(|fastify\(|new\s+Hono|reqwest::|axum::|actix_web|hyper::|HttpClient|ControllerBase|MapGet|MapPost|FastAPI|APIRouter|Flask\(|requests\.(?:get|post|put|delete|patch)|httpx\.|aiohttp\.|urllib\.request)/;
 
 const PROC_RE =
   /\b(?:node:child_process|execFileSync|execSync|spawnSync|spawn\(|Bun\.spawn|std::process::Command|tokio::process::Command|subprocess\.(?:run|Popen|check_output|call)|os\.system\(|System\.Diagnostics\.Process|ProcessStartInfo)/;

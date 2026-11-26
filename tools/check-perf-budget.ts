@@ -63,14 +63,23 @@ function measureWorkloadMs(n: number, rounds: number): number {
   return Number((elapsed / rounds).toFixed(4));
 }
 
-function main(): void {
-  measureWorkloadMs(64, 5);
-  measureWorkloadMs(128, 3);
+function medianWorkloadMs(n: number, rounds: number): number {
+  const trials = [
+    measureWorkloadMs(n, rounds),
+    measureWorkloadMs(n, rounds),
+    measureWorkloadMs(n, rounds),
+  ].sort((a, b) => a - b);
+  return trials[1] ?? trials[0] ?? 0.05;
+}
 
-  const sizes = [100, 200, 400, 800, 1600];
+function main(): void {
+  measureWorkloadMs(128, 4);
+  measureWorkloadMs(256, 3);
+
+  const sizes = [200, 400, 800, 1600, 3200];
   const samples = sizes.map((n) => ({
     n,
-    timeMs: Math.max(0.05, measureWorkloadMs(n, 5)),
+    timeMs: Math.max(0.05, medianWorkloadMs(n, 4)),
   }));
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-bigo-"));

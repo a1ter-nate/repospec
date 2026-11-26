@@ -45,6 +45,7 @@ export interface AstFileFact {
   isBarrel: boolean;
   lines: number;
   exportsCount: number;
+  runtimeExportsCount?: number;
   exportedSymbols?: ExportedSymbol[];
   capabilities?: CapabilityTag[];
 }

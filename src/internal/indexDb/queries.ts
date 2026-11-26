@@ -8,6 +8,7 @@ import type {
   SqlInvariantResult,
   VerificationCoverage,
 } from "../../schema.ts";
+import type { RealCoverageReport } from "../coverage.ts";
 
 export function queryEntityOwnership(db: Database): EntityOwnership[] {
   const declaredRows = db
@@ -287,6 +288,7 @@ export function querySurfaces(db: Database): {
 export function queryVerificationCoverage(
   db: Database,
   invariants: SqlInvariantResult[],
+  realCoverage?: RealCoverageReport | null,
 ): VerificationCoverage {
   const totalRow = db
     .query("SELECT COUNT(*) AS cnt FROM v_prod_files WHERE is_barrel = 0")
@@ -319,6 +321,10 @@ export function queryVerificationCoverage(
     totalSourceFiles: total,
     directlyTestedSourceFiles: tested,
     directTestCoveragePct: pct,
+    coverageSource: realCoverage ? realCoverage.source : "static_reachability_1hop",
+    realLineCoveragePct: realCoverage ? realCoverage.linePct : null,
+    realBranchCoveragePct: realCoverage ? realCoverage.branchPct : null,
+    coverageReportFile: realCoverage ? realCoverage.reportFile : null,
     registeredGates: gatesRow.cnt,
     ciWiredGates: gatesRow.cnt - unwiredRows.length,
     unwiredGateNames: unwiredRows.map((r) => r.label),

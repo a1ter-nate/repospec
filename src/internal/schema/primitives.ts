@@ -60,7 +60,16 @@ export type ModuleCard = z.infer<typeof ModuleCardSchema>;
 const StorageModeSchema = z.enum(["artifact", "commit"]);
 export type StorageMode = z.infer<typeof StorageModeSchema>;
 
-const IacPlaneSchema = z.enum(["network", "compute", "data", "security", "observability", "ci_infra"]);
+const IacPlaneSchema = z.enum([
+  "network",
+  "compute",
+  "data",
+  "security",
+  "observability",
+  "messaging",
+  "governance",
+  "ci_infra",
+]);
 export type IacPlane = z.infer<typeof IacPlaneSchema>;
 
 const RungSchema = z.enum(["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"]);

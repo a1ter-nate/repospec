@@ -3,6 +3,7 @@ import path from "node:path";
 import type { AstIndexData, UnitDescriptor } from "../schema.ts";
 import { extractGitChurnMap } from "../extractors/gitMetrics.ts";
 import { isExcludedCodePath } from "../extractors/moduleFacts.ts";
+import type { RealCoverageReport } from "../internal/coverage.ts";
 import { extractFileCallGraph, packSourceArchiveBase64, type FileSymbolTuple } from "./fileSymbols.ts";
 
 export interface DrilldownFile {
@@ -17,6 +18,7 @@ export interface DrilldownFile {
   t: string[];
   v: string[];
   tc?: 0 | 1;
+  fc?: number;
   ch?: number;
   m?: FileSymbolTuple[];
   k?: Array<[number, number, number]>;
@@ -33,6 +35,7 @@ export function buildDrilldownIndex(
   units: UnitDescriptor[],
   ast: AstIndexData,
   repoRoot?: string,
+  realCoverage?: RealCoverageReport | null,
 ): DrilldownIndex {
   const unitByName = new Map<string, UnitDescriptor>();
   for (const u of units) unitByName.set(u.name, u);
@@ -113,6 +116,7 @@ export function buildDrilldownIndex(
       t: Array.from(entitiesByFile.get(f.file) ?? []).sort().slice(0, 10),
       v: Array.from(envByFile.get(f.file) ?? []).sort().slice(0, 10),
       tc: testedProdFiles.has(f.file) ? 1 : 0,
+      fc: realCoverage?.fileLinePct.get(f.file),
       ch: churnByFile.get(f.file) ?? 0,
       m: callGraph && callGraph.m.length > 0 ? callGraph.m : undefined,
       k: callGraph && callGraph.m.length > 0 ? callGraph.k : undefined,

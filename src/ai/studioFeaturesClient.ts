@@ -287,7 +287,7 @@ export function renderStudioFeaturesClientScript(): string {
       '<div class="pill-row">' +
       '<span class="badge b-fail">' + br.totalUpstream + " upstream nodes</span>" +
       (br.impactedFilesCount > 0 ? '<span class="badge b-warn">' + br.impactedFilesCount + " files</span>" : "") +
-      (br.testedCount + br.untestedCount > 0 ? '<span class="badge ' + (covPct >= 60 ? "b-pass" : "b-fail") + '">' + covPct + "% tested (" + br.untestedCount + " untested)</span>" : "") +
+      (br.testedCount + br.untestedCount > 0 ? '<span class="badge ' + (covPct >= 60 ? "b-pass" : "b-fail") + '">' + covPct + "% static 1-hop reach (" + br.untestedCount + " unreached)</span>" : "") +
       (br.impactedEndpoints.length > 0 ? '<span class="badge b-info">' + br.impactedEndpoints.length + " HTTP routes</span>" : "") +
       "</div>" +
       hopSection("1-Hop Direct Callers", br.byHop[1], "b-fail") +

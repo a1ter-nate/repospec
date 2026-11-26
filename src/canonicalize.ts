@@ -225,6 +225,8 @@ export function buildCanonicalSpec(params: {
     data: 0,
     security: 0,
     observability: 0,
+    messaging: 0,
+    governance: 0,
     ci_infra: 0,
   };
 
@@ -251,6 +253,8 @@ export function buildCanonicalSpec(params: {
         plane === "data" ||
         plane === "security" ||
         plane === "observability" ||
+        plane === "messaging" ||
+        plane === "governance" ||
         plane === "ci_infra"
       ) {
         iacByPlane[plane] += 1;

@@ -8,15 +8,25 @@ export function renderStudioVizClientScript(): string {
     if (!state.canvasLens || state.canvasLens === "default") return null;
     let tested = 0;
     let total = 0;
+    let realCovSum = 0;
+    let realCovCount = 0;
     let churnSum = 0;
     let maxChurn = 0;
+    const recordFile = (f) => {
+      total += 1;
+      if (f.tc) tested += 1;
+      if (typeof f.fc === "number") {
+        realCovSum += f.fc;
+        realCovCount += 1;
+      }
+      const ch = f.ch || 0;
+      churnSum += ch;
+      if (ch > maxChurn) maxChurn = ch;
+    };
     if (node.id.startsWith("file:")) {
       const fi = ddIdxByPath.get(node.id.slice(5));
       if (fi !== undefined) {
-        total = 1;
-        tested = DD_FILES[fi].tc ? 1 : 0;
-        churnSum = DD_FILES[fi].ch || 0;
-        maxChurn = churnSum;
+        recordFile(DD_FILES[fi]);
       }
     } else {
       const mod = moduleById.get(node.id);
@@ -24,27 +34,20 @@ export function renderStudioVizClientScript(): string {
         for (const mf of mod.files) {
           const fi = ddIdxByPath.get(mf.file);
           if (fi === undefined) continue;
-          total += 1;
-          if (DD_FILES[fi].tc) tested += 1;
-          const ch = DD_FILES[fi].ch || 0;
-          churnSum += ch;
-          if (ch > maxChurn) maxChurn = ch;
+          recordFile(DD_FILES[fi]);
         }
       } else if (node.kind === "app" || node.kind === "package" || node.kind === "native_app") {
         const slug = shortPkg(node.label);
         for (const f of DD_FILES) {
           if (f.u !== slug) continue;
-          total += 1;
-          if (f.tc) tested += 1;
-          churnSum += f.ch || 0;
-          if ((f.ch || 0) > maxChurn) maxChurn = f.ch || 0;
+          recordFile(f);
         }
       }
     }
     if (total === 0) return null;
 
     if (state.canvasLens === "coverage") {
-      const pct = Math.round((tested / total) * 100);
+      const pct = realCovCount > 0 ? Math.round(realCovSum / realCovCount) : Math.round((tested / total) * 100);
       if (pct >= 70) return { fill: "rgba(16,185,129,0.16)", stroke: "#34d399", badge: pct + "%", badgeBg: "#10b981" };
       if (pct >= 25) return { fill: "rgba(245,158,11,0.15)", stroke: "#fbbf24", badge: pct + "%", badgeBg: "#f59e0b" };
       return { fill: "rgba(239,68,68,0.16)", stroke: "#f87171", badge: pct + "%", badgeBg: "#ef4444" };
@@ -407,7 +410,7 @@ export function renderStudioVizClientScript(): string {
 
     const cards = [
       { title: "Invariant Violations", vals: commits.map((c) => c.failures + c.warnings), curVal: String(cur.failures + cur.warnings), sub: cur.failures + " fail · " + cur.warnings + " warn", color: "#ff8a8a", invert: true },
-      { title: "Direct Test Coverage", vals: commits.map((c) => c.coveragePct), curVal: cur.coveragePct + "%", sub: "tested source files", color: "#5fd9a0", invert: false },
+      { title: "Static Test Reachability (1-hop)", vals: commits.map((c) => c.coveragePct), curVal: cur.coveragePct + "%", sub: "1-hop test-imported files", color: "#5fd9a0", invert: false },
       { title: "Circular Tangles", vals: commits.map((c) => c.tangles), curVal: String(cur.tangles), sub: "SCC module cycles", color: "#f5c26b", invert: true },
       { title: "Source Files & Edges", vals: commits.map((c) => c.files), curVal: String(cur.files), sub: cur.edges + " import edges · " + cur.loc + "L", color: "#7cc8ff", invert: false },
     ];

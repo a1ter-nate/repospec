@@ -459,7 +459,7 @@ export function aggregateRepoSpecs(params: {
       countsByNodeKind,
       countsByEdgeKind,
       testFilesByRung: {},
-      iacByPlane: { network: 0, compute: 0, data: 0, security: 0, observability: 0, ci_infra: 0 },
+      iacByPlane: { network: 0, compute: 0, data: 0, security: 0, observability: 0, messaging: 0, governance: 0, ci_infra: 0 },
       workflowCount: repos.reduce((s, r) => s + r.spec.summary.workflowCount, 0),
       ciJobCount: repos.reduce((s, r) => s + r.spec.summary.ciJobCount, 0),
       indexedSourceFiles: totalFiles,

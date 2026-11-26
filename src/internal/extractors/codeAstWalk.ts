@@ -12,6 +12,7 @@ import type {
 import { classifyExternalPackage, classifyVendorPackage } from "../../taxonomy.ts";
 import { detectCapabilities } from "../../extractors/moduleFacts.ts";
 import { CODE_AST_HELPERS } from "./codeAstHelpers.ts";
+import { extractBunServeEndpoints } from "./httpRoutes.ts";
 
 const {
   HTTP_ROUTE_VERBS,
@@ -25,6 +26,8 @@ const {
   isPureBarrelFile,
   isHttpCallContext,
   extractTsTransitionsFromFile,
+  isTypeOnlyImportClause,
+  isTypeOnlyExportDecl,
 } = CODE_AST_HELPERS;
 
 export interface FileMetaEntry {
@@ -98,6 +101,7 @@ export function analyzeTsFiles(params: {
       const isBarrel = isPureBarrelFile(sf);
 
       let exportsCount = 0;
+      let runtimeExportsCount = 0;
       const exportedSymbols: ExportedSymbol[] = [];
       const seenExportNames = new Set<string>();
       const pushExportSymbol = (name: string, kind: ExportedSymbol["kind"], pos: number): void => {
@@ -188,14 +192,16 @@ export function analyzeTsFiles(params: {
       const visit = (node: ts.Node): void => {
         if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
           const clause = node.importClause;
-          const typeOnly = Boolean(clause?.isTypeOnly);
+          const typeOnly = Boolean(clause?.isTypeOnly) || isTypeOnlyImportClause(clause);
           recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnly);
         }
 
         if (ts.isExportDeclaration(node)) {
+          const typeOnlyExport = isTypeOnlyExportDecl(node);
           exportsCount += 1;
+          if (!typeOnlyExport) runtimeExportsCount += 1;
           if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-            recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), Boolean(node.isTypeOnly));
+            recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnlyExport);
           }
         }
 
@@ -204,6 +210,8 @@ export function analyzeTsFiles(params: {
           ts.getModifiers(node)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
         ) {
           exportsCount += 1;
+          const isTypeOnlyDecl = ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node);
+          if (!isTypeOnlyDecl) runtimeExportsCount += 1;
           if (!fm.isTest) {
             const pos = node.getStart(sf);
             if (ts.isFunctionDeclaration(node) && node.name) {
@@ -409,6 +417,11 @@ export function analyzeTsFiles(params: {
 
       visit(sf);
 
+      if (!fm.isTest) {
+        const bunRoutes = extractBunServeEndpoints(sf, fm.unitName, rel);
+        for (const ep of bunRoutes) ast.httpEndpoints.push(ep);
+      }
+
       const extractedTransitions = extractTsTransitionsFromFile(sf, localStateEnums);
       for (const [enumName, meta] of localEnumMeta) {
         const transitions = extractedTransitions.get(enumName) ?? [];
@@ -450,6 +463,7 @@ export function analyzeTsFiles(params: {
         isBarrel,
         lines,
         exportsCount,
+        runtimeExportsCount,
         exportedSymbols,
         capabilities: detectCapabilities(text),
       });

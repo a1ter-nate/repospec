@@ -13,6 +13,7 @@ import type {
   UnitDescriptor,
 } from "../../schema.ts";
 import { resolveLayerSemantics } from "../../taxonomy.ts";
+import type { RealCoverageReport } from "../coverage.ts";
 import { initIndexDbSchema } from "./ddl.ts";
 
 export function createAndPopulateIndexDb(params: {
@@ -29,6 +30,7 @@ export function createAndPopulateIndexDb(params: {
   loops: LoopRecord[];
   catalogArtifacts: CatalogArtifact[];
   modules?: ModuleCard[];
+  realCoverage?: RealCoverageReport | null;
 }): Database {
   const {
     dbPath,
@@ -44,6 +46,7 @@ export function createAndPopulateIndexDb(params: {
     loops,
     catalogArtifacts,
     modules = [],
+    realCoverage = null,
   } = params;
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -97,7 +100,10 @@ export function createAndPopulateIndexDb(params: {
   );
   const insertRuleTarget = db.prepare("INSERT INTO rule_targets (rule_id, target) VALUES (?, ?)");
   const insertFile = db.prepare(
-    "INSERT OR IGNORE INTO files (file, unit, language, layer, canonical_layer, layer_axis, layer_rank, domain_area, layer_source, domain_source, is_test, is_barrel, lines, exports_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO files (file, unit, language, layer, canonical_layer, layer_axis, layer_rank, domain_area, layer_source, domain_source, is_test, is_barrel, lines, exports_count, runtime_exports_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertFileCoverage = db.prepare(
+    "INSERT OR REPLACE INTO file_coverage (file, line_pct) VALUES (?, ?)",
   );
   const insertFileImport = db.prepare(
     "INSERT INTO file_imports (from_file, to_file, from_unit, to_unit, from_layer, to_layer, from_canonical_layer, to_canonical_layer, from_domain, to_domain, line, type_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -200,6 +206,7 @@ export function createAndPopulateIndexDb(params: {
     }
     for (const f of ast.files) {
       const sem = resolveLayerSemantics(f.layer, f.canonicalLayer);
+      const runtimeExports = f.runtimeExportsCount ?? (f.language === "typescript" ? f.exportsCount : 1);
       insertFile.run(
         f.file,
         f.unit,
@@ -215,9 +222,15 @@ export function createAndPopulateIndexDb(params: {
         f.isBarrel ? 1 : 0,
         f.lines,
         f.exportsCount,
+        runtimeExports,
       );
       for (const sym of f.exportedSymbols ?? []) {
         insertFileSymbol.run(f.file, sym.name, sym.kind, sym.line);
+      }
+    }
+    if (realCoverage) {
+      for (const [covFile, pct] of realCoverage.fileLinePct) {
+        insertFileCoverage.run(covFile, pct);
       }
     }
     for (const m of modules) {

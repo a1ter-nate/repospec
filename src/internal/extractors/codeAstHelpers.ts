@@ -347,6 +347,26 @@ function extractTsTransitionsFromFile(
 }
 
 
+function isTypeOnlyImportClause(clause: ts.ImportClause | undefined): boolean {
+  if (!clause) return false;
+  if (clause.isTypeOnly) return true;
+  if (clause.name) return false;
+  if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+    const els = clause.namedBindings.elements;
+    return els.length > 0 && els.every((el) => el.isTypeOnly);
+  }
+  return false;
+}
+
+function isTypeOnlyExportDecl(decl: ts.ExportDeclaration): boolean {
+  if (decl.isTypeOnly) return true;
+  if (decl.exportClause && ts.isNamedExports(decl.exportClause)) {
+    const els = decl.exportClause.elements;
+    return els.length > 0 && els.every((el) => el.isTypeOnly);
+  }
+  return false;
+}
+
 export type DomainConfig = ReturnType<typeof loadDomainConfig>;
 
 export const CODE_AST_HELPERS = {
@@ -364,4 +384,6 @@ export const CODE_AST_HELPERS = {
   isPureBarrelFile,
   isHttpCallContext,
   extractTsTransitionsFromFile,
+  isTypeOnlyImportClause,
+  isTypeOnlyExportDecl,
 } as const;

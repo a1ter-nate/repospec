@@ -5,7 +5,7 @@
 -- @statement: Lower architectural layers must not import upper layers (both intra-unit and cross-project Clean Architecture).
 -- @why: Upward layer imports create cycles that break testability, isolate-build caching, and clean request boundaries.
 -- @fix: Extract shared contracts into a domain/support module or invert the dependency via an interface.
--- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM units WHERE layer_policy IN ('layered_backend', 'layered_clean_arch')) = 0 THEN 'No units with layered_backend or layered_clean_arch policy' ELSE NULL END
+-- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM units WHERE layer_policy IN ('layered_backend', 'layered_clean_arch')) = 0 THEN 'No units declare an explicit layer policy (layered_backend or layered_clean_arch); Studio L0-L4 lanes are inferred topological tiers, not enforced layer boundaries' ELSE NULL END
 SELECT
   fi.from_unit || ':' || fi.from_layer || '->' || fi.to_unit || ':' || fi.to_layer AS subject,
   fi.from_layer || '/ (' || fi.from_canonical_layer || ') imports forbidden layer ' || fi.to_layer || '/ (' || fi.to_canonical_layer || ' in ' || fi.to_file || ')' AS detail,
