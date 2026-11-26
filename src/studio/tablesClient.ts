@@ -423,11 +423,51 @@ export function renderTablesClientScript(): string {
       if (state.checksFilter === "na") return i.status === "na";
       return true;
     });
+    const renderCheckCard = (inv) => {
+      if (inv.status === "pass" || inv.status === "na") {
+        return renderDisclosure({
+          title: inv.name,
+          meta: inv.id + " · " + inv.rung,
+          badge: inv.status.toUpperCase(),
+          badgeClass: inv.status === "pass" ? "b-pass" : "b-na",
+          tone: inv.status === "pass" ? "pass" : "",
+          open: false,
+          bodyHtml:
+            '<div class="finding-note">' + esc(inv.statement) + "</div>" +
+            (inv.applicabilityReason ? '<div class="mono muted" style="font-size:11.5px">N/A: ' + esc(inv.applicabilityReason) + "</div>" : ""),
+        });
+      }
+      return renderFindingDisclosure(inv, { open: inv.status === "fail", hideChecksLink: true });
+    };
+    const renderCheckList = () => {
+      if (invs.length === 0) {
+        return '<div class="ev-box" style="border-left-color:#5fd9a0;padding:14px 16px;gap:8px"><strong style="color:#6ee7b0;font-size:14px">All applicable architectural checks pass</strong><div class="muted">0 blockers and 0 warnings for the current filter (' + passCount + " passed, " + naCount + ' N/A).</div>' +
+          (passCount > 0 && state.checksFilter !== "pass" ? '<div><button class="tbtn" data-checks-filter="pass">View Passed (' + passCount + ")</button></div>" : "") + "</div>";
+      }
+      const blockers = invs.filter((i) => i.status === "fail");
+      const structural = invs.filter((i) => i.status !== "fail" && !String(i.id || "").startsWith("ddia:"));
+      const behavioral = invs.filter((i) => i.status !== "fail" && String(i.id || "").startsWith("ddia:"));
+      const sections = [
+        { label: "Blockers (" + blockers.length + ")", items: blockers },
+        { label: "Architecture & Boundaries (" + structural.length + ")", items: structural },
+        { label: "Runtime & Data Behavior (" + behavioral.length + ")", items: behavioral },
+      ].filter((s) => s.items.length > 0);
+      if (sections.length <= 1) return invs.map(renderCheckCard).join("");
+      return sections.map((s) =>
+        '<div class="checks-group"><div class="checks-group-lbl">' + esc(s.label) + "</div>" + s.items.map(renderCheckCard).join("") + "</div>"
+      ).join("");
+    };
+    const scopeLabel = DATA.verification && DATA.verification.coverageSource !== "static_reachability_1hop"
+      ? DATA.verification.coverageSource + " coverage"
+      : "static 1-hop reach";
+    const scopeNote = (DATA.verification && DATA.verification.scopeNotes && DATA.verification.scopeNotes[0]) ||
+      "Static structural graph & local invariant analysis only. Behavioral semantics, runtime auth enforcement, and cross-repo wire contracts require runtime E2E/contract proofs.";
     return (
-      '<div class="table-wrap" style="position:relative">' +
-      '<div class="sub-toggles" style="margin-bottom:10px;justify-content:space-between">' +
+      '<div class="table-wrap" style="position:relative"><div class="checks-shell">' +
+      '<div class="sub-toggles" style="margin-bottom:12px;justify-content:space-between">' +
       '<div class="sub-toggles">' +
-      '<button class="pill-btn" data-tab="map">← Back to Map</button>' +
+      '<button class="tbtn" data-tab="map">← Back to Map</button>' +
+      '<span class="checks-sep"></span>' +
       '<button class="pill-btn' + (state.checksFilter === "active" ? " active" : "") + '" data-checks-filter="active">Active (' + (failCount + warnCount) + ")</button>" +
       '<button class="pill-btn' + (state.checksFilter === "fail" ? " active" : "") + '" data-checks-filter="fail">Failures (' + failCount + ")</button>" +
       '<button class="pill-btn' + (state.checksFilter === "warn" ? " active" : "") + '" data-checks-filter="warn">Warnings (' + warnCount + ")</button>" +
@@ -436,39 +476,8 @@ export function renderTablesClientScript(): string {
       (naCount > 0 ? '<button class="pill-btn' + (state.checksFilter === "na" ? " active" : "") + '" data-checks-filter="na">N/A (' + naCount + ")</button>" : "") +
       '</div><button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="What do these checks mean?">?</button></div>' +
       renderInfoPopoverHtml() +
-      '<div style="display:flex;flex-direction:column;gap:8px">' +
-      (invs.length === 0
-        ? '<div class="ev-box" style="border-left-color:#5fd9a0;padding:14px 16px;gap:8px"><strong style="color:#6ee7b0;font-size:14px">All applicable architectural checks pass</strong><div class="muted">0 blockers and 0 warnings for the current filter (' + passCount + " passed, " + naCount + ' N/A).</div>' +
-          (passCount > 0 && state.checksFilter !== "pass" ? '<div><button class="tbtn" data-checks-filter="pass">View Passed (' + passCount + ")</button></div>" : "") + "</div>"
-        : invs.map((inv) => {
-            if (inv.status === "pass" || inv.status === "na") {
-              return renderDisclosure({
-                title: inv.name,
-                meta: inv.id + " · " + inv.rung,
-                badge: inv.status.toUpperCase(),
-                badgeClass: inv.status === "pass" ? "b-pass" : "b-na",
-                tone: inv.status === "pass" ? "pass" : "",
-                open: false,
-                bodyHtml:
-                  '<div class="muted">' + esc(inv.statement) + "</div>" +
-                  (inv.applicabilityReason ? '<div class="mono muted">N/A: ' + esc(inv.applicabilityReason) + "</div>" : ""),
-              });
-            }
-            return renderFindingDisclosure(inv, { open: inv.status === "fail", hideChecksLink: true });
-          }).join("")) +
-      "</div>" +
-      '<div style="margin-top:12px">' +
-      renderDisclosure({
-        title: "Verification Scope",
-        meta: DATA.verification && DATA.verification.coverageSource !== "static_reachability_1hop"
-          ? DATA.verification.coverageSource + " coverage"
-          : "static 1-hop reach",
-        open: false,
-        bodyHtml:
-          '<div class="muted" style="font-size:11px;line-height:1.5">' +
-          esc((DATA.verification && DATA.verification.scopeNotes && DATA.verification.scopeNotes[0]) || "Static structural graph & local invariant analysis only. Behavioral semantics, runtime auth enforcement, and cross-repo wire contracts require runtime E2E/contract proofs.") +
-          "</div>",
-      }) +
+      '<div class="checks-list">' + renderCheckList() + "</div>" +
+      '<details class="scope-footer"><summary><span class="disc-chev">▸</span> Verification Scope · <span class="mono">' + esc(scopeLabel) + '</span></summary><div class="scope-body">' + esc(scopeNote) + "</div></details>" +
       "</div></div>"
     );
   }

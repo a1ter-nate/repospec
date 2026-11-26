@@ -4,20 +4,25 @@ export function renderInspectorClientScript(): string {
   return `
   function renderFindingDisclosure(inv, opts) {
     const matchingEv = opts.filterEv ? inv.evidence.filter(opts.filterEv) : inv.evidence;
-    const shownEv = (matchingEv.length > 0 ? matchingEv : inv.evidence).slice(0, 6);
+    const allEv = matchingEv.length > 0 ? matchingEv : inv.evidence;
+    const shownEv = allEv.slice(0, 6);
     const hasAnchor = Boolean(shownEv.some((e) => e.anchors && e.anchors.length > 0) || inv.evidence.some((e) => e.anchors && e.anchors.length > 0));
     const tone = inv.status === "fail" ? "fail" : inv.status === "warn" ? "warn" : "pass";
-    const evRows = shownEv.map((ev) => {
-      const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" data-open-file-line="' + (ev.line || 1) + '" title="Open source code at this exact line">Inspect code</button>' : "";
-      return '<div class="ev-item"><div>' + esc(ev.detail) + '</div><div class="links-row">' + provenanceLinksHtml(ev.file, ev.line) + openFileBtn + "</div></div>";
-    }).join("");
+    const evRows = shownEv.length > 0
+      ? '<div class="ev-list">' + shownEv.map((ev) => {
+          const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" data-open-file-line="' + (ev.line || 1) + '" title="Open source code at this exact line">Inspect code →</button>' : "";
+          return '<div class="ev-row"><div class="ev-main"><div class="ev-detail">' + esc(ev.detail) + '</div><div class="ev-loc">' + provenanceLinksHtml(ev.file, ev.line) + '</div></div><div class="ev-act">' + openFileBtn + "</div></div>";
+        }).join("") +
+        (allEv.length > shownEv.length ? '<div class="ev-more">Showing ' + shownEv.length + " of " + allEv.length + " hits</div>" : "") +
+        "</div>"
+      : "";
+    const summaryText = inv.why || inv.statement;
     const bodyHtml =
-      '<div class="muted">' + esc(inv.statement) + "</div>" +
-      (inv.why ? '<div class="why-note"><strong>Why it matters:</strong> ' + esc(inv.why) + "</div>" : "") +
+      (summaryText ? '<div class="finding-note">' + esc(summaryText) + "</div>" : "") +
       evRows +
-      (inv.fix ? '<div class="fix-note"><strong>How to fix:</strong> ' + esc(inv.fix) + "</div>" : "") +
-      '<div class="links-row">' +
-      (hasAnchor ? '<button class="tbtn" data-show-inv="' + esc(inv.id) + '" title="Jump to this violation on the architecture map">Highlight on map</button>' : "") +
+      (inv.fix ? '<div class="finding-fix"><strong>Fix:</strong> ' + esc(inv.fix) + "</div>" : "") +
+      '<div class="finding-actions">' +
+      (hasAnchor ? '<button class="tbtn tbtn-accent" data-show-inv="' + esc(inv.id) + '" title="Jump to this violation on the architecture map">Highlight on map</button>' : "") +
       '<button class="tbtn" data-copy-inv="' + esc(inv.id) + '" title="Copy rule, evidence, and fix instructions as Markdown">Copy Fix Brief</button>' +
       (opts.hideChecksLink || state.tab === "checks" ? "" : '<button class="tbtn" data-jump-checks="1">Open in Checks</button>') +
       "</div>";
