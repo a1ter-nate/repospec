@@ -96,6 +96,7 @@ export function renderDrilldownInspectorScript(): string {
       '<button class="action-btn sec-btn" data-copy-ctx="file" data-copy-ctx-id="' + esc(f.p) + '">Copy Agent Context</button>' +
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus (F)") + "</button>" +
       '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
+      (typeof renderFileBehaviorCard === "function" ? renderFileBehaviorCard(f.p) : "") +
       findingsSec +
       renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false) +
       surfacePreviewSec +

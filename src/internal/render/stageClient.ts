@@ -170,6 +170,7 @@ export function renderStageClientScript(): string {
       const visibleSpineCount = diag.edges.length - detailCount;
 
       const blastDrawerHtml = state.blastSeedId ? renderBlastRadiusPanel(diag) : "";
+      const mapFlowStepHtml = !inMatrix && (state.mapFlowId || state.canvasLens === "flows") ? renderMapFlowStepDrawer(diag) : "";
       const baseDrawerHtml = state.e2eTraceSeed
         ? renderE2eTraceDrawer(diag)
         : state.activeFileGraph
@@ -179,7 +180,7 @@ export function renderStageClientScript(): string {
             : state.selectedNodeId
               ? renderNodeInspector(state.selectedNodeId)
               : renderBriefingDrawer();
-      const drawerHtml = blastDrawerHtml + baseDrawerHtml;
+      const drawerHtml = blastDrawerHtml + mapFlowStepHtml + baseDrawerHtml;
 
       const trayHtml = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0
         ? '<div class="tray" title="Units indexed without static runtime edges to the core graph — click any chip to inspect"><span>No edges extracted:</span>' +
@@ -201,15 +202,20 @@ export function renderStageClientScript(): string {
       const canStepUp = Boolean(state.activeFileGraph || state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
       const hudTopLeft = subNav ? '<div class="hud-pill hud-top-left">' + subNav + "</div>" : "";
       const lensHtml = !inMatrix && !state.activeFileGraph && !state.e2eTraceSeed && DD_FILES.length > 0
-        ? '<span class="seg-group" title="Heatmap lens overlay">' +
+        ? '<span class="seg-group" title="Heatmap & flow lens overlay">' +
           '<button class="seg-btn' + (state.canvasLens === "default" ? " active" : "") + '" data-lens="default">Normal</button>' +
           '<button class="seg-btn' + (state.canvasLens === "coverage" ? " active" : "") + '" data-lens="coverage" title="' + (hasRealCov ? "Tint modules & files by real line coverage %" : "Tint modules & files by static 1-hop test import reachability (no coverage report ingested)") + '">' + (hasRealCov ? "Coverage" : "Reachability") + "</button>" +
           '<button class="seg-btn' + (state.canvasLens === "churn" ? " active" : "") + '" data-lens="churn" title="Tint modules & files by git commit churn hotspots">Churn</button>' +
+          (ALL_FLOWS.length > 0 ? '<button class="seg-btn' + (state.canvasLens === "flows" || state.mapFlowId ? " active" : "") + '" data-lens="flows" title="Overlay numbered work-flow steps and bottom timeline scrubber on the Map">Flows</button>' : "") +
           "</span>"
+        : "";
+      const asyncToggleHtml = !inMatrix && (state.activeFolder || state.activeFileGraph) && ALL_ASYNCS.length > 0
+        ? '<button class="tbtn' + (state.showAsyncEdges ? " active" : "") + '" data-toggle-async-edges="1" title="Show dashed violet cross-boundary async handoff edges (Pub/Sub, queues, triggers)">⚡ Async</button>'
         : "";
       const hudTopRight =
         '<div class="hud-pill hud-top-right">' +
         lensHtml +
+        asyncToggleHtml +
         viewToggleHtml +
         wireToggleHtml +
         (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1" title="Bow-Tie focus: isolate only direct callers and dependencies of the selected card">Focus <span class="keycap">F</span></button>' : "") +
@@ -239,14 +245,16 @@ export function renderStageClientScript(): string {
           (selModObj && selModObj.files.length === 1 && ddIdxByPath.has(selModObj.files[0].file)) ||
           (selNodeObj?.provenance?.file && !selSpecNode && !selModObj && ddIdxByPath.has(selNodeObj.provenance.file)))
       );
+      const hasMapFlowScrubber = !inMatrix && Boolean(state.mapFlowId || state.canvasLens === "flows") && ALL_FLOWS.length > 0;
       bodyHtml =
-        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel ? " code-open" : "") + '">' +
+        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel || hasMapFlowScrubber ? " code-open" : "") + '">' +
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
         renderInfoPopoverHtml() +
         hudBottomLeft +
         hudLegend +
+        (hasMapFlowScrubber ? renderMapFlowScrubber(diag) : "") +
         (!inMatrix ? renderMinimapHtml(diag) : "") +
         trayHtml +
         '<div class="edge-tooltip" id="edge-tooltip"></div>' +

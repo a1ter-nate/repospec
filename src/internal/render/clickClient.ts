@@ -135,6 +135,7 @@ export function renderClickClientScript(): string {
 
     if (handleExplainClick(target)) return;
     if (handleFeatureClick(target)) return;
+    if (handleMapFlowClick(target)) return;
     if (handleFlowClick(target)) return;
 
     const copyCodeBtn = target.closest("[data-copy-code]");

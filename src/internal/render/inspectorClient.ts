@@ -418,11 +418,17 @@ export function renderInspectorClientScript(): string {
     const singleFileCodeSec = singleFilePath
       ? renderInlineSourceDisclosure(singleFilePath, 1, { open: true })
       : "";
+    const modFlowSec = singleFilePath && typeof renderFileBehaviorCard === "function"
+      ? renderFileBehaviorCard(singleFilePath)
+      : typeof renderNodeFlowsRollup === "function"
+        ? renderNodeFlowsRollup(null, "", mod.files.map((f) => f.file))
+        : "";
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(mod.kind === "directory" ? mod.name + "/" : mod.name) + '</div><div class="drawer-sub">' + esc(mod.unitSlug + " · " + mod.language + " · " + mod.relPath) + "</div></div></div>" +
       pillsHtml +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
+      modFlowSec +
       singleFileCodeSec +
       apiSec +
       flowSec +

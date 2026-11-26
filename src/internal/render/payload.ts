@@ -77,6 +77,35 @@ export function buildCompactRenderPayload(
     asyncHandoffsSvg:
       flowBundle.asyncHandoffs.length > 0 ? renderAsyncHandoffsSvg(flowBundle.asyncHandoffs) : "",
     hazards: flowBundle.hazards.slice(0, inline ? 20 : 80),
+    flowIndex: {
+      workFlows: flowBundle.workFlows.slice(0, inline ? 12 : 80).map((wf) => ({
+        id: wf.id,
+        name: wf.name,
+        entryFn: wf.entryFn ?? wf.name,
+        triggerKind: wf.triggerKind,
+        file: wf.file,
+        line: wf.line,
+        serialAwaitCount: wf.serialAwaitCount,
+        hazardCount: wf.hazards.length,
+        steps: wf.steps.slice(0, 16),
+        hazards: wf.hazards.slice(0, 6),
+      })),
+      dataHubs: Array.from(byEntity.entries())
+        .slice(0, inline ? 8 : 40)
+        .map(([entity, fields]) => ({
+          entity,
+          fieldCount: fields.length,
+          fields: fields.slice(0, 8),
+        })),
+      stateMachines: flowBundle.stateMachines.slice(0, inline ? 8 : 20).map((sm) => ({
+        id: sm.id,
+        name: sm.name,
+        file: sm.file,
+        line: sm.line,
+        states: sm.states,
+      })),
+      asyncHandoffs: flowBundle.asyncHandoffs.slice(0, inline ? 12 : 40),
+    },
   };
   return {
     schemaVersion: spec.schemaVersion,

@@ -341,7 +341,15 @@ export function renderStudioFeaturesClientScript(): string {
     }
     const lensBtn = target.closest("[data-lens]");
     if (lensBtn) {
-      state.canvasLens = lensBtn.getAttribute("data-lens") || "default";
+      const nextLens = lensBtn.getAttribute("data-lens") || "default";
+      state.canvasLens = nextLens;
+      if (nextLens === "flows") {
+        state.mapFlowId = state.mapFlowId || (typeof ALL_FLOWS !== "undefined" ? ALL_FLOWS[0]?.id || null : null);
+        state.mapFlowStepIdx = 0;
+        ensureFileSourcesLoaded();
+      } else {
+        state.mapFlowId = null;
+      }
       render();
       return true;
     }

@@ -203,6 +203,34 @@ export function renderDrilldownClientScript(): string {
           else depGroups.set(did, { id: did, label: ds.charAt(0).toUpperCase() + ds.slice(1), unitSlug: null, folderPath: null, filePath: f.p, count: 1, files: new Set([f.p]), shape: "db", kind: "datastore" });
           addEdgePair(child.id, did, { file: f.p, detail: "accesses " + ent }, "reads_writes");
         }
+        if (state.showAsyncEdges && typeof ASYNC_BY_FILE !== "undefined") {
+          for (const rec of ASYNC_BY_FILE.get(f.p) || []) {
+            const ah = rec.ah;
+            if (rec.role === "producer") {
+              const cIdx = ah.consumer?.file ? ddIdxByPath.get(ah.consumer.file) : undefined;
+              const cChild = cIdx !== undefined && insideSet.has(cIdx) ? fileToChildId.get(cIdx) : null;
+              if (cChild && keptChildIds.has(cChild) && cChild !== child.id) {
+                addEdgePair(child.id, cChild, { file: f.p, line: ah.producer.line, detail: "⚡ " + ah.channel + " (" + ah.transport + ")" }, "async_handoff");
+              } else {
+                const aid = "ctx_out:async:" + ah.channel;
+                const peerFiles = ah.consumer?.file ? new Set([ah.consumer.file]) : new Set([f.p]);
+                if (!depGroups.has(aid)) {
+                  depGroups.set(aid, { id: aid, label: "⚡ " + ah.channel, unitSlug: null, folderPath: null, filePath: ah.consumer?.file || f.p, count: 10, files: peerFiles, shape: "pill", kind: "external_service" });
+                }
+                addEdgePair(child.id, aid, { file: f.p, line: ah.producer.line, detail: "⚡ publishes " + ah.channel + " (" + ah.delivery + ")" }, "async_handoff");
+              }
+            } else if (rec.role === "consumer" && ah.producer?.file) {
+              const pIdx = ddIdxByPath.get(ah.producer.file);
+              if (pIdx === undefined || !insideSet.has(pIdx)) {
+                const aid = "ctx_in:async:" + ah.channel;
+                if (!callerGroups.has(aid)) {
+                  callerGroups.set(aid, { id: aid, label: "⚡ " + ah.channel, unitSlug: null, folderPath: null, filePath: ah.producer.file, count: 10, files: new Set([ah.producer.file]) });
+                }
+                addEdgePair(aid, child.id, { file: ah.producer.file, line: ah.producer.line, detail: "⚡ triggers " + child.label + " via " + ah.channel }, "async_handoff");
+              }
+            }
+          }
+        }
       }
     }
 
@@ -350,14 +378,16 @@ export function renderDrilldownClientScript(): string {
       }
       const isViol = matchedRuleIds.length > 0;
       const isInternal = !ep.from.startsWith("ctx_") && !ep.to.startsWith("ctx_");
-      const tier = isViol || !isDense || isInternal || ep.weight >= 2 || ep.kind === "calls_external" || ep.kind === "reads_writes" ? "spine" : "detail";
+      const isAsync = ep.kind === "async_handoff";
+      const tier = isViol || isAsync || !isDense || isInternal || ep.weight >= 2 || ep.kind === "calls_external" || ep.kind === "reads_writes" ? "spine" : "detail";
+      const asyncLabel = isAsync ? (ep.evidence?.[0]?.detail?.match(new RegExp("⚡\\\\s*\\\\S+"))?.[0] || "⚡ async") : undefined;
       layoutEdges.push({
         id: "fld:" + eSeq,
         from: ep.from,
         to: ep.to,
         kind: ep.kind,
         tier: isViol ? "violation" : tier,
-        label: isViol ? "⚠ " + ep.weight : ep.weight > 1 ? String(ep.weight) : undefined,
+        label: isAsync ? asyncLabel : isViol ? "⚠ " + ep.weight : ep.weight > 1 ? String(ep.weight) : undefined,
         weight: ep.weight,
         violation: isViol,
         ruleIds: isViol ? matchedRuleIds : undefined,

@@ -15,6 +15,7 @@ import { renderClickClientScript } from "./internal/render/clickClient.ts";
 import { renderEventsClientScript } from "./internal/render/eventsClient.ts";
 import { renderFlowsClientScript } from "./internal/render/flowsClient.ts";
 import { renderInspectorClientScript } from "./internal/render/inspectorClient.ts";
+import { renderMapFlowsBridgeClientScript } from "./internal/render/mapFlowsBridgeClient.ts";
 import { renderNodeInspectorClientScript } from "./internal/render/nodeInspectorClient.ts";
 import { buildCompactRenderPayload, escapeHtml } from "./internal/render/payload.ts";
 import { renderStageClientScript } from "./internal/render/stageClient.ts";
@@ -221,6 +222,9 @@ export function renderVisualHtml(
     flowSearch: "",
     flowCodeFile: null,
     flowCodeLine: 1,
+    mapFlowId: null,
+    mapFlowStepIdx: 0,
+    showAsyncEdges: true,
     factsKindFilter: "",
     checksFilter: "active",
     search: "",
@@ -242,6 +246,7 @@ export function renderVisualHtml(
   ${renderInspectorClientScript()}
   ${renderNodeInspectorClientScript()}
   ${renderFlowsClientScript()}
+  ${renderMapFlowsBridgeClientScript()}
   ${renderStageClientScript()}
   ${renderClickClientScript()}
   ${renderEventsClientScript()}

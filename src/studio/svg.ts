@@ -88,6 +88,7 @@ export function renderSvgClientScript(): string {
 
   function renderDiagramSvg(diag) {
     const activeTrace = state.activeTraceId ? DATA.traces.find((t) => t.id === state.activeTraceId && t.diagramId === diag.id) : null;
+    const mapFlowOv = typeof computeMapFlowOverlay === "function" ? computeMapFlowOverlay(diag) : null;
     const traceNodeSet = new Set(activeTrace ? activeTrace.steps.map((s) => s.nodeId) : []);
     const traceEdgeSet = new Set(activeTrace ? activeTrace.steps.map((s) => s.edgeId).filter(Boolean) : []);
     const traceOrder = new Map(activeTrace ? activeTrace.steps.map((s, i) => [s.nodeId, i + 1]) : []);
@@ -111,7 +112,7 @@ export function renderSvgClientScript(): string {
         neighborNodes.add(e.to);
       }
     }
-    const hasFilter = Boolean(state.selectedNodeId || state.selectedEdgeId || activeTrace);
+    const hasFilter = Boolean(state.selectedNodeId || state.selectedEdgeId || activeTrace || mapFlowOv);
 
     const laneCounts = new Map();
     for (const n of diag.nodes) {
@@ -149,18 +150,20 @@ export function renderSvgClientScript(): string {
         }
       }
       const isSelected = state.selectedEdgeId === e.id;
-      const isTrace = traceEdgeSet.has(e.id);
+      const isAsync = e.kind === "async_handoff";
+      const isFlowEdge = Boolean(mapFlowOv && mapFlowOv.activeEdgeIds.has(e.id));
+      const isTrace = traceEdgeSet.has(e.id) || isFlowEdge;
       const isNeighbor = neighborEdges.has(e.id);
-      const hideDetail = !state.showAllEdges && e.tier === "detail" && !e.violation && !isSelected && !isNeighbor && !isTrace;
-      const dimmed = hasFilter && !(isTrace || isNeighbor);
+      const hideDetail = !state.showAllEdges && e.tier === "detail" && !e.violation && !isSelected && !isNeighbor && !isTrace && !isAsync;
+      const dimmed = hasFilter && !(isTrace || isNeighbor || isAsync);
       const isOutSel = state.selectedNodeId && e.from === state.selectedNodeId;
       const isInSel = state.selectedNodeId && e.to === state.selectedNodeId;
-      const stroke = isTrace ? "#818cf8" : e.violation ? "#ef4444" : isOutSel ? "#38bdf8" : isInSel ? "#34d399" : "rgba(148,163,184,0.34)";
-      const dash = e.confidence === "inferred" ? ' stroke-dasharray="4 4"' : "";
-      const sw = e.violation ? 2.1 : isOutSel || isInSel ? 2.0 : (e.weight || 1) >= 25 ? 1.9 : (e.weight || 1) >= 5 ? 1.5 : 1.15;
-      const markerEnd = isTrace ? "url(#m-blue)" : e.violation ? "url(#m-red)" : isOutSel ? "url(#m-cyan)" : isInSel ? "url(#m-green)" : "url(#m-neutral)";
+      const stroke = isAsync ? "#a855f7" : isTrace ? "#818cf8" : e.violation ? "#ef4444" : isOutSel ? "#38bdf8" : isInSel ? "#34d399" : "rgba(148,163,184,0.34)";
+      const dash = isAsync ? ' stroke-dasharray="6 4"' : e.confidence === "inferred" ? ' stroke-dasharray="4 4"' : "";
+      const sw = isAsync ? 2.0 : isFlowEdge ? 2.2 : e.violation ? 2.1 : isOutSel || isInSel ? 2.0 : (e.weight || 1) >= 25 ? 1.9 : (e.weight || 1) >= 5 ? 1.5 : 1.15;
+      const markerEnd = isAsync ? "url(#m-purple)" : isTrace ? "url(#m-blue)" : e.violation ? "url(#m-red)" : isOutSel ? "url(#m-cyan)" : isInSel ? "url(#m-green)" : "url(#m-neutral)";
       const markerStart = e.bidirectional ? (e.violation ? "url(#m-red-s)" : "url(#m-neutral-s)") : "";
-      const alwaysShowPill = diag.category === "behavior" || e.bidirectional || e.violation;
+      const alwaysShowPill = diag.category === "behavior" || e.bidirectional || e.violation || isAsync;
       const mid = e.points.length === 4
         ? { x: (e.points[1].x + e.points[2].x) / 2, y: (e.points[1].y + e.points[2].y) / 2 }
         : e.points[Math.floor(e.points.length / 2)];
@@ -189,17 +192,21 @@ export function renderSvgClientScript(): string {
     const blastRes = state.blastSeedId ? computeBlastRadiusForDiagram(diag, state.blastSeedId) : null;
     const nodesSvg = diag.nodes.map((n) => {
       const isSel = state.selectedNodeId === n.id;
-      const isTrace = traceNodeSet.has(n.id);
+      const isFlowActive = Boolean(mapFlowOv && mapFlowOv.activeNodeIds.has(n.id));
+      const isFlowFocus = Boolean(mapFlowOv && mapFlowOv.focusedNodeId === n.id);
+      const isFlowHaz = Boolean(mapFlowOv && mapFlowOv.hazardNodeIds.has(n.id));
+      const isTrace = traceNodeSet.has(n.id) || isFlowActive;
       const dimmed = hasFilter && !(isTrace || neighborNodes.has(n.id));
       const blastHop = blastRes ? blastRes.hopById.get(n.id) : undefined;
       const blastCls = blastRes ? (blastHop === undefined ? " blast-dim" : " blast-" + Math.min(3, blastHop)) : "";
-      const lens = !blastRes ? computeNodeLensStyle(n) : null;
+      const lens = !blastRes && !mapFlowOv ? computeNodeLensStyle(n) : null;
       const hue = statusHue(n.findings, false);
       const isTangle = Boolean(n.ambientBadges && n.ambientBadges.includes("tangle"));
       const hasError = (n.findings || []).some((f) => f.severity === "error") || isTangle;
       const hasWarn = !hasError && (n.findings || []).some((f) => f.severity === "warn");
-      const stroke = isSel || isTrace ? "#818cf8" : lens ? lens.stroke : hasError ? "rgba(239,68,68,0.62)" : hasWarn ? "rgba(245,158,11,0.55)" : "rgba(255,255,255,0.13)";
-      const cls = "svg-node" + (isSel ? " selected" : "") + (dimmed ? " dimmed" : "") + blastCls;
+      const stroke = isFlowFocus ? (isFlowHaz ? "#ef4444" : "#38bdf8") : isSel || isTrace ? "#818cf8" : lens ? lens.stroke : hasError ? "rgba(239,68,68,0.62)" : hasWarn ? "rgba(245,158,11,0.55)" : "rgba(255,255,255,0.13)";
+      const flowStepCls = isFlowFocus ? (isFlowHaz ? " flow-step-haz" : " flow-step-active") : "";
+      const cls = "svg-node" + (isSel ? " selected" : "") + (dimmed ? " dimmed" : "") + blastCls + flowStepCls;
       const tone = nodeVisualTone(n);
       const leftX = n.x - n.w / 2;
       const topY = n.y - n.h / 2;
@@ -209,9 +216,12 @@ export function renderSvgClientScript(): string {
       const maxChars = Math.max(10, Math.floor((n.w - (n.expandable ? 66 : 54)) / 8.0));
       const titleStr = n.label.length > maxChars ? n.label.slice(0, maxChars - 1) + "…" : n.label;
       const cleanSub = (n.sublabel || "").replace(new RegExp("⊞\\\\s*", "g"), "").replace(new RegExp("\\\\s*·\\\\s*$"), "").trim();
+      const flowChipInfo = !mapFlowOv && typeof computeNodeFlowBadge === "function" ? computeNodeFlowBadge(n) : null;
       const subText = n.ambientBadges && n.ambientBadges.length > 0
         ? cleanSub + " · " + n.ambientBadges[0]
-        : cleanSub;
+        : flowChipInfo
+          ? (cleanSub ? cleanSub + " · " + flowChipInfo.text : flowChipInfo.text)
+          : cleanSub;
       const subMax = Math.max(12, Math.floor((n.w - 58) / 6.7));
       const subStr = subText.length > subMax ? subText.slice(0, subMax - 1) + "…" : subText;
       const iconTileSvg =
@@ -225,11 +235,20 @@ export function renderSvgClientScript(): string {
       const statusDot = dotColor
         ? '<circle cx="' + (leftX + n.w - 12) + '" cy="' + (topY + 11) + '" r="3.8" fill="' + dotColor + '" />'
         : "";
+      const flowNums = mapFlowOv ? (mapFlowOv.nodeBadges.get(n.id) || []) : [];
+      const flowBadgeSvg = flowNums.length > 0
+        ? flowNums.slice(0, 3).map((b, bi) => {
+            const bx = leftX + 6 + bi * 20;
+            const bFill = b.hazard ? "#ef4444" : "#38bdf8";
+            return '<circle cx="' + bx + '" cy="' + (topY + 4) + '" r="9.5" fill="' + bFill + '" stroke="#080b12" stroke-width="1.4" />' +
+              '<text x="' + bx + '" y="' + (topY + 7.8) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#080b12">' + b.num + "</text>";
+          }).join("")
+        : "";
       const stepNum = traceOrder.get(n.id);
-      const traceBadge = stepNum
+      const traceBadge = flowBadgeSvg || (stepNum
         ? '<circle cx="' + (leftX + 6) + '" cy="' + (topY + 6) + '" r="9.5" fill="#4f46e5" />' +
           '<text x="' + (leftX + 6) + '" y="' + (topY + 9.8) + '" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff">' + stepNum + "</text>"
-        : "";
+        : "");
       const findingPill = totalFindings > 0
         ? '<circle cx="' + (leftX + n.w - 6) + '" cy="' + (topY + 6) + '" r="9.5" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
           '<text x="' + (leftX + n.w - 6) + '" y="' + (topY + 9.8) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
@@ -273,6 +292,7 @@ export function renderSvgClientScript(): string {
       '<marker id="m-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 2 L 8.5 5 L 0 8 z" fill="#818cf8" /></marker>' +
       '<marker id="m-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 2 L 8.5 5 L 0 8 z" fill="#38bdf8" /></marker>' +
       '<marker id="m-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 2 L 8.5 5 L 0 8 z" fill="#34d399" /></marker>' +
+      '<marker id="m-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M 0 2 L 8.5 5 L 0 8 z" fill="#a855f7" /></marker>' +
       "</defs>" +
       '<g id="viewport-g" transform="translate(' + state.tx + "," + state.ty + ") scale(" + state.scale + ')">' +
       lanesSvg +
