@@ -123,13 +123,30 @@ function scanFileForAsyncEndpoints(relFile: string, text: string): RawAsyncEndpo
     const jobName = m[1];
     const uri = m[2];
     if (!jobName || !uri) continue;
+    const pathMatch = uri.match(/(\/(?:jobs|cron|tasks|internal|v\d+|admin)\/[a-zA-Z0-9/_-]+)/i);
+    const routeHint = pathMatch?.[1] ? normalizeChannel(pathMatch[1]) : "";
+    const ch = routeHint || normalizeChannel(jobName);
     out.push({
       role: "producer",
-      channel: `cron:${normalizeChannel(jobName)}`,
+      channel: `cron:${ch}`,
       transport: "cron",
       delivery: "scheduled",
-      ref: { fn: `scheduler:${jobName} -> ${uri}`, file: relFile, line: lineAtOffset(text, m.index ?? 0), language: "hcl" },
+      ref: { fn: `scheduler:${jobName}${pathMatch?.[1] ? ` (${pathMatch[1]})` : ""}`, file: relFile, line: lineAtOffset(text, m.index ?? 0), language: "hcl" },
     });
+  }
+
+  if (lang === "typescript") {
+    for (const m of text.matchAll(/\.(?:post|get|put|all)\s*\(\s*["'](\/(?:jobs|cron|tasks)\/[a-zA-Z0-9/_-]+)["']/gi)) {
+      const routePath = m[1];
+      if (!routePath) continue;
+      out.push({
+        role: "consumer",
+        channel: `cron:${normalizeChannel(routePath)}`,
+        transport: "cron",
+        delivery: "scheduled",
+        ref: { fn: `HTTP ${routePath}`, file: relFile, line: lineAtOffset(text, m.index ?? 0), language: lang },
+      });
+    }
   }
 
   return out;

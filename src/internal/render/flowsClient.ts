@@ -129,9 +129,9 @@ export function renderFlowsClientScript(): string {
         "</div>";
       legendStrip =
         '<div class="fx-legend-strip">' +
-        '<span class="fx-legend-chip">Writers → Field → Readers</span>' +
-        '<span class="fx-legend-chip"><span class="fr-dot is-warn"></span>Amber = multi-writer risk</span>' +
-        '<span class="fx-legend-chip">┄ Dashed = derived on read</span>' +
+        '<span class="fx-legend-chip">Who changes it → Field on model → Who reads it</span>' +
+        '<span class="fx-legend-chip"><span class="fr-dot is-warn"></span>Amber = 3+ separate backend files edit this field</span>' +
+        '<span class="fx-legend-chip">┄ Dashed = computed on read (not stored)</span>' +
         "</div>";
       stageBody = hub ? hub.svg : '<div class="fx-empty">No multi-site entity field lifecycles extracted.</div>';
 
@@ -142,15 +142,15 @@ export function renderFlowsClientScript(): string {
         const focusFile = state.flowCodeFile || selField.writers?.[0]?.file || selField.readers?.[0]?.file || ".";
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : (selField.writers?.[0]?.line || selField.readers?.[0]?.line || 1);
         ctxTitle = '<span class="mono">' + esc(hub.entity + "." + selField.field) + "</span>";
-        ctxAction = selField.multiWriterRisk ? '<span class="badge b-warn">multi-writer</span>' : selField.derivedOnRead ? '<span class="badge b-info">derived</span>' : "";
+        ctxAction = selField.multiWriterRisk ? '<span class="badge b-warn">3+ files edit</span>' : selField.derivedOnRead ? '<span class="badge b-info">computed</span>' : '<span class="badge b-pass">clean owner</span>';
         ctxHtml =
-          '<div><div class="sec-title" style="margin-bottom:4px">Writers (' + (selField.writers?.length || 0) + ")</div>" +
+          '<div><div class="sec-title" style="margin-bottom:4px">Edited By (' + (selField.writers?.length || 0) + ")</div>" +
           (selField.writers || []).map((w) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(w.file) + '" data-flow-jump-line="' + w.line + '"><span class="mono">' + esc(w.fn) + '</span><span class="mono muted">' + esc(w.mode) + " · " + esc(w.file.split("/").pop()) + ":" + w.line + "</span></div>").join("") +
           "</div>" +
-          '<div><div class="sec-title" style="margin-bottom:4px">Readers &amp; Derivations (' + (selField.readers?.length || 0) + ")</div>" +
+          '<div><div class="sec-title" style="margin-bottom:4px">Read By (' + (selField.readers?.length || 0) + ")</div>" +
           ((selField.readers || []).length > 0
-            ? selField.readers.map((r) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(r.file) + '" data-flow-jump-line="' + r.line + '"><span class="mono">' + esc(r.fn) + '</span><span class="mono muted">' + (r.derived ? "derived · " : "") + esc(r.file.split("/").pop()) + ":" + r.line + "</span></div>").join("")
-            : '<div class="muted" style="font-size:12px">Direct document reads.</div>') +
+            ? selField.readers.map((r) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(r.file) + '" data-flow-jump-line="' + r.line + '"><span class="mono">' + esc(r.fn) + '</span><span class="mono muted">' + (r.derived ? "formula · " : "") + esc(r.file.split("/").pop()) + ":" + r.line + "</span></div>").join("")
+            : '<div class="muted" style="font-size:12px">Read as part of the whole document (no field-specific projection).</div>') +
           "</div>";
         codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }
@@ -199,6 +199,11 @@ export function renderFlowsClientScript(): string {
         "</div>" +
         '<div class="fx-head-r">' + zoomBtns + dockToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
+      legendStrip =
+        '<div class="fx-legend-strip">' +
+        '<span class="fx-legend-chip">What fires it → Background channel → What handles it</span>' +
+        '<span class="fx-legend-chip">Shows cron jobs, push notifications &amp; queues that import arrows cannot see</span>' +
+        "</div>";
       stageBody = fl.asyncHandoffsSvg || '<div class="fx-empty">No cross-boundary async handoffs extracted.</div>';
       if (ah) {
         const focusFile = state.flowCodeFile || ah.producer.file;
@@ -206,11 +211,11 @@ export function renderFlowsClientScript(): string {
         ctxTitle = '<span class="mono">' + esc(ah.channel) + "</span>";
         ctxAction = '<span class="badge b-purple">' + esc(ah.delivery) + "</span>";
         ctxHtml =
-          '<div><div class="sec-title" style="margin-bottom:4px">Endpoints</div>' +
-          '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.producer.file) + '" data-flow-jump-line="' + ah.producer.line + '"><span class="mono">Producer: ' + esc(ah.producer.fn) + '</span><span class="mono muted">:' + ah.producer.line + " →</span></div>" +
+          '<div><div class="sec-title" style="margin-bottom:4px">Background Handoff</div>' +
+          '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.producer.file) + '" data-flow-jump-line="' + ah.producer.line + '"><span class="mono">Fired by: ' + esc(ah.producer.fn) + '</span><span class="mono muted">:' + ah.producer.line + " →</span></div>" +
           (ah.consumer
-            ? '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.consumer.file) + '" data-flow-jump-line="' + ah.consumer.line + '"><span class="mono">Consumer: ' + esc(ah.consumer.fn) + '</span><span class="mono muted">:' + ah.consumer.line + " →</span></div>"
-            : '<div class="muted" style="font-size:12px;margin-top:6px">Consumer lives outside this repository or uses dynamic subscription.</div>') +
+            ? '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.consumer.file) + '" data-flow-jump-line="' + ah.consumer.line + '"><span class="mono">Handled by: ' + esc(ah.consumer.fn) + '</span><span class="mono muted">:' + ah.consumer.line + " →</span></div>"
+            : '<div class="muted" style="font-size:12px;margin-top:6px">' + (ah.transport === "fcm" ? "Delivered to the mobile app via Firebase Cloud Messaging (outside this backend repo)." : "Handled outside this repository or via a dynamic URL/subscription.") + "</div>") +
           "</div>";
         codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }

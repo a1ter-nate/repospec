@@ -8,9 +8,27 @@ import type {
   FlowHazard,
 } from "./types.ts";
 
-const TEST_FILE_RE = /(?:__tests__|\.test\.|\.spec\.|\/tests?\/|fixtures\/)/i;
+const TEST_FILE_RE = /(?:__tests__|\.test\.|\.spec\.|\/tests?\/|fixtures\/|canary\/emulator)/i;
+const UI_FILE_RE = /\.(?:tsx|jsx)$/i;
 const MUTATION_CALL_RE =
   /(?:^|\.)(commit\w*Document|update\w*|set\w*|patch\w*|save\w*|upsert\w*|write\w*)$/i;
+const EXPLICIT_BARE_MUTATION_RE = /^(?:commit\w*Document|upsert\w*|write\w*Doc\w*|save\w*Doc\w*|update\w*Doc\w*)$/i;
+const NON_DB_RECEIVER_RE =
+  /^(?:res|req|headers|params|searchParams|url|map|set|cache|cookies|localStorage|sessionStorage|window|document|style|form|queryClient|router|navigator|console|process|env)\./i;
+const WRITE_OPTION_KEYS = new Set([
+  "merge",
+  "mergeFields",
+  "ignoreUndefinedProperties",
+  "retry",
+  "timeout",
+  "timeoutMs",
+  "signal",
+  "headers",
+  "method",
+  "credentials",
+  "cache",
+  "mode",
+]);
 const DERIVE_FN_RE = /^(?:derive|compute|response|resolve|overlay|project|calculate)[A-Z]/;
 
 function lineOf(sf: ts.SourceFile, node: ts.Node): number {
@@ -67,22 +85,34 @@ export function extractFieldEventsFromSource(
   sf: ts.SourceFile,
   relFile: string,
 ): RawFieldEvent[] {
-  if (TEST_FILE_RE.test(relFile)) return [];
+  if (TEST_FILE_RE.test(relFile) || UI_FILE_RE.test(relFile)) return [];
   const events: RawFieldEvent[] = [];
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const exprText = node.expression.getText(sf);
-      if (MUTATION_CALL_RE.test(exprText)) {
+      const hasReceiver = exprText.includes(".");
+      const isDbMutation =
+        MUTATION_CALL_RE.test(exprText) &&
+        !NON_DB_RECEIVER_RE.test(exprText) &&
+        (hasReceiver || EXPLICIT_BARE_MUTATION_RE.test(exprText));
+      if (isDbMutation) {
         const entity = inferEntityName(relFile, exprText);
         const fn = enclosingFnName(node);
         const isTx = /commit|transaction/i.test(exprText);
         for (const arg of node.arguments) {
           if (!ts.isObjectLiteralExpression(arg)) continue;
+          const propKeys: string[] = [];
+          for (const prop of arg.properties) {
+            if (!ts.isPropertyAssignment(prop)) continue;
+            const k = propKeyText(prop.name);
+            if (k) propKeys.push(k);
+          }
+          if (propKeys.length > 0 && propKeys.every((k) => WRITE_OPTION_KEYS.has(k))) continue;
           for (const prop of arg.properties) {
             if (!ts.isPropertyAssignment(prop)) continue;
             const field = propKeyText(prop.name);
-            if (!field || field.length > 48) continue;
+            if (!field || field.length > 48 || WRITE_OPTION_KEYS.has(field)) continue;
             const valText = prop.initializer.getText(sf);
             const isDelete = /FieldValue\.delete\(\)|deleteField\(\)/.test(valText);
             events.push({
