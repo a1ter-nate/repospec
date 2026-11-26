@@ -13,6 +13,7 @@ import { pythonAstExtractor } from "../extractors/pythonAst.ts";
 import { rustAstExtractor } from "../extractors/rustAst.ts";
 import { surfacesAndGovernanceExtractor } from "../extractors/surfacesAndGovernance.ts";
 import { testingAndRulesExtractor } from "../extractors/testingAndRules.ts";
+import { flowExtractorPlugin } from "../../packages/flows/src/index.ts";
 import {
   createAndPopulateIndexDb,
   queryEntityOwnership,
@@ -144,6 +145,7 @@ const DEFAULT_PLUGINS: readonly ExtractorPlugin[] = [
   testingAndRulesExtractor,
   iacExtractor,
   surfacesAndGovernanceExtractor,
+  flowExtractorPlugin,
 ];
 
 const RepoFsLive = Layer.succeed(RepoFs, {

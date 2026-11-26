@@ -14,7 +14,7 @@ import {
 } from "../passport.ts";
 import { runShowMeBundle } from "../../packages/show-me/src/index.ts";
 import { renderVisualHtml, type ReportCustomization } from "../render.ts";
-import { ejectCmd, factsCmd, scanCmd } from "./jellyCli.ts";
+import { ejectCmd, factsCmd, flowsCmd, scanCmd } from "./jellyCli.ts";
 import { buildRepoSpecJsonSchema, type StorageMode } from "../schema.ts";
 import type { CommitArchDiff } from "../studio/commitDiff.ts";
 import { runCommitDiffWorktrees } from "../studio/diffRunner.ts";
@@ -444,6 +444,7 @@ export const repospecCommand = Command.make("repospec").pipe(
     generateCmd,
     scanCmd,
     factsCmd,
+    flowsCmd,
     ejectCmd,
     serveCmd,
     timelineCmd,

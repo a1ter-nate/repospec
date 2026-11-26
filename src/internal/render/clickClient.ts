@@ -401,6 +401,20 @@ export function renderClickClientScript(): string {
       return;
     }
 
+    const flowSubBtn = target.closest("[data-flows-sub]");
+    if (flowSubBtn) {
+      state.flowsSubtab = flowSubBtn.getAttribute("data-flows-sub") || "workflows";
+      render();
+      return;
+    }
+
+    const selFlowBtn = target.closest("[data-select-flow]");
+    if (selFlowBtn) {
+      state.activeFlowId = selFlowBtn.getAttribute("data-select-flow");
+      render();
+      return;
+    }
+
     const svgNode = target.closest("[data-node]");
     if (svgNode) {
       const id = svgNode.getAttribute("data-node");

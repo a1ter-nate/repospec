@@ -38,7 +38,9 @@
     "./report": "./packages/report/src/index.ts",
     "./show-me": "./packages/show-me/src/index.ts",
     "./show-me/svg": "./packages/show-me/src/svg.ts",
-    "./ci": "./packages/ci/src/index.ts"
+    "./ci": "./packages/ci/src/index.ts",
+    "./flows": "./packages/flows/src/index.ts",
+    "./flows/svg": "./packages/flows/src/svg.ts"
   },
   "files": [
     "src/",

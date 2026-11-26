@@ -17,7 +17,9 @@
       "@repospec/report": ["./packages/report/src/index.ts"],
       "@repospec/show-me": ["./packages/show-me/src/index.ts"],
       "@repospec/show-me/*": ["./packages/show-me/src/*.ts"],
-      "@repospec/ci": ["./packages/ci/src/index.ts"]
+      "@repospec/ci": ["./packages/ci/src/index.ts"],
+      "@repospec/flows": ["./packages/flows/src/index.ts"],
+      "@repospec/flows/*": ["./packages/flows/src/*.ts"]
     }
   },
   "include": ["src/**/*.ts", "packages/*/src/**/*.ts", "tests/**/*.ts"]

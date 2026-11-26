@@ -40,6 +40,13 @@
         "typescript": "^5.8.2",
       },
     },
+    "packages/flows": {
+      "name": "@repospec/flows",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/core": "workspace:*",
+      },
+    },
     "packages/report": {
       "name": "@repospec/report",
       "version": "5.0.13",
@@ -243,6 +250,8 @@
     "@repospec/ci": ["@repospec/ci@workspace:packages/ci"],
 
     "@repospec/core": ["@repospec/core@workspace:packages/core"],
+
+    "@repospec/flows": ["@repospec/flows@workspace:packages/flows"],
 
     "@repospec/report": ["@repospec/report@workspace:packages/report"],
 

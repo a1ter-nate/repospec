@@ -66,11 +66,25 @@ export function runSqlInvariants(
   );
 
   const sqlEntries: Array<{ file: string; absSql: string; displayPath: string }> = [];
+  const collectSqlFiles = (baseDir: string, prefix: string, relSub: string): void => {
+    const targetDir = relSub ? path.join(baseDir, relSub) : baseDir;
+    const entries = fs.readdirSync(targetDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    for (const ent of entries) {
+      const rel = relSub ? `${relSub}/${ent.name}` : ent.name;
+      if (ent.isDirectory()) {
+        collectSqlFiles(baseDir, prefix, rel);
+      } else if (ent.isFile() && ent.name.endsWith(".sql")) {
+        sqlEntries.push({
+          file: rel,
+          absSql: path.join(baseDir, rel),
+          displayPath: `${prefix}/${rel}`,
+        });
+      }
+    }
+  };
   for (const dir of allDirs) {
     const prefix = dir === rulesDir ? "rules" : ".repospec/rules";
-    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-      sqlEntries.push({ file, absSql: path.join(dir, file), displayPath: `${prefix}/${file}` });
-    }
+    collectSqlFiles(dir, prefix, "");
   }
   for (const entry of sqlEntries) {
     const { file, absSql, displayPath } = entry;

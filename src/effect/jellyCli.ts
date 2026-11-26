@@ -3,6 +3,8 @@ import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { diffFactSets, queryFactsFromDb } from "../../packages/core/src/facts.ts";
 import { ejectJellywareTarget, parseEjectTarget } from "../../packages/core/src/eject.ts";
+import { analyzeRepoFlows } from "../../packages/flows/src/index.ts";
+import { renderFlowsHtmlReport } from "../../packages/flows/src/svg.ts";
 import { serializeSpec } from "../canonicalize.ts";
 import { runCommitDiffWorktrees } from "../studio/diffRunner.ts";
 import { CliUsageError } from "./errors.ts";
@@ -123,3 +125,48 @@ export const ejectCmd = Command.make(
       yield* printJson(res);
     }),
 ).pipe(Command.withDescription("Scaffold editable jellyware overrides or custom extractors into .repospec/."));
+
+export const flowsCmd = Command.make(
+  "flows",
+  {
+    repoDir: Argument.withDefault(Argument.String("repoDir"), "."),
+    out: Flag.optional(Flag.String("out")),
+    traces: Flag.optional(Flag.String("traces")),
+  },
+  (cfg) =>
+    Effect.gen(function* () {
+      const repoFs = yield* RepoFs;
+      const absRepo = path.resolve(cfg.repoDir);
+      const tracesPath = Option.getOrUndefined(cfg.traces);
+      const bundle = analyzeRepoFlows(absRepo, tracesPath ? { telemetryPath: path.resolve(tracesPath) } : undefined);
+      const outDirOpt = Option.getOrUndefined(cfg.out);
+      let htmlOut: string | null = null;
+      let jsonOut: string | null = null;
+      if (outDirOpt) {
+        const outDir = path.resolve(outDirOpt);
+        yield* repoFs.mkdir(outDir);
+        htmlOut = path.join(outDir, "flows.html");
+        jsonOut = path.join(outDir, "flows.json");
+        yield* repoFs.writeText(jsonOut, JSON.stringify(bundle, null, 2));
+        yield* repoFs.writeText(htmlOut, renderFlowsHtmlReport(bundle, `RepoSpec Flows · ${path.basename(absRepo)}`));
+      }
+      yield* printJson({
+        repo: path.basename(absRepo),
+        workFlowsCount: bundle.workFlows.length,
+        entityLifecyclesCount: bundle.entityLifecycles.length,
+        stateMachinesCount: bundle.stateMachines.length,
+        asyncHandoffsCount: bundle.asyncHandoffs.length,
+        hazardsCount: bundle.hazards.length,
+        topFlows: bundle.workFlows.slice(0, 10).map((f) => ({
+          id: f.id,
+          name: f.name,
+          file: f.file,
+          line: f.line,
+          serialAwaitCount: f.serialAwaitCount,
+          hazards: f.hazards.map((h) => h.kind),
+          telemetry: f.telemetry ?? null,
+        })),
+        artifacts: htmlOut && jsonOut ? { html: htmlOut, json: jsonOut } : null,
+      });
+    }),
+).pipe(Command.withDescription("Analyze ordered work flows, data lifecycles, state machines, async handoffs, and DDIA hazards."));

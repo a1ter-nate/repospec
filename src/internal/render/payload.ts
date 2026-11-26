@@ -2,6 +2,13 @@ import type { RepoSpecV4 } from "../../schema.ts";
 import type { CommitArchDiff } from "../../studio/commitDiff.ts";
 import type { DrilldownIndex } from "../../studio/drilldown.ts";
 import type { ArchTimelineData } from "../../extractors/gitMetrics.ts";
+import { buildFlowAnalysisFromFacts, type EntityFieldLifecycle } from "../../../packages/flows/src/index.ts";
+import {
+  renderAsyncHandoffsSvg,
+  renderDataHubSvg,
+  renderStateMachineSvg,
+  renderWorkFlowSwimlaneSvg,
+} from "../../../packages/flows/src/svg.ts";
 
 export function escapeHtml(text: string): string {
   return text
@@ -24,6 +31,45 @@ export function buildCompactRenderPayload(
   const compactDrilldown = includeDrilldown
     ? { files: drilldown.files, edges: drilldown.edges }
     : undefined;
+  const flowBundle = buildFlowAnalysisFromFacts(spec.extensions?.facts ?? []);
+  const byEntity = new Map<string, EntityFieldLifecycle[]>();
+  for (const lf of flowBundle.entityLifecycles) {
+    const arr = byEntity.get(lf.entity) ?? [];
+    arr.push(lf);
+    byEntity.set(lf.entity, arr);
+  }
+  const flowPayload = {
+    workFlows: flowBundle.workFlows.slice(0, inline ? 8 : 20).map((wf) => ({
+      id: wf.id,
+      name: wf.name,
+      file: wf.file,
+      line: wf.line,
+      serialAwaitCount: wf.serialAwaitCount,
+      hazardCount: wf.hazards.length,
+      hazards: wf.hazards.slice(0, 6),
+      svg: renderWorkFlowSwimlaneSvg(wf),
+    })),
+    dataHubs: Array.from(byEntity.entries())
+      .slice(0, inline ? 4 : 10)
+      .map(([entity, fields]) => ({
+        entity,
+        fieldCount: fields.length,
+        svg: renderDataHubSvg(entity, fields),
+      })),
+    stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 10).map((sm) => ({
+      id: sm.id,
+      name: sm.name,
+      file: sm.file,
+      line: sm.line,
+      stateCount: sm.states.length,
+      transitionCount: sm.transitions.length,
+      svg: renderStateMachineSvg(sm),
+    })),
+    asyncCount: flowBundle.asyncHandoffs.length,
+    asyncHandoffsSvg:
+      flowBundle.asyncHandoffs.length > 0 ? renderAsyncHandoffsSvg(flowBundle.asyncHandoffs) : "",
+    hazards: flowBundle.hazards.slice(0, inline ? 20 : 80),
+  };
   return {
     schemaVersion: spec.schemaVersion,
     digest,
@@ -34,6 +80,7 @@ export function buildCompactRenderPayload(
     drilldown: compactDrilldown,
     commitDiff,
     timeline,
+    flows: flowPayload,
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,

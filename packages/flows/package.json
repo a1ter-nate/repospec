@@ -1,0 +1,14 @@
+{
+  "name": "@repospec/flows",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Work-flow critical-path tracer, data-lifecycle hub, state machine extractor, async stitcher, and spatial SVG visuals for RepoSpec.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./svg": "./src/svg.ts"
+  },
+  "dependencies": {
+    "@repospec/core": "workspace:*"
+  }
+}

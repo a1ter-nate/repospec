@@ -28,9 +28,11 @@ export function renderStageClientScript(): string {
 
     const customFacts = DATA.extensions?.facts || [];
     const customTabs = DATA.customUi?.extraTabs || [];
+    const flowCount = (DATA.flows?.workFlows?.length || 0) + (DATA.flows?.stateMachines?.length || 0) + (DATA.flows?.dataHubs?.length || 0);
     const tabs = [
       { id: "diff", label: "Diff (" + (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || "") + ")", show: Boolean(DATA.commitDiff) },
       { id: "map", label: "Map", show: Boolean(runtimeDiag) },
+      { id: "flows", label: "Flows (" + (DATA.flows?.workFlows?.length || 0) + ")", show: flowCount > 0 },
       { id: "behavior", label: "Behavior (" + behaviorDiags.length + ")", show: behaviorDiags.length > 0 },
       { id: "data", label: "Data (" + DATA.entities.length + ")", show: DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0 },
       { id: "facts", label: "Facts (" + customFacts.length + ")", show: customFacts.length > 0 },
@@ -151,6 +153,8 @@ export function renderStageClientScript(): string {
       bodyHtml = renderTimelineTab();
     } else if (state.tab === "data") {
       bodyHtml = renderDataTab();
+    } else if (state.tab === "flows") {
+      bodyHtml = renderFlowsTab();
     } else if (state.tab === "facts") {
       bodyHtml = renderFactsTab();
     } else if (state.tab === "checks") {

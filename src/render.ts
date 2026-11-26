@@ -13,6 +13,7 @@ import { renderStudioVizClientScript } from "./ai/studioVizClient.ts";
 import type { ArchTimelineData } from "./extractors/gitMetrics.ts";
 import { renderClickClientScript } from "./internal/render/clickClient.ts";
 import { renderEventsClientScript } from "./internal/render/eventsClient.ts";
+import { renderFlowsClientScript } from "./internal/render/flowsClient.ts";
 import { renderInspectorClientScript } from "./internal/render/inspectorClient.ts";
 import { renderNodeInspectorClientScript } from "./internal/render/nodeInspectorClient.ts";
 import { buildCompactRenderPayload, escapeHtml } from "./internal/render/payload.ts";
@@ -209,6 +210,8 @@ export function renderVisualHtml(
     activeTraceId: null,
     dataFilter: "",
     dataSubtab: "entities",
+    flowsSubtab: "workflows",
+    activeFlowId: null,
     factsKindFilter: "",
     checksFilter: "active",
     search: "",
@@ -229,6 +232,7 @@ export function renderVisualHtml(
 
   ${renderInspectorClientScript()}
   ${renderNodeInspectorClientScript()}
+  ${renderFlowsClientScript()}
   ${renderStageClientScript()}
   ${renderClickClientScript()}
   ${renderEventsClientScript()}

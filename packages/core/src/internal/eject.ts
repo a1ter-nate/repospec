@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type EjectTarget = "show-me" | "report" | "ci" | "extractor" | "facts" | "rule" | "all";
+export type EjectTarget = "show-me" | "report" | "ci" | "extractor" | "facts" | "flows" | "rule" | "all";
 
 export interface EjectResult {
   readonly target: EjectTarget;
@@ -120,6 +120,16 @@ export default defineExtractor({
         callee: "$callee"
 `,
   },
+  flows: {
+    relPath: ".repospec/flows.yaml",
+    content: `journeys:
+  - id: primary-write-path
+    name: Primary Write Path
+    entryFile: src/controller/updates.ts
+    entryFn: handleUpdate
+    tags: ["critical-path", "ddia"]
+`,
+  },
   rule: {
     relPath: ".repospec/rules/01-custom-fact-check.sql",
     content: `-- @id: custom:error-facts
@@ -148,6 +158,7 @@ export function parseEjectTarget(raw: string): EjectTarget | null {
     raw === "ci" ||
     raw === "extractor" ||
     raw === "facts" ||
+    raw === "flows" ||
     raw === "rule" ||
     raw === "all"
   ) {
@@ -163,7 +174,7 @@ export function ejectJellywareTarget(
 ): EjectResult {
   const absRepo = path.resolve(repoDir);
   const keys: Array<Exclude<EjectTarget, "all">> =
-    target === "all" ? ["show-me", "report", "ci", "extractor", "facts", "rule"] : [target];
+    target === "all" ? ["show-me", "report", "ci", "extractor", "facts", "flows", "rule"] : [target];
 
   const written: string[] = [];
   const skipped: string[] = [];
