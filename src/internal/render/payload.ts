@@ -9,6 +9,8 @@ import {
   renderStateMachineSvg,
   renderWorkFlowSwimlaneSvg,
 } from "../../../packages/flows/src/svg.ts";
+import { buildChecksModel } from "./checksModel.ts";
+import { buildSurfacesModel } from "./surfacesModel.ts";
 
 export function escapeHtml(text: string): string {
   return text
@@ -78,6 +80,28 @@ export function buildCompactRenderPayload(
       flowBundle.asyncHandoffs.length > 0 ? renderAsyncHandoffsSvg(flowBundle.asyncHandoffs) : "",
     hazards: flowBundle.hazards.slice(0, inline ? 20 : 120),
   };
+  const checksModel = buildChecksModel(spec, flowBundle.workFlows, drilldown);
+  const surfacesModel = buildSurfacesModel(spec, flowBundle.entityLifecycles, drilldown);
+  const inlineEndpoints = inline
+    ? [...surfacesModel.endpoints]
+        .sort((a, b) => (a.guardClass === "unknown" ? 0 : 1) - (b.guardClass === "unknown" ? 0 : 1))
+        .slice(0, 80)
+    : surfacesModel.endpoints;
+  const inlineEnvVars = inline
+    ? [...surfacesModel.envVars]
+        .sort((a, b) => (a.isSecret && a.isDrift ? 0 : a.isDrift ? 1 : a.isSecret ? 2 : 3) - (b.isSecret && b.isDrift ? 0 : b.isDrift ? 1 : b.isSecret ? 2 : 3))
+        .slice(0, 80)
+    : surfacesModel.envVars;
+  const compactSurfacesModel = inline
+    ? {
+        ...surfacesModel,
+        endpoints: inlineEndpoints,
+        entities: surfacesModel.entities.slice(0, 60),
+        envVars: inlineEnvVars,
+        foreignKeys: surfacesModel.foreignKeys.slice(0, 40),
+      }
+    : surfacesModel;
+
   return {
     schemaVersion: spec.schemaVersion,
     digest,
@@ -89,6 +113,8 @@ export function buildCompactRenderPayload(
     commitDiff,
     timeline,
     flows: flowPayload,
+    checksModel,
+    surfacesModel: compactSurfacesModel,
     nodes: spec.nodes.map((n) => ({
       id: n.id,
       domain: n.domain,
@@ -121,9 +147,9 @@ export function buildCompactRenderPayload(
     })),
     invariants: spec.invariants.map((inv) => ({
       ...inv,
-      evidence: inv.evidence.slice(0, inline ? 8 : 15),
+      evidence: inline ? inv.evidence.slice(0, 8) : inv.evidence,
     })),
-    entities: spec.entities.slice(0, inline ? 60 : 250),
+    entities: inline ? spec.entities.slice(0, 60) : spec.entities,
     stateMachines: spec.stateMachines.slice(0, inline ? 20 : 40),
     loops: spec.loops.slice(0, inline ? 20 : 40),
     extensions: {
@@ -138,9 +164,9 @@ export function buildCompactRenderPayload(
     })),
     traces: spec.traces,
     surfaces: {
-      endpoints: spec.surfaces.endpoints.slice(0, inline ? 50 : 420),
-      foreignKeys: spec.surfaces.foreignKeys.slice(0, inline ? 40 : 180),
-      envBindings: spec.surfaces.envBindings.slice(0, inline ? 40 : 160),
+      endpoints: inline ? spec.surfaces.endpoints.slice(0, 50) : spec.surfaces.endpoints,
+      foreignKeys: inline ? spec.surfaces.foreignKeys.slice(0, 40) : spec.surfaces.foreignKeys,
+      envBindings: inline ? spec.surfaces.envBindings.slice(0, 40) : spec.surfaces.envBindings,
       govRules: spec.surfaces.govRules.slice(0, inline ? 40 : 160),
     },
     diagrams: inline

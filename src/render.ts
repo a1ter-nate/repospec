@@ -11,6 +11,7 @@ import { renderExplainClientScript } from "./ai/explainClient.ts";
 import { renderStudioFeaturesClientScript } from "./ai/studioFeaturesClient.ts";
 import { renderStudioVizClientScript } from "./ai/studioVizClient.ts";
 import type { ArchTimelineData } from "./extractors/gitMetrics.ts";
+import { renderChecksClientScript } from "./internal/render/checksClient.ts";
 import { renderClickClientScript } from "./internal/render/clickClient.ts";
 import { renderEventsClientScript } from "./internal/render/eventsClient.ts";
 import { renderFlowsClientScript } from "./internal/render/flowsClient.ts";
@@ -19,6 +20,9 @@ import { renderMapFlowsBridgeClientScript } from "./internal/render/mapFlowsBrid
 import { renderNodeInspectorClientScript } from "./internal/render/nodeInspectorClient.ts";
 import { buildCompactRenderPayload, escapeHtml } from "./internal/render/payload.ts";
 import { renderStageClientScript } from "./internal/render/stageClient.ts";
+import { renderSurfacesApiClientScript } from "./internal/render/surfacesApiClient.ts";
+import { renderSurfacesClientScript } from "./internal/render/surfacesClient.ts";
+import { renderSurfacesDataClientScript } from "./internal/render/surfacesDataClient.ts";
 
 export interface ReportThemeTokens {
   readonly bg?: string;
@@ -190,7 +194,6 @@ export function renderVisualHtml(
     viewMode: "flow",
     showAllEdges: false,
     dsmViolOnly: false,
-    dataIssuesOnly: false,
     showGuide: false,
     diffMode: "overlay",
     diffDiagramId: DATA.commitDiff?.diagrams?.[0]?.id || null,
@@ -210,7 +213,12 @@ export function renderVisualHtml(
     focusMode: false,
     activeTraceId: null,
     dataFilter: "",
-    dataSubtab: (DATA.surfaces?.endpoints?.length || 0) > 0 ? "endpoints" : "entities",
+    dataSubtab: "overview",
+    surfFacet: "",
+    surfGroup: null,
+    surfRow: null,
+    surfDataMode: "footprint",
+    surfTailOpen: false,
     flowsSubtab: isLibraryDefault && (DATA.flows?.workFlows?.length || 0) === 0 && (DATA.flows?.stateMachines?.length || 0) > 0 ? "machines" : "workflows",
     activeFlowId: null,
     flowMode: "current",
@@ -227,7 +235,11 @@ export function renderVisualHtml(
     drawerWidth: (() => { try { const w = Number(localStorage.getItem("repospec:drawer-w")); return Number.isFinite(w) && w >= 280 ? w : null; } catch { return null; } })(),
     drawerSubtab: null,
     factsKindFilter: "",
-    checksFilter: "active",
+    checkId: null,
+    checksView: "rules",
+    checkPlace: null,
+    checkExpEv: null,
+    returnToChecks: null,
     search: "",
     tx: 0,
     ty: 0,
@@ -248,6 +260,10 @@ export function renderVisualHtml(
   ${renderNodeInspectorClientScript()}
   ${renderFlowsClientScript()}
   ${renderMapFlowsBridgeClientScript()}
+  ${renderSurfacesApiClientScript()}
+  ${renderSurfacesDataClientScript()}
+  ${renderSurfacesClientScript()}
+  ${renderChecksClientScript()}
   ${renderStageClientScript()}
   ${renderClickClientScript()}
   ${renderEventsClientScript()}

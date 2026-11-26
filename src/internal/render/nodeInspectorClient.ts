@@ -173,7 +173,7 @@ export function renderNodeInspectorClientScript(): string {
         open: false,
         bodyHtml: unitEnvs.slice(0, 24).map((x) =>
           '<div class="row"><span class="mono">' + esc(x.name) + '</span><span class="badge ' + (x.isSecret ? "b-warn" : "b-na") + '">' + (x.isSecret ? "secret" : "config") + "</span></div>"
-        ).join("") + (unitEnvs.length > 24 ? '<div class="muted">+' + (unitEnvs.length - 24) + " more (see Data tab)</div>" : ""),
+        ).join("") + (unitEnvs.length > 24 ? '<div style="padding-top:4px"><button class="tbtn" data-surf-config-unit="' + esc(unitSlug) + '">View all ' + unitEnvs.length + " in Config →</button></div>" : ""),
       });
     }
     const surfaceSec = surfaceItemsHtml

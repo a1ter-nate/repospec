@@ -49,7 +49,10 @@ export function renderStageClientScript(): string {
         const fgPath = state.activeFileGraph;
         const fIdx = ddIdxByPath.get(fgPath);
         const fObj = fIdx !== undefined ? DD_FILES[fIdx] : null;
-        const crumbs = ['<button class="pill-btn" data-back-map="1">System</button>'];
+        const crumbs = [
+          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">›</span>'] : []),
+          '<button class="pill-btn" data-back-map="1">System</button>',
+        ];
         if (fObj) {
           const unitModId = "modules:" + fObj.u;
           if (diagById.has(unitModId)) {
@@ -67,7 +70,10 @@ export function renderStageClientScript(): string {
         subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
       } else if (state.activeFolder) {
         const af = state.activeFolder;
-        const crumbs = ['<button class="pill-btn" data-back-map="1">System</button>'];
+        const crumbs = [
+          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">›</span>'] : []),
+          '<button class="pill-btn" data-back-map="1">System</button>',
+        ];
         const unitModDiag = diagById.get("modules:" + af.unitSlug);
         const unitLayerDiag = diagById.get("layers:" + af.unitSlug);
         const unitReturnId = af.returnDiagId || unitModDiag?.id || unitLayerDiag?.id || null;

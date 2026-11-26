@@ -79,26 +79,26 @@ export function renderGuidesClientScript(): string {
     }
     if (state.tab === "data") {
       return {
-        title: "Surfaces — Grouped by Domain & Service",
-        what: "Every external contract grouped cleanly instead of one giant table: HTTP Endpoints by API domain, Entities by owning domain, Env & Secrets by service, and Foreign Keys by parent table.",
-        principles: "Boundary Contracts: most security issues, breaking client changes, and misconfigurations live right at the edges where code meets HTTP, databases, or environment secrets.",
+        title: "Surfaces — Overview, API, Data & Config",
+        what: "Every page uses three parts: a verdict line of filterable counts, a proportional ledger sized by volume (amber shows the problem share), and a dense detail list or matrix.",
+        principles: "Amber is reserved exclusively for items needing attention (no guard seen, cross-domain without contract, read in code but declared nowhere). Violet marks secrets as a kind, not a defect.",
         how: [
-          "Click any domain or service header to expand its rows; amber left borders call out public/unannotated routes, ownership issues, or secrets.",
-          "Typing in the filter box automatically expands matching groups so you can pinpoint a route, collection, or secret in one second.",
-          "Click Data Hub ↗ on any entity to inspect who writes and reads its fields, or Trace E2E → on an endpoint.",
+          "Overview shows the API prefix shape, top data hubs, and config services at a glance — click any bar or verdict sentence to jump straight in.",
+          "Shortcuts: 1–4 switch surface, / focuses the surface filter, ↑/↓ move in the ledger, Esc clears filter or closes expansion.",
         ],
-        why: "Gives you a calm architectural index of hundreds of routes, collections, and secrets without drowning in raw rows.",
+        why: "Shows size, concentration, and real boundary gaps in three seconds instead of burying them inside flat tables.",
       };
     }
     if (state.tab === "checks") {
       return {
-        title: "Architectural Checks & Invariants",
-        what: "Automated structural rules evaluated over the whole codebase — sorted strictly with Failures (Blockers) first, then Warnings.",
+        title: "Checks — Triage Workbench",
+        what: "Groups checks by actionability instead of raw count: Broken (failing guardrails), Fix next (surgical warnings with <=12 places), Patterns (systemic warnings >12 places), Housekeeping (info), and Holding (passing guardrails).",
+        principles: "A 1-hit vendor leak or 2-hit race condition is a 10-minute fix; 138 undeclared env vars is a housekeeping chore. Ordering by actionability puts the real risks above the fold.",
         how: [
-          "Red FAIL = broken boundary or rule violation to fix now; Amber WARN = tech debt or coupling hotspot to watch.",
-          "Click Highlight on map to jump straight to the offending wire, or Copy Fix Brief to hand an engineer or agent the exact file:line context.",
+          "Switch to Places to see files that trip 2+ checks together so you can fix related issues in one edit.",
+          "Click any file:line to toggle an inline code excerpt; press ↑/↓ or j/k to step through checks, c to copy a grouped brief, 1/2 to switch Rules and Places.",
         ],
-        why: "Catches architectural rot (circular dependencies, layer bypasses, untested hubs) before they turn into outages.",
+        why: "Turns dozens of static warnings into an ordered 3-second decision of what to fix now versus what can wait.",
       };
     }
     if (state.viewMode === "matrix") {
@@ -266,15 +266,27 @@ export function renderGuidesClientScript(): string {
   }
 
   function buildFixBriefMarkdown(inv) {
+    const ev = inv.evidence || [];
+    const total = inv.violationCount || ev.length;
     const lines = [
-      "### " + inv.name + " (" + inv.id + " · " + inv.status.toUpperCase() + ")",
+      "### " + inv.name + " (" + inv.id + " · " + inv.rung + " · " + inv.status.toUpperCase() + ")",
       "- **Rule:** " + inv.statement,
     ];
     if (inv.why) lines.push("- **Why it matters:** " + inv.why);
     if (inv.fix) lines.push("- **Fix:** " + inv.fix);
-    lines.push("- **Evidence (" + inv.violationCount + "):**");
-    for (const ev of (inv.evidence || []).slice(0, 8)) {
-      lines.push("  - " + ev.file + (ev.line ? ":" + ev.line : "") + " — " + ev.detail);
+    lines.push("- **Evidence (" + ev.length + " of " + total + " included):**");
+    const byFile = new Map();
+    for (const item of ev) {
+      const f = item.file || ".";
+      const arr = byFile.get(f) || [];
+      arr.push(item);
+      byFile.set(f, arr);
+    }
+    for (const [file, list] of byFile.entries()) {
+      lines.push("  - **" + file + "** (" + list.length + ")");
+      for (const item of list.slice(0, 6)) {
+        lines.push("    - L" + (item.line || 1) + ": " + (item.detail || item.subject));
+      }
     }
     return lines.join("\\n");
   }
@@ -362,8 +374,20 @@ export function renderGuidesClientScript(): string {
   }
 
   function sortInvariantsByUrgency(list) {
-    const rank = { fail: 0, warn: 1, pass: 2, na: 3 };
-    return [...list].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || (b.violationCount || 0) - (a.violationCount || 0));
+    const tierOf = (i) => {
+      if (i.status === "fail") return 0;
+      if (i.status === "pass") return 4;
+      if (i.status === "na") return 5;
+      if (i.severity === "info") return 3;
+      return (i.violationCount || 0) <= 12 ? 1 : 2;
+    };
+    return [...list].sort((a, b) => {
+      const ta = tierOf(a);
+      const tb = tierOf(b);
+      if (ta !== tb) return ta - tb;
+      if (ta === 2) return (b.violationCount || 0) - (a.violationCount || 0);
+      return (a.violationCount || 0) - (b.violationCount || 0);
+    });
   }
 `;
 }

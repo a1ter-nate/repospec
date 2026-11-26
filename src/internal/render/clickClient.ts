@@ -152,6 +152,8 @@ export function renderClickClientScript(): string {
     if (handleFeatureClick(target)) return;
     if (handleMapFlowClick(target)) return;
     if (handleFlowClick(target)) return;
+    if (handleSurfacesClick(target)) return;
+    if (handleChecksClick(target)) return;
 
     const copyCodeBtn = target.closest("[data-copy-code]");
     if (copyCodeBtn) {
@@ -305,12 +307,6 @@ export function renderClickClientScript(): string {
       return;
     }
 
-    if (target.closest("[data-data-issues]")) {
-      state.dataIssuesOnly = !state.dataIssuesOnly;
-      render();
-      return;
-    }
-
     const diffModeBtn = target.closest("[data-diff-mode]");
     if (diffModeBtn) {
       state.diffMode = diffModeBtn.getAttribute("data-diff-mode") || "overlay";
@@ -335,24 +331,27 @@ export function renderClickClientScript(): string {
 
     const jumpFilterBtn = target.closest("[data-jump-checks-filter]");
     if (jumpFilterBtn) {
+      const mode = jumpFilterBtn.getAttribute("data-jump-checks-filter") || "active";
       state.tab = "checks";
-      state.checksFilter = jumpFilterBtn.getAttribute("data-jump-checks-filter") || "active";
+      state.checksView = "rules";
+      state.checkExpEv = null;
       state.showGuide = false;
+      const cm = checksModelData();
+      if (mode === "fail") {
+        const firstBroken = cm.items.find((i) => i.tier === "broken");
+        if (firstBroken) state.checkId = firstBroken.id;
+      } else if (mode === "warn") {
+        const firstWarn = cm.items.find((i) => i.tier === "fix_next") || cm.items.find((i) => i.tier === "patterns");
+        if (firstWarn) state.checkId = firstWarn.id;
+      }
       render();
       return;
     }
 
     if (target.closest("[data-jump-checks]")) {
       state.tab = "checks";
-      state.checksFilter = "active";
-      render();
-      return;
-    }
-
-    const dataSub = target.closest("[data-data-sub]");
-    if (dataSub) {
-      state.dataSubtab = dataSub.getAttribute("data-data-sub") || "entities";
-      state.dataIssuesOnly = false;
+      state.checksView = "rules";
+      state.checkExpEv = null;
       render();
       return;
     }
@@ -360,13 +359,6 @@ export function renderClickClientScript(): string {
     const factsKindBtn = target.closest("[data-facts-kind]");
     if (factsKindBtn) {
       state.factsKindFilter = factsKindBtn.getAttribute("data-facts-kind") || "";
-      render();
-      return;
-    }
-
-    const checksF = target.closest("[data-checks-filter]");
-    if (checksF) {
-      state.checksFilter = checksF.getAttribute("data-checks-filter") || "active";
       render();
       return;
     }
@@ -399,11 +391,19 @@ export function renderClickClientScript(): string {
       } else if (act === "endpoints") {
         state.tab = "data";
         state.dataSubtab = "endpoints";
+        state.surfFacet = "";
+        state.surfGroup = null;
         state.dataFilter = id;
+        const epMatch = (DATA.surfacesModel?.endpoints || []).find((x) => x.path === id);
+        state.surfRow = epMatch ? epMatch.id : null;
       } else if (act === "entity") {
         state.tab = "data";
         state.dataSubtab = "entities";
-        state.dataFilter = id;
+        state.surfFacet = "";
+        state.surfDataMode = "footprint";
+        state.dataFilter = "";
+        const entMatch = (DATA.surfacesModel?.entities || []).find((x) => x.entity === id);
+        state.surfRow = entMatch ? entMatch.id : null;
       }
       const selAfterSearch = state.selectedNodeId;
       render();

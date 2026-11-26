@@ -30,12 +30,7 @@ export function renderEventsClientScript(): string {
       if (dd) dd.outerHTML = renderSearchDropdown();
     } else if (target.id === "data-filter") {
       state.dataFilter = target.value;
-      render();
-      const df = document.getElementById("data-filter");
-      if (df instanceof HTMLInputElement) {
-        df.focus();
-        df.setSelectionRange(df.value.length, df.value.length);
-      }
+      rerenderSurfacesBody();
     } else if (target.id === "flow-search-input") {
       state.flowSearch = target.value;
       render();
@@ -197,6 +192,8 @@ export function renderEventsClientScript(): string {
 
   document.addEventListener("keydown", (ev) => {
     const activeTag = document.activeElement?.tagName;
+    if (typeof handleSurfacesKeydown === "function" && handleSurfacesKeydown(ev)) return;
+    if (typeof handleChecksKeydown === "function" && handleChecksKeydown(ev)) return;
     if (ev.key === "Enter" && document.activeElement?.id === "global-search") {
       const firstHit = document.querySelector("#search-dd [data-search-action]");
       if (firstHit instanceof HTMLElement) {

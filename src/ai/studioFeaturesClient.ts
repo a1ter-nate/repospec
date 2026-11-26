@@ -67,6 +67,16 @@ export function renderStudioFeaturesClientScript(): string {
     if (state.canvasLens && state.canvasLens !== "default") params.set("lens", state.canvasLens);
     if (state.blastSeedId) params.set("blast", state.blastSeedId);
     if (state.e2eTraceSeed) params.set("trace", state.e2eTraceSeed.filePath + "::" + state.e2eTraceSeed.symIdx);
+    if (state.tab === "data") {
+      if (state.dataSubtab && state.dataSubtab !== "overview") params.set("surf", state.dataSubtab);
+      if (state.surfGroup) params.set("sg", state.surfGroup);
+      if (state.surfFacet) params.set("sf", state.surfFacet);
+      if (state.surfRow) params.set("sr", state.surfRow);
+    }
+    if (state.tab === "checks") {
+      if (state.checkId) params.set("ck", state.checkId);
+      if (state.checksView && state.checksView !== "rules") params.set("cv", state.checksView);
+    }
     const nextHash = params.toString() ? "#" + params.toString() : "";
     if (window.location.hash !== nextHash) {
       try { history.replaceState(null, "", nextHash || window.location.pathname + window.location.search); } catch {}
@@ -114,6 +124,18 @@ export function renderStudioFeaturesClientScript(): string {
           ensureFileSourcesLoaded();
         }
       }
+      const surf = p.get("surf");
+      if (surf) state.dataSubtab = surf;
+      const sg = p.get("sg");
+      if (sg) state.surfGroup = sg;
+      const sf = p.get("sf");
+      if (sf) state.surfFacet = sf;
+      const sr = p.get("sr");
+      if (sr) state.surfRow = sr;
+      const ck = p.get("ck");
+      if (ck) state.checkId = ck;
+      const cv = p.get("cv");
+      if (cv === "places" || cv === "rules") state.checksView = cv;
     } catch {}
   }
 

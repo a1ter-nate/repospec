@@ -13,7 +13,7 @@ export function renderInspectorClientScript(): string {
           const openFileBtn = ddIdxByPath.has(ev.file) ? '<button class="tbtn" data-open-file="' + esc(ev.file) + '" data-open-file-line="' + (ev.line || 1) + '" title="Open source code at this exact line">Inspect code →</button>' : "";
           return '<div class="ev-row"><div class="ev-main"><div class="ev-detail">' + esc(ev.detail) + '</div><div class="ev-loc">' + provenanceLinksHtml(ev.file, ev.line) + '</div></div><div class="ev-act">' + openFileBtn + "</div></div>";
         }).join("") +
-        (allEv.length > shownEv.length ? '<div class="ev-more">Showing ' + shownEv.length + " of " + allEv.length + " hits</div>" : "") +
+        (inv.violationCount > shownEv.length ? '<div class="ev-more">Showing ' + shownEv.length + " of " + inv.violationCount + " hits</div>" : "") +
         "</div>"
       : "";
     const summaryText = inv.why || inv.statement;
@@ -24,11 +24,10 @@ export function renderInspectorClientScript(): string {
       '<div class="finding-actions">' +
       (hasAnchor ? '<button class="tbtn tbtn-accent" data-show-inv="' + esc(inv.id) + '" title="Jump to this violation on the architecture map">Highlight on map</button>' : "") +
       '<button class="tbtn" data-copy-inv="' + esc(inv.id) + '" title="Copy rule, evidence, and fix instructions as Markdown">Copy Fix Brief</button>' +
-      (opts.hideChecksLink || state.tab === "checks" ? "" : '<button class="tbtn" data-jump-checks="1">Open in Checks</button>') +
+      (opts.hideChecksLink || state.tab === "checks" ? "" : '<button class="tbtn" data-jump-check-id="' + esc(inv.id) + '">Open in Checks</button>') +
       "</div>";
     return renderDisclosure({
       title: inv.name,
-      meta: inv.id + " · " + inv.rung + (inv.status === "fail" ? " · BLOCKER" : inv.status === "warn" ? " · WARNING" : ""),
       badge: opts.countOverride !== undefined ? opts.countOverride : inv.violationCount,
       badgeClass: tone === "fail" ? "b-fail" : tone === "warn" ? "b-warn" : "b-pass",
       tone,
