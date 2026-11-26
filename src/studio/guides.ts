@@ -79,14 +79,15 @@ export function renderGuidesClientScript(): string {
     }
     if (state.tab === "data") {
       return {
-        title: "Surfaces — HTTP APIs, Entities & Environment",
-        what: "Searchable catalog of the system's external contracts: HTTP Endpoints, Database Entities, Environment Variables / Secrets, and Foreign Keys.",
+        title: "Surfaces — Grouped by Domain & Service",
+        what: "Every external contract grouped cleanly instead of one giant table: HTTP Endpoints by API domain, Entities by owning domain, Env & Secrets by service, and Foreign Keys by parent table.",
         principles: "Boundary Contracts: most security issues, breaking client changes, and misconfigurations live right at the edges where code meets HTTP, databases, or environment secrets.",
         how: [
-          "Switch between HTTP Endpoints, Entities, and Env & Secrets, and filter by keyword.",
-          "Click any Entity with a Hub badge to jump straight to its Data Hub writers, or click Trace E2E on an endpoint.",
+          "Click any domain or service header to expand its rows; amber left borders call out public/unannotated routes, ownership issues, or secrets.",
+          "Typing in the filter box automatically expands matching groups so you can pinpoint a route, collection, or secret in one second.",
+          "Click Data Hub ↗ on any entity to inspect who writes and reads its fields, or Trace E2E → on an endpoint.",
         ],
-        why: "Gives you one fast lookup index for every route, table/collection, and config secret across the entire repo.",
+        why: "Gives you a calm architectural index of hundreds of routes, collections, and secrets without drowning in raw rows.",
       };
     }
     if (state.tab === "checks") {

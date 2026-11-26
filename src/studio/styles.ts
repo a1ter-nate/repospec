@@ -224,9 +224,14 @@ export function renderStudioCss(inline: boolean): string {
   .trace-note { font-size: 12px; color: var(--text-3); }
 
   .table-wrap { flex: 1; overflow: auto; background: #0b0f19; padding: 16px 22px; }
+  .surf-summary { font-size: 12px; color: var(--text-3); margin-bottom: 10px; font-family: var(--font-mono, monospace); }
+  .surf-groups { display: flex; flex-direction: column; gap: 8px; max-width: 1280px; }
   table.data-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.data-tbl th { text-align: left; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); padding: 9px 10px; border-bottom: 1px solid var(--rs-border-hi); }
   table.data-tbl td { padding: 9px 10px; border-bottom: 1px solid #161e30; vertical-align: top; color: var(--text-1); }
+  table.data-tbl.surf-tbl th { padding: 6px 8px; }
+  table.data-tbl.surf-tbl td { padding: 6px 8px; font-size: 12.5px; }
+  table.data-tbl.surf-tbl tr:last-child td { border-bottom: 0; }
 
   .badge { display: inline-flex; align-items: center; height: 21px; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px; border-radius: 5px; font-family: var(--font-mono, monospace); flex-shrink: 0; border: 1px solid transparent; }
   .b-fail { background: #2d1416; border-color: rgba(255,154,154,0.32); color: #ff9a9a; }
