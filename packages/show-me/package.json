@@ -1,0 +1,15 @@
+{
+  "name": "@repospec/show-me",
+  "version": "5.0.13",
+  "type": "module",
+  "license": "MIT",
+  "description": "RepoSpec Jellyware /show-me PR diff layer: 3-second triage, priority ranking, chromeless 840px light/dark SVG+PNG cards, and customizable PR comments.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./svg": "./src/svg.ts"
+  },
+  "files": ["src/"],
+  "dependencies": {
+    "@repospec/core": "workspace:*"
+  }
+}

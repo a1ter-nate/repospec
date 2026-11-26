@@ -52,9 +52,11 @@ export function runSqlInvariants(
   db: Database,
   rulesDir: string,
   diagnostics: SpecDiagnostic[],
+  extraRulesDirs: readonly string[] = [],
 ): SqlInvariantResult[] {
   const results: SqlInvariantResult[] = [];
-  if (!fs.existsSync(rulesDir)) return results;
+  const allDirs = [rulesDir, ...extraRulesDirs].filter((d) => fs.existsSync(d));
+  if (allDirs.length === 0) return results;
 
   const insertInvRes = db.prepare(
     "INSERT OR REPLACE INTO invariant_results (id, name, rung, severity, status, applicability_reason, statement, violation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -63,16 +65,22 @@ export function runSqlInvariants(
     "INSERT INTO invariant_evidence (rule_id, severity, subject, detail, file, line, target_node_id, edge_from_id, edge_to_id, edge_kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
 
-  const sqlFiles = fs.readdirSync(rulesDir).filter((f) => f.endsWith(".sql")).sort();
-  for (const file of sqlFiles) {
-    const absSql = path.join(rulesDir, file);
+  const sqlEntries: Array<{ file: string; absSql: string; displayPath: string }> = [];
+  for (const dir of allDirs) {
+    const prefix = dir === rulesDir ? "rules" : ".repospec/rules";
+    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+      sqlEntries.push({ file, absSql: path.join(dir, file), displayPath: `${prefix}/${file}` });
+    }
+  }
+  for (const entry of sqlEntries) {
+    const { file, absSql, displayPath } = entry;
     const sqlText = fs.readFileSync(absSql, "utf8");
     const meta = parseSqlFrontMatter(sqlText, file);
     if (!meta) {
       diagnostics.push({
         code: "sql.invalid-frontmatter",
         severity: "warn",
-        message: `Skipping rules/${file}: missing @id/@name/@rung/@severity/@statement front-matter.`,
+        message: `Skipping ${displayPath}: missing @id/@name/@rung/@severity/@statement front-matter.`,
       });
       continue;
     }
@@ -90,7 +98,7 @@ export function runSqlInvariants(
             severity: meta.severity,
             status: "na",
             applicabilityReason: firstVal,
-            sqlFile: `rules/${file}`,
+            sqlFile: displayPath,
             statement: meta.statement,
             why: meta.why,
             fix: meta.fix,
@@ -165,7 +173,7 @@ export function runSqlInvariants(
       rung: meta.rung,
       severity: meta.severity,
       status,
-      sqlFile: `rules/${file}`,
+      sqlFile: displayPath,
       statement: meta.statement,
       why: meta.why,
       fix: meta.fix,

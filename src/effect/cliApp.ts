@@ -12,8 +12,9 @@ import {
   buildUnitPassport,
   formatImpactAsGithubMarkdown,
 } from "../passport.ts";
-import { runShowMeBundle } from "../internal/showme/runner.ts";
-import { renderVisualHtml } from "../render.ts";
+import { runShowMeBundle } from "@repospec/show-me";
+import { renderVisualHtml, type ReportCustomization } from "../render.ts";
+import { ejectCmd, factsCmd, scanCmd } from "./jellyCli.ts";
 import { buildRepoSpecJsonSchema, type StorageMode } from "../schema.ts";
 import type { CommitArchDiff } from "../studio/commitDiff.ts";
 import { runCommitDiffWorktrees } from "../studio/diffRunner.ts";
@@ -348,7 +349,11 @@ const generateCmd = Command.make(
         });
       }
 
-      const { spec, digest, idsModule, sdkModule, drilldown } = genRes;
+      const { spec, digest, idsModule, sdkModule, drilldown, repoExtensions } = genRes;
+      const reportUi =
+        repoExtensions.reportOverride && typeof repoExtensions.reportOverride === "object"
+          ? (repoExtensions.reportOverride as ReportCustomization)
+          : undefined;
       const specOut = path.join(outDir, "repospec.json");
       const schemaOut = path.join(outDir, "repospec.schema.json");
       const idsOut = path.join(outDir, "repospec.ids.ts");
@@ -360,7 +365,7 @@ const generateCmd = Command.make(
         repoFs.writeText(schemaOut, `${JSON.stringify(buildRepoSpecJsonSchema(), null, 2)}\n`),
         repoFs.writeText(idsOut, idsModule),
         repoFs.writeText(sdkOut, sdkModule),
-        repoFs.writeText(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown, commitDiff, timeline })),
+        repoFs.writeText(htmlOut, renderVisualHtml(spec, digest, { inline: false, drilldown, commitDiff, timeline, ui: reportUi })),
       ]);
 
       let inlineOut: string | undefined;
@@ -368,7 +373,7 @@ const generateCmd = Command.make(
         inlineOut = path.join(outDir, "repospec.inline.html");
         yield* repoFs.writeText(
           inlineOut,
-          renderVisualHtml(spec, digest, { inline: true, drilldown, commitDiff, timeline }),
+          renderVisualHtml(spec, digest, { inline: true, drilldown, commitDiff, timeline, ui: reportUi }),
         );
       }
 
@@ -437,6 +442,9 @@ export const repospecCommand = Command.make("repospec").pipe(
   Command.withDescription("Deterministic canonical RepoSpec IR, SQLite graph index, and interactive visual Studio."),
   Command.withSubcommands([
     generateCmd,
+    scanCmd,
+    factsCmd,
+    ejectCmd,
     serveCmd,
     timelineCmd,
     aggregateCmd,

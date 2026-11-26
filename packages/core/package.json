@@ -1,0 +1,18 @@
+{
+  "name": "@repospec/core",
+  "version": "5.0.13",
+  "type": "module",
+  "license": "MIT",
+  "description": "RepoSpec Hard Kernel: deterministic codebase scanning, shared AST toolkit, declarative & plugin extractors, SQLite graph + facts storage, and diff primitives.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./facts": "./src/facts.ts",
+    "./eject": "./src/eject.ts",
+    "./effect": "./src/effect.ts"
+  },
+  "files": ["src/"],
+  "peerDependencies": {
+    "effect": "^4.1.6",
+    "typescript": "^5.8.2"
+  }
+}

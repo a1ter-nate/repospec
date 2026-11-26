@@ -1,4 +1,4 @@
-import type { DrilldownIndex } from "../../studio/drilldown.ts";
+import type { DrilldownIndex } from "../../../../src/studio/drilldown.ts";
 import type { RankedChangedFile, RankedDiagram } from "./ranking.ts";
 import type { TriageResult } from "./triage.ts";
 

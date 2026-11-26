@@ -8,12 +8,15 @@ import {
   type Domain,
   type EntityOwnership,
   type EnvBindingSummary,
+  type FactEdgeRecord,
+  type FactRecord,
   type ForeignKeySummary,
   type GovRuleSummary,
   type GraphFragment,
   type HttpEndpointSummary,
   type IacPlane,
   type LoopRecord,
+  type MetricRecord,
   type ModuleCard,
   type RepoContext,
   type RepoSpecV4,
@@ -46,6 +49,9 @@ export function mergeFragments(fragments: GraphFragment[]): {
   catalogArtifacts: CatalogArtifact[];
   ast: AstIndexData;
   diagnostics: SpecDiagnostic[];
+  facts: FactRecord[];
+  factEdges: FactEdgeRecord[];
+  metrics: MetricRecord[];
 } {
   const nodeMap = new Map<string, SpecNode>();
   const edgeMap = new Map<string, SpecEdge>();
@@ -53,6 +59,9 @@ export function mergeFragments(fragments: GraphFragment[]): {
   const smMap = new Map<string, StateMachineRecord>();
   const loopMap = new Map<string, LoopRecord>();
   const catalogMap = new Map<string, CatalogArtifact>();
+  const factMap = new Map<string, FactRecord>();
+  const factEdgeMap = new Map<string, FactEdgeRecord>();
+  const metricMap = new Map<string, MetricRecord>();
   const diagnostics: SpecDiagnostic[] = [];
   const ast = createEmptyAst();
 
@@ -130,6 +139,22 @@ export function mergeFragments(fragments: GraphFragment[]): {
       ast.govRules.push(...frag.ast.govRules);
       ast.docPathRefs.push(...frag.ast.docPathRefs);
     }
+    for (const fact of frag.facts ?? []) {
+      const k = `${fact.extractorId}|${fact.kind}|${fact.key}|${fact.file}|${fact.line}`;
+      if (!factMap.has(k)) {
+        factMap.set(k, { ...fact, payload: sortRecordKeys(fact.payload) });
+      }
+    }
+    for (const fe of frag.factEdges ?? []) {
+      const k = `${fe.extractorId}|${fe.kind}|${fe.fromRef}|${fe.toRef}|${fe.file}|${fe.line}`;
+      if (!factEdgeMap.has(k)) {
+        factEdgeMap.set(k, fe.payload ? { ...fe, payload: sortRecordKeys(fe.payload) } : fe);
+      }
+    }
+    for (const m of frag.metrics ?? []) {
+      const k = `${m.extractorId}|${m.scopeKind}|${m.scopeId}|${m.name}`;
+      metricMap.set(k, m);
+    }
   }
 
   const nodes = Array.from(nodeMap.values()).sort((a, b) => a.id.localeCompare(b.id));
@@ -159,8 +184,28 @@ export function mergeFragments(fragments: GraphFragment[]): {
   const stateMachines = Array.from(smMap.values()).sort((a, b) => a.id.localeCompare(b.id));
   const loops = Array.from(loopMap.values()).sort((a, b) => a.id.localeCompare(b.id));
   const catalogArtifacts = Array.from(catalogMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+  const facts = Array.from(factMap.values()).sort(
+    (a, b) =>
+      a.kind.localeCompare(b.kind) ||
+      a.key.localeCompare(b.key) ||
+      a.file.localeCompare(b.file) ||
+      a.line - b.line,
+  );
+  const factEdges = Array.from(factEdgeMap.values()).sort(
+    (a, b) =>
+      a.kind.localeCompare(b.kind) ||
+      a.fromRef.localeCompare(b.fromRef) ||
+      a.toRef.localeCompare(b.toRef) ||
+      a.file.localeCompare(b.file),
+  );
+  const metrics = Array.from(metricMap.values()).sort(
+    (a, b) =>
+      a.scopeKind.localeCompare(b.scopeKind) ||
+      a.scopeId.localeCompare(b.scopeId) ||
+      a.name.localeCompare(b.name),
+  );
 
-  return { nodes, edges, rules, stateMachines, loops, catalogArtifacts, ast, diagnostics };
+  return { nodes, edges, rules, stateMachines, loops, catalogArtifacts, ast, diagnostics, facts, factEdges, metrics };
 }
 
 export function buildCanonicalSpec(params: {
@@ -187,6 +232,9 @@ export function buildCanonicalSpec(params: {
   diagrams: DiagramLayout[];
   verification: VerificationCoverage;
   diagnostics: SpecDiagnostic[];
+  facts?: FactRecord[];
+  factEdges?: FactEdgeRecord[];
+  metrics?: MetricRecord[];
 }): RepoSpecV4 {
   const {
     ctx,
@@ -206,6 +254,9 @@ export function buildCanonicalSpec(params: {
     diagrams,
     verification,
     diagnostics,
+    facts = [],
+    factEdges = [],
+    metrics = [],
   } = params;
 
   const nodeDomain = new Map(nodes.map((n) => [n.id, n.domain]));
@@ -317,6 +368,11 @@ export function buildCanonicalSpec(params: {
     diagrams,
     verification,
     diagnostics,
+    extensions: {
+      facts,
+      factEdges,
+      metrics,
+    },
     summary: {
       totalNodes: nodes.length,
       totalEdges: edges.length,

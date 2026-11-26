@@ -70,9 +70,12 @@ export type {
   DocPathRefFact,
   EnvBindingFact,
   ExtractorPlugin,
+  FactEdgeRecord,
+  FactRecord,
   GovRuleFact,
   GraphFragment,
   HttpEndpointFact,
+  MetricRecord,
   RepoContext,
   UnitDescriptor,
 } from "./internal/schema/astTypes.ts";

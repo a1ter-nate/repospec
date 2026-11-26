@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { RepoSpecV4 } from "../../schema.ts";
-import { runCommitDiffWorktrees } from "../../studio/diffRunner.ts";
-import type { DrilldownIndex } from "../../studio/drilldown.ts";
+import type { RepoSpecV4 } from "../../../../src/schema.ts";
+import type { CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
+import { runCommitDiffWorktrees } from "../../../../src/studio/diffRunner.ts";
+import type { DrilldownIndex } from "../../../../src/studio/drilldown.ts";
+import { diffFactSets, loadRepoExtensions, type FactDiffResult } from "@repospec/core";
 import { renderDiffDiagramSvg, renderSymbolCardSvg } from "./svgRenderer.ts";
 import { renderIacCardSvg } from "./iacCardSvg.ts";
 import { buildShowMePrComment, type ShowMeShotRecord } from "./markdown.ts";
@@ -11,13 +13,52 @@ import {
   rankChangedFiles,
   rankDiffDiagrams,
   type FocusMode,
+  type RankedChangedFile,
+  type RankedDiagram,
   type RankPreset,
 } from "./ranking.ts";
-import { selectShots, type SelectedShot, type SuppressedShot } from "./shots.ts";
+import { selectShots, type SelectedShot, type ShotSelectionPlan, type SuppressedShot } from "./shots.ts";
 import { rasterizeSvgToPng, type ShowMeTheme, type ShowMeThemeMode } from "./svgPrimitives.ts";
-import { triageCommitDiff, type AttentionItem, type PrArchetype, type ReviewLevel } from "./triage.ts";
+import { triageCommitDiff, type AttentionItem, type PrArchetype, type ReviewLevel, type TriageResult } from "./triage.ts";
 
 export type ShowMeFormat = "png" | "svg" | "both";
+
+export interface ShowMeHookContext {
+  readonly repoDir: string;
+  readonly baseSpec: RepoSpecV4;
+  readonly headSpec: RepoSpecV4;
+  readonly commitDiff: CommitArchDiff;
+  readonly drilldown: DrilldownIndex;
+  readonly rankedFiles: RankedChangedFile[];
+  readonly rankedDiagrams: RankedDiagram[];
+  readonly preset: RankPreset;
+  readonly factDiff: (kind?: string) => FactDiffResult;
+}
+
+export interface ShowMeCustomization {
+  readonly triage?: (ctx: ShowMeHookContext, fallback: () => TriageResult) => TriageResult;
+  readonly selectShots?: (
+    ctx: ShowMeHookContext & { triage: TriageResult },
+    fallback: () => ShotSelectionPlan,
+  ) => ShotSelectionPlan;
+  readonly renderCard?: (
+    params: { shot: SelectedShot; theme: ShowMeTheme; triage: TriageResult; ctx: ShowMeHookContext },
+    fallback: () => string,
+  ) => string;
+  readonly formatComment?: (
+    params: {
+      repoName: string;
+      commitDiff: CommitArchDiff;
+      preset: RankPreset;
+      triage: TriageResult;
+      shots: ShowMeShotRecord[];
+      topFiles: RankedChangedFile[];
+      imageBaseUrl?: string;
+      ctx: ShowMeHookContext;
+    },
+    fallback: () => string,
+  ) => string;
+}
 
 export interface ShowMeOptions {
   repoDir: string;
@@ -30,6 +71,7 @@ export interface ShowMeOptions {
   theme?: ShowMeThemeMode | string;
   includeTopFile?: boolean;
   imageBaseUrl?: string;
+  customization?: ShowMeCustomization;
   generateFn: (dir: string, sqlitePath: string) => Promise<{
     spec: RepoSpecV4;
     digest: string;
@@ -116,12 +158,19 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
   const includeTopFile = options.includeTopFile !== false;
 
   const sqliteOut = path.join(absOut, "repospec.sqlite");
-  const { head, commitDiff } = await runCommitDiffWorktrees({
+  const { base, head, commitDiff } = await runCommitDiffWorktrees({
     repoDir: absRepo,
     rangeArg: options.rangeArg,
     headSqliteOut: sqliteOut,
     generateFn: options.generateFn,
   });
+
+  const repoExt = await loadRepoExtensions(absRepo);
+  const custom =
+    options.customization ??
+    (repoExt.showMeOverride && typeof repoExt.showMeOverride === "object"
+      ? (repoExt.showMeOverride as ShowMeCustomization)
+      : undefined);
 
   const rankedFiles = rankChangedFiles({
     commitDiff,
@@ -144,20 +193,37 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
     topFileHint,
   });
 
-  const triage = triageCommitDiff({
+  const hookCtx: ShowMeHookContext = {
+    repoDir: absRepo,
+    baseSpec: base.spec,
+    headSpec: head.spec,
     commitDiff,
-    rankedDiagrams,
-    rankedFiles,
-  });
-
-  const plan = selectShots({
-    triage,
-    rankedDiagrams,
-    rankedFiles,
     drilldown: head.drilldown,
-    top: topN,
-    includeTopFile,
-  });
+    rankedFiles,
+    rankedDiagrams,
+    preset,
+    factDiff: (kind?: string) =>
+      diffFactSets(base.spec.extensions?.facts ?? [], head.spec.extensions?.facts ?? [], kind),
+  };
+
+  const defaultTriage = () =>
+    triageCommitDiff({
+      commitDiff,
+      rankedDiagrams,
+      rankedFiles,
+    });
+  const triage = custom?.triage ? custom.triage(hookCtx, defaultTriage) : defaultTriage();
+
+  const defaultPlan = () =>
+    selectShots({
+      triage,
+      rankedDiagrams,
+      rankedFiles,
+      drilldown: head.drilldown,
+      top: topN,
+      includeTopFile,
+    });
+  const plan = custom?.selectShots ? custom.selectShots({ ...hookCtx, triage }, defaultPlan) : defaultPlan();
 
   const drillByPath = new Map(head.drilldown.files.map((f) => [f.p, f]));
   const themes: ShowMeTheme[] = themeMode === "auto" ? ["dark", "light"] : [themeMode];
@@ -183,7 +249,10 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
         breakdown: shot.ranked.breakdown,
       };
       for (const theme of themes) {
-        const svg = renderDiffDiagramSvg({ ranked: shot.ranked, theme });
+        const defaultSvg = () => renderDiffDiagramSvg({ ranked: shot.ranked, theme });
+        const svg = custom?.renderCard
+          ? custom.renderCard({ shot, theme, triage, ctx: hookCtx }, defaultSvg)
+          : defaultSvg();
         const suffix = themeMode === "auto" ? `-${theme}` : "";
         const files = writeVariantAssets({ absOut, baseName: `${baseSlug}${suffix}`, svg, format });
         if (theme === "dark" || themeMode === "dark") {
@@ -214,7 +283,10 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
         reasons: shot.primaryFile.reasons,
       };
       for (const theme of themes) {
-        const svg = renderIacCardSvg({ primaryFile: shot.primaryFile, iacDelta: triage.iacDelta, theme });
+        const defaultSvg = () => renderIacCardSvg({ primaryFile: shot.primaryFile, iacDelta: triage.iacDelta, theme });
+        const svg = custom?.renderCard
+          ? custom.renderCard({ shot, theme, triage, ctx: hookCtx }, defaultSvg)
+          : defaultSvg();
         const suffix = themeMode === "auto" ? `-${theme}` : "";
         const files = writeVariantAssets({ absOut, baseName: `${baseSlug}${suffix}`, svg, format });
         if (theme === "dark" || themeMode === "dark") {
@@ -246,7 +318,10 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
       reasons: shot.rankedFile.reasons,
     };
     for (const theme of themes) {
-      const svg = renderSymbolCardSvg({ rankedFile: shot.rankedFile, drillFile, theme });
+      const defaultSvg = () => renderSymbolCardSvg({ rankedFile: shot.rankedFile, drillFile, theme });
+      const svg = custom?.renderCard
+        ? custom.renderCard({ shot, theme, triage, ctx: hookCtx }, defaultSvg)
+        : defaultSvg();
       const suffix = themeMode === "auto" ? `-${theme}` : "";
       const files = writeVariantAssets({ absOut, baseName: `${baseSlug}${suffix}`, svg, format });
       if (theme === "dark" || themeMode === "dark") {
@@ -266,15 +341,31 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
     for (const s of plan.detailShots) emitShot(s, "detail");
   }
 
-  const prMarkdown = buildShowMePrComment({
-    repoName: head.spec.repo.name,
-    commitDiff,
-    preset,
-    triage,
-    shots,
-    topFiles: rankedFiles,
-    imageBaseUrl: options.imageBaseUrl,
-  });
+  const defaultComment = () =>
+    buildShowMePrComment({
+      repoName: head.spec.repo.name,
+      commitDiff,
+      preset,
+      triage,
+      shots,
+      topFiles: rankedFiles,
+      imageBaseUrl: options.imageBaseUrl,
+    });
+  const prMarkdown = custom?.formatComment
+    ? custom.formatComment(
+        {
+          repoName: head.spec.repo.name,
+          commitDiff,
+          preset,
+          triage,
+          shots,
+          topFiles: rankedFiles,
+          imageBaseUrl: options.imageBaseUrl,
+          ctx: hookCtx,
+        },
+        defaultComment,
+      )
+    : defaultComment();
 
   const prCommentPath = path.join(absOut, "pr-comment.md");
   fs.writeFileSync(prCommentPath, prMarkdown, "utf8");

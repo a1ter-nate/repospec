@@ -28,11 +28,14 @@ import type {
   EntityOwnership,
   EnvBindingSummary,
   ExtractorPlugin,
+  FactEdgeRecord,
+  FactRecord,
   ForeignKeySummary,
   GovRuleSummary,
   GraphFragment,
   HttpEndpointSummary,
   LoopRecord,
+  MetricRecord,
   ModuleCard,
   RepoContext,
   SpecDiagnostic,
@@ -92,6 +95,7 @@ export interface SqliteIndexServiceShape {
   readonly buildAndEvaluate: (params: {
     dbPath: string;
     rulesDir: string;
+    extraRulesDirs?: readonly string[];
     repoName: string;
     commitSha: string | null;
     scopeRootRel: string;
@@ -106,6 +110,9 @@ export interface SqliteIndexServiceShape {
     modules: ModuleCard[];
     realCoverage: RealCoverageReport | null;
     diagnostics: SpecDiagnostic[];
+    facts?: FactRecord[];
+    factEdges?: FactEdgeRecord[];
+    metrics?: MetricRecord[];
   }) => Effect.Effect<IndexDbEvaluation, SqliteIndexError>;
   readonly storeDigest: (dbPath: string, digest: string) => Effect.Effect<void, SqliteIndexError>;
   readonly withReadonlyDb: <A, E>(
@@ -120,7 +127,7 @@ export class SqliteIndexService extends Context.Service<SqliteIndexService, Sqli
 
 export interface ExtractorRegistryShape {
   readonly plugins: readonly ExtractorPlugin[];
-  readonly runAll: (ctx: RepoContext) => Effect.Effect<GraphFragment[]>;
+  readonly runAll: (ctx: RepoContext, extraPlugins?: readonly ExtractorPlugin[]) => Effect.Effect<GraphFragment[]>;
 }
 
 export class ExtractorRegistry extends Context.Service<ExtractorRegistry, ExtractorRegistryShape>()(
@@ -264,6 +271,9 @@ const SqliteIndexServiceLive = Layer.succeed(SqliteIndexService, {
                 catalogArtifacts: params.catalogArtifacts,
                 modules: params.modules,
                 realCoverage: params.realCoverage,
+                facts: params.facts,
+                factEdges: params.factEdges,
+                metrics: params.metrics,
               }),
             catch: (err) =>
               new SqliteIndexError({
@@ -278,7 +288,7 @@ const SqliteIndexServiceLive = Layer.succeed(SqliteIndexService, {
         );
         return yield* Effect.try({
           try: () => {
-            const invariants = runSqlInvariants(db, params.rulesDir, params.diagnostics);
+            const invariants = runSqlInvariants(db, params.rulesDir, params.diagnostics, params.extraRulesDirs ?? []);
             const entities = queryEntityOwnership(db);
             const surfaces = querySurfaces(db);
             const verification = queryVerificationCoverage(db, invariants, params.realCoverage);
@@ -325,9 +335,9 @@ const SqliteIndexServiceLive = Layer.succeed(SqliteIndexService, {
 
 const ExtractorRegistryLive = Layer.succeed(ExtractorRegistry, {
   plugins: DEFAULT_PLUGINS,
-  runAll: (ctx) =>
+  runAll: (ctx, extraPlugins) =>
     Effect.forEach(
-      DEFAULT_PLUGINS,
+      extraPlugins && extraPlugins.length > 0 ? [...DEFAULT_PLUGINS, ...extraPlugins] : DEFAULT_PLUGINS,
       (plugin) =>
         Effect.tryPromise({
           try: () => plugin.extract(ctx),

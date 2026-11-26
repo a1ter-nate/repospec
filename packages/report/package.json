@@ -1,0 +1,14 @@
+{
+  "name": "@repospec/report",
+  "version": "5.0.13",
+  "type": "module",
+  "license": "MIT",
+  "description": "RepoSpec Jellyware HTML & Studio Report layer: batteries-included interactive architecture Studio with full theme, tab, briefing, CSS, payload, and HTML customization.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src/"],
+  "dependencies": {
+    "@repospec/core": "workspace:*"
+  }
+}

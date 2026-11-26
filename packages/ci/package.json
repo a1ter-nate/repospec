@@ -1,0 +1,14 @@
+{
+  "name": "@repospec/ci",
+  "version": "5.0.13",
+  "type": "module",
+  "license": "MIT",
+  "description": "RepoSpec Jellyware CI layer: customizable architectural & custom-fact gates, PR formatters, and GitHub Actions / Azure Pipelines templates.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src/"],
+  "dependencies": {
+    "@repospec/core": "workspace:*"
+  }
+}

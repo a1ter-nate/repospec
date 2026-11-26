@@ -272,6 +272,7 @@ export function renderInspectorClientScript(): string {
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
+      (DATA.customUi?.briefingHtml ? '<div class="sec">' + DATA.customUi.briefingHtml + "</div>" : "") +
       (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
       tangleBanner +
       scopeBoxHtml +

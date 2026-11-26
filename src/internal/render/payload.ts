@@ -71,6 +71,11 @@ export function buildCompactRenderPayload(
     entities: spec.entities.slice(0, inline ? 60 : 250),
     stateMachines: spec.stateMachines.slice(0, inline ? 20 : 40),
     loops: spec.loops.slice(0, inline ? 20 : 40),
+    extensions: {
+      facts: (spec.extensions?.facts ?? []).slice(0, inline ? 200 : 2000),
+      factEdges: (spec.extensions?.factEdges ?? []).slice(0, inline ? 200 : 2000),
+      metrics: (spec.extensions?.metrics ?? []).slice(0, inline ? 200 : 2000),
+    },
     modules: spec.modules.slice(0, inline ? 80 : 300).map((m) => ({
       ...m,
       topExports: m.topExports.slice(0, inline ? 8 : 12),

@@ -10,7 +10,15 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "types": ["bun"]
+    "types": ["bun"],
+    "paths": {
+      "@repospec/core": ["./packages/core/src/index.ts"],
+      "@repospec/core/*": ["./packages/core/src/*.ts"],
+      "@repospec/report": ["./packages/report/src/index.ts"],
+      "@repospec/show-me": ["./packages/show-me/src/index.ts"],
+      "@repospec/show-me/*": ["./packages/show-me/src/*.ts"],
+      "@repospec/ci": ["./packages/ci/src/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "packages/*/src/**/*.ts", "tests/**/*.ts"]
 }

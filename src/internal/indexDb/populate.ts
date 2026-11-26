@@ -4,7 +4,10 @@ import path from "node:path";
 import type {
   AstIndexData,
   CatalogArtifact,
+  FactEdgeRecord,
+  FactRecord,
   LoopRecord,
+  MetricRecord,
   ModuleCard,
   SpecEdge,
   SpecNode,
@@ -31,6 +34,9 @@ export function createAndPopulateIndexDb(params: {
   catalogArtifacts: CatalogArtifact[];
   modules?: ModuleCard[];
   realCoverage?: RealCoverageReport | null;
+  facts?: FactRecord[];
+  factEdges?: FactEdgeRecord[];
+  metrics?: MetricRecord[];
 }): Database {
   const {
     dbPath,
@@ -47,6 +53,9 @@ export function createAndPopulateIndexDb(params: {
     catalogArtifacts,
     modules = [],
     realCoverage = null,
+    facts = [],
+    factEdges = [],
+    metrics = [],
   } = params;
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -152,6 +161,15 @@ export function createAndPopulateIndexDb(params: {
   );
   const insertFileSymbol = db.prepare(
     "INSERT INTO file_symbols (file, name, kind, line) VALUES (?, ?, ?, ?)",
+  );
+  const insertFact = db.prepare(
+    "INSERT INTO facts (extractor_id, kind, key, file, line, unit, symbol, severity, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertFactEdge = db.prepare(
+    "INSERT INTO fact_edges (extractor_id, kind, from_ref, to_ref, file, line, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertMetric = db.prepare(
+    "INSERT OR REPLACE INTO metrics (extractor_id, scope_kind, scope_id, name, value_num, value_text) VALUES (?, ?, ?, ?, ?, ?)",
   );
 
   db.transaction(() => {
@@ -341,6 +359,33 @@ export function createAndPopulateIndexDb(params: {
     }
     for (const ca of catalogArtifacts) {
       insertCatalog.run(ca.id, ca.kind, ca.file, ca.ownerUnitId);
+    }
+    for (const fact of facts) {
+      insertFact.run(
+        fact.extractorId,
+        fact.kind,
+        fact.key,
+        fact.file,
+        fact.line,
+        fact.unit,
+        fact.symbol ?? null,
+        fact.severity ?? null,
+        JSON.stringify(fact.payload),
+      );
+    }
+    for (const fe of factEdges) {
+      insertFactEdge.run(
+        fe.extractorId,
+        fe.kind,
+        fe.fromRef,
+        fe.toRef,
+        fe.file,
+        fe.line,
+        fe.payload ? JSON.stringify(fe.payload) : null,
+      );
+    }
+    for (const m of metrics) {
+      insertMetric.run(m.extractorId, m.scopeKind, m.scopeId, m.name, m.valueNum ?? null, m.valueText ?? null);
     }
   })();
 

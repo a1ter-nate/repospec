@@ -224,6 +224,7 @@ describe("Layout & renderer geometric invariants (R2 PBT) [REQ-LAYOUT-01] [REQ-R
               invariantsNa: 0,
             },
             diagnostics: [],
+            extensions: { facts: [], factEdges: [], metrics: [] },
             summary: {
               totalNodes: nodes.length,
               totalEdges: edges.length,

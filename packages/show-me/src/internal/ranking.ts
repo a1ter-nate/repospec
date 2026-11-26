@@ -1,7 +1,7 @@
-import type { RepoSpecV4 } from "../../schema.ts";
-import type { ChangedFileEntry, CommitArchDiff } from "../../studio/commitDiff.ts";
-import type { DiffDiagramBundle } from "../../studio/diffOverlay.ts";
-import type { DrilldownFile, DrilldownIndex } from "../../studio/drilldown.ts";
+import type { RepoSpecV4 } from "../../../../src/schema.ts";
+import type { ChangedFileEntry, CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
+import type { DiffDiagramBundle } from "../../../../src/studio/diffOverlay.ts";
+import type { DrilldownFile, DrilldownIndex } from "../../../../src/studio/drilldown.ts";
 import { classifyFile, detectTestedInPr, type FileClass } from "./fileClass.ts";
 import { buildCompactDeltaGraph } from "./layoutFit.ts";
 

@@ -26,8 +26,23 @@
   "bin": {
     "repospec": "src/cli.ts"
   },
+  "workspaces": [
+    "packages/*"
+  ],
+  "exports": {
+    ".": "./packages/core/src/index.ts",
+    "./core": "./packages/core/src/index.ts",
+    "./core/facts": "./packages/core/src/facts.ts",
+    "./core/eject": "./packages/core/src/eject.ts",
+    "./core/effect": "./packages/core/src/effect.ts",
+    "./report": "./packages/report/src/index.ts",
+    "./show-me": "./packages/show-me/src/index.ts",
+    "./show-me/svg": "./packages/show-me/src/svg.ts",
+    "./ci": "./packages/ci/src/index.ts"
+  },
   "files": [
     "src/",
+    "packages/",
     "rules/",
     "config/",
     "skills/",
@@ -40,11 +55,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "format": "bunx oxfmt src tests",
-    "format:check": "bunx oxfmt --check src tests",
-    "lint:oxlint": "bunx oxlint -c .oxlintrc.json --deny-warnings src tests",
-    "lint:privacy": "bun -e 'const r = Bun.spawnSync([\"git\", \"grep\", \"-nE\", \"(/Users/[A-Za-z0-9._-]+|C:\\\\\\\\Users\\\\\\\\[A-Za-z0-9._-]+|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\", \"--\", \"src\", \"tests\", \"rules\", \"config\", \"skills\", \"README.md\", \":!tests/fixtures/\"]); const out = r.stdout.toString().trim(); if (out) { console.error(\"Privacy audit failed:\\n\" + out); process.exit(1); }'",
-    "lint:ts-only": "bun -e 'import { Glob } from \"bun\"; const bad = [...new Glob(\"{src,tests}/**/*.{js,mjs,cjs,jsx}\").scanSync(\".\")]; if (bad.length > 0) { console.error(\"Non-TypeScript files found:\\n\" + bad.join(\"\\n\")); process.exit(1); }'",
+    "format": "bunx oxfmt src packages tests",
+    "format:check": "bunx oxfmt --check src packages tests",
+    "lint:oxlint": "bunx oxlint -c .oxlintrc.json --deny-warnings src packages tests",
+    "lint:privacy": "bun -e 'const r = Bun.spawnSync([\"git\", \"grep\", \"-nE\", \"(/Users/[A-Za-z0-9._-]+|C:\\\\\\\\Users\\\\\\\\[A-Za-z0-9._-]+|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\", \"--\", \"src\", \"packages\", \"tests\", \"rules\", \"config\", \"skills\", \"README.md\", \":!tests/fixtures/\"]); const out = r.stdout.toString().trim(); if (out) { console.error(\"Privacy audit failed:\\n\" + out); process.exit(1); }'",
+    "lint:ts-only": "bun -e 'import { Glob } from \"bun\"; const bad = [...new Glob(\"{src,packages,tests}/**/*.{js,mjs,cjs,jsx}\").scanSync(\".\")]; if (bad.length > 0) { console.error(\"Non-TypeScript files found:\\n\" + bad.join(\"\\n\")); process.exit(1); }'",
     "lint:no-comments": "bunx vstack no-comments . --fail",
     "lint:state-machines": "bunx vstack state-machines . --fail",
     "lint:laws": "bunx vstack laws . --verify --fail",

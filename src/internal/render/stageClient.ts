@@ -26,14 +26,18 @@ export function renderStageClientScript(): string {
       '<span title="' + (hasRealCov ? "Execution line coverage ingested from " + esc(v.coverageReportFile || v.coverageSource || "coverage report") : "Static 1-hop test import reachability — not execution line/branch coverage") + '">' + DATA.summary.indexedSourceFiles + " files · " + covHeaderLabel + "</span>" +
       (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
 
+    const customFacts = DATA.extensions?.facts || [];
+    const customTabs = DATA.customUi?.extraTabs || [];
     const tabs = [
       { id: "diff", label: "Diff (" + (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || "") + ")", show: Boolean(DATA.commitDiff) },
       { id: "map", label: "Map", show: Boolean(runtimeDiag) },
       { id: "behavior", label: "Behavior (" + behaviorDiags.length + ")", show: behaviorDiags.length > 0 },
       { id: "data", label: "Data (" + DATA.entities.length + ")", show: DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0 },
+      { id: "facts", label: "Facts (" + customFacts.length + ")", show: customFacts.length > 0 },
       { id: "delivery", label: "Delivery", show: Boolean(deliveryDiag) },
       { id: "timeline", label: "Timeline (" + (DATA.timeline?.commits?.length || 0) + ")", show: Boolean(DATA.timeline?.commits?.length) },
       { id: "checks", label: "Checks (" + (v.invariantsFailed + v.invariantsWarned) + ")", show: true },
+      ...customTabs.map((ct) => ({ id: "custom:" + ct.id, label: ct.label, show: true })),
     ].filter((t) => t.show);
 
     let subNav = "";
@@ -121,6 +125,25 @@ export function renderStageClientScript(): string {
         "</div>";
     }
 
+    function renderFactsTab() {
+      const kinds = Array.from(new Set(customFacts.map((f) => f.kind))).sort();
+      const activeKind = state.factsKindFilter || "";
+      const shown = customFacts.filter((f) => !activeKind || f.kind === activeKind);
+      const pills =
+        '<button class="pill-btn' + (!activeKind ? " active" : "") + '" data-facts-kind="">All (' + customFacts.length + ")</button>" +
+        kinds.map((k) => {
+          const cnt = customFacts.filter((f) => f.kind === k).length;
+          return '<button class="pill-btn' + (activeKind === k ? " active" : "") + '" data-facts-kind="' + esc(k) + '">' + esc(k) + " (" + cnt + ")</button>";
+        }).join("");
+      const rows = shown.slice(0, 300).map((f) => {
+        const openBtn = ddIdxByPath.has(f.file)
+          ? ' <button class="tbtn" data-open-file="' + esc(f.file) + '" data-open-file-line="' + (f.line || 1) + '">Code</button>'
+          : "";
+        return '<tr><td><span class="badge">' + esc(f.kind) + '</span></td><td class="mono">' + esc(f.key) + '</td><td class="mono muted">' + esc(f.file) + ":" + (f.line || 1) + openBtn + '</td><td class="mono muted">' + esc(JSON.stringify(f.payload || {})) + "</td></tr>";
+      }).join("");
+      return '<div class="table-wrap"><div class="table-head"><div><strong>Extracted Facts (' + shown.length + ')</strong></div><div class="sub-toggles">' + pills + '</div></div><table class="data-table"><thead><tr><th>Kind</th><th>Key</th><th>Location</th><th>Payload</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    }
+
     let bodyHtml = "";
     if (state.tab === "diff") {
       bodyHtml = renderDiffTab();
@@ -128,8 +151,14 @@ export function renderStageClientScript(): string {
       bodyHtml = renderTimelineTab();
     } else if (state.tab === "data") {
       bodyHtml = renderDataTab();
+    } else if (state.tab === "facts") {
+      bodyHtml = renderFactsTab();
     } else if (state.tab === "checks") {
       bodyHtml = renderChecksTab();
+    } else if (state.tab.startsWith("custom:")) {
+      const cid = state.tab.slice(7);
+      const customTab = customTabs.find((ct) => ct.id === cid);
+      bodyHtml = '<div class="table-wrap">' + (customTab ? customTab.html : '<div class="muted">Custom tab not found.</div>') + "</div>";
     } else if (diag) {
       const canMatrix = supportsMatrix(diag) && !state.focusMode;
       const inMatrix = canMatrix && state.viewMode === "matrix";
@@ -228,7 +257,8 @@ export function renderStageClientScript(): string {
     document.getElementById("app").innerHTML =
       '<div class="studio-bar">' +
       '<div class="bar-left">' +
-      '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + '</span><span class="live-badge" id="live-watch-badge"' + (liveWatchConnected ? ' style="display:inline-flex"' : "") + '>LIVE</span></div>' +
+      '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.customUi?.brandLabel || DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + '</span><span class="live-badge" id="live-watch-badge"' + (liveWatchConnected ? ' style="display:inline-flex"' : "") + '>LIVE</span></div>' +
+      (DATA.customUi?.headerHtml || "") +
       '<div class="tabs">' +
       tabs.map((t) => '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-tab="' + esc(t.id) + '">' + esc(t.label) + "</button>").join("") +
       "</div>" +

@@ -10,7 +10,7 @@ export async function runCommitDiffWorktrees<T extends { spec: RepoSpecV4 }>(par
   rangeArg?: string;
   headSqliteOut: string;
   generateFn: (dir: string, sqlitePath: string) => Promise<T>;
-}): Promise<{ head: T; commitDiff: CommitArchDiff }> {
+}): Promise<{ base: T; head: T; commitDiff: CommitArchDiff }> {
   const { repoDir, rangeArg, headSqliteOut, generateFn } = params;
   const absRepo = path.resolve(repoDir);
   const git = resolveGitDiffRange(absRepo, rangeArg);
@@ -44,7 +44,7 @@ export async function runCommitDiffWorktrees<T extends { spec: RepoSpecV4 }>(par
     }
 
     const commitDiff = buildCommitArchDiff({ git, baseSpec: baseRes.spec, headSpec: headRes.spec });
-    return { head: headRes, commitDiff };
+    return { base: baseRes, head: headRes, commitDiff };
   } finally {
     if (baseAdded) {
       try {

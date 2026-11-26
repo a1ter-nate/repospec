@@ -225,6 +225,49 @@ const GovRuleSummarySchema = Schema.Struct({
 });
 export type GovRuleSummary = DeepMutable<typeof GovRuleSummarySchema.Type>;
 
+export const FactRecordSchema = Schema.Struct({
+  extractorId: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  key: Schema.NonEmptyString,
+  file: Schema.NonEmptyString,
+  line: NonNegInt,
+  unit: Schema.String,
+  symbol: Schema.optional(Schema.String),
+  severity: Schema.optional(Schema.Literals(["info", "warn", "error"])),
+  payload: Schema.Record(Schema.String, Schema.Unknown),
+});
+
+const FactEdgeRecordSchema = Schema.Struct({
+  extractorId: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  fromRef: Schema.NonEmptyString,
+  toRef: Schema.NonEmptyString,
+  file: Schema.NonEmptyString,
+  line: NonNegInt,
+  payload: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
+
+const MetricRecordSchema = Schema.Struct({
+  extractorId: Schema.NonEmptyString,
+  scopeKind: Schema.Literals(["repo", "unit", "module", "file"]),
+  scopeId: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  valueNum: Schema.optional(Schema.Finite),
+  valueText: Schema.optional(Schema.String),
+});
+
+const SpecExtensionsSchema = Schema.Struct({
+  facts: Schema.Array(FactRecordSchema).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly (typeof FactRecordSchema.Encoded)[])),
+  ),
+  factEdges: Schema.Array(FactEdgeRecordSchema).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly (typeof FactEdgeRecordSchema.Encoded)[])),
+  ),
+  metrics: Schema.Array(MetricRecordSchema).pipe(
+    Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly (typeof MetricRecordSchema.Encoded)[])),
+  ),
+});
+
 export const RepoSpecV4Schema = Schema.Struct({
   schemaVersion: Schema.Literal("5.0.0"),
   specKind: Schema.Literal("repospec.canonical"),
@@ -261,6 +304,15 @@ export const RepoSpecV4Schema = Schema.Struct({
   verification: VerificationCoverageSchema,
   diagnostics: Schema.Array(DiagnosticSchema),
   summary: SpecSummarySchema,
+  extensions: SpecExtensionsSchema.pipe(
+    Schema.withDecodingDefaultKey(
+      Effect.sync(() => ({
+        facts: [] as readonly (typeof FactRecordSchema.Encoded)[],
+        factEdges: [] as readonly (typeof FactEdgeRecordSchema.Encoded)[],
+        metrics: [] as readonly (typeof MetricRecordSchema.Encoded)[],
+      })),
+    ),
+  ),
 });
 export type RepoSpecV4 = DeepMutable<typeof RepoSpecV4Schema.Type>;
 

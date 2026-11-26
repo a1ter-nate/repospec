@@ -169,6 +169,37 @@ export interface DocPathRefFact {
   existsInRepo: boolean;
 }
 
+export interface FactRecord {
+  extractorId: string;
+  kind: string;
+  key: string;
+  file: string;
+  line: number;
+  unit: string;
+  symbol?: string;
+  severity?: "info" | "warn" | "error";
+  payload: Record<string, unknown>;
+}
+
+export interface FactEdgeRecord {
+  extractorId: string;
+  kind: string;
+  fromRef: string;
+  toRef: string;
+  file: string;
+  line: number;
+  payload?: Record<string, unknown>;
+}
+
+export interface MetricRecord {
+  extractorId: string;
+  scopeKind: "repo" | "unit" | "module" | "file";
+  scopeId: string;
+  name: string;
+  valueNum?: number;
+  valueText?: string;
+}
+
 export interface AstIndexData {
   files: AstFileFact[];
   fileImports: AstImportFact[];
@@ -193,6 +224,9 @@ export interface GraphFragment {
   catalogArtifacts?: CatalogArtifact[];
   diagnostics?: SpecDiagnostic[];
   ast?: AstIndexData;
+  facts?: FactRecord[];
+  factEdges?: FactEdgeRecord[];
+  metrics?: MetricRecord[];
 }
 
 export interface RepoContext {

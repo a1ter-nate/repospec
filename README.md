@@ -107,7 +107,73 @@ bun src/cli.ts check /path/to/repo --spec ./out/my-repo/repospec.json
 # Validate an existing spec or structurally diff two commits
 bun src/cli.ts validate ./out/my-repo/repospec.json
 bun src/cli.ts diff ./out/base/repospec.json ./out/head/repospec.json
+
+# Kernel-only scan (IR + SQLite + custom facts, zero HTML UI) & custom fact queries/diffs
+bun src/cli.ts scan /path/to/repo --out ./out/my-repo
+bun src/cli.ts facts ./out/my-repo/repospec.sqlite --kind feature_flag
+bun src/cli.ts facts /path/to/repo --diff HEAD~1..HEAD
+
+# Priority-ranked architectural PR diff screenshots (SVG/PNG + /show-me comment)
+bun src/cli.ts show-me /path/to/repo HEAD~1..HEAD --out ./out/show-me --format both
+
+# Eject editable jellyware overrides or custom extractors into .repospec/
+bun src/cli.ts eject all /path/to/repo
 ```
+
+---
+
+## Modular Packages & Jellyware Extensibility
+
+RepoSpec separates its deterministic **scanning + SQLite storage kernel** from **swappable, ejectable presentation & CI layers** across four workspace packages (also re-exported from `repospec/*`):
+
+| Package | Root Subpath | Responsibility |
+| :--- | :--- | :--- |
+| **`@repospec/core`** | `repospec/core`, `repospec/core/facts`, `repospec/core/eject`, `repospec/core/effect` | Scanning kernel, canonical IR, SQLite `facts` / `fact_edges` / `metrics` tables, shared AST `ScanToolkit`, `defineExtractor`, declarative `.repospec/facts.yaml`, `.repospec/rules/*.sql` loader, and `repospec eject` |
+| **`@repospec/report`** | `repospec/report` | Default interactive Visual Studio HTML renderer + `defineReport` UI customization (CSS theme variables, `customCss`, `customHeadHtml`, `customHeaderHtml`, `customBriefingHtml`, `extraTabs`, `customClientScript`, `transformPayload`, full `renderHtml` escape hatch) |
+| **`@repospec/show-me`** | `repospec/show-me`, `repospec/show-me/svg` | Gate-based PR triage (`Scrutinize` / `Look` / `Skim`), chromeless light/dark SVG/PNG renderer, IaC delta cards, and `defineShowMe` overrides (`triage`, `selectShots`, `renderCard`, `formatComment`, `ctx.factDiff()`) |
+| **`@repospec/ci`** | `repospec/ci` | `defineCi` programmatic CI gates (wired automatically into `repospec check`), custom formatters, and GitHub Actions workflow templates |
+
+### Pull Custom Domain Facts Out of Your Code
+
+1. **Zero-code declarative rules (`.repospec/facts.yaml`)** — extract `call`, `import`, `hclBlock`, `yamlPath`, or `regex` matches straight into `repospec.sqlite` (`facts` table), `repospec.json` (`extensions.facts`), the Studio **`Facts (N)`** tab, `repospec facts --diff`, and `show-me`:
+
+```yaml
+extractors:
+  - kind: feature_flag
+    match: call
+    callee: ["isEnabled", "flags.get"]
+    keyArg: 0
+  - kind: iam_policy
+    match: hclBlock
+    blockType: resource
+    labelPrefix: aws_iam_
+```
+
+2. **Typed AST extractors (`.repospec/extractors/*.ts`)** — share RepoSpec's parsed TypeScript AST via `ScanToolkit` with `defineExtractor`:
+
+```ts
+import { defineExtractor } from "repospec/core";
+
+export default defineExtractor({
+  id: "analytics-events",
+  extract: async (ctx) => {
+    const facts = [];
+    for (const file of ctx.files.filter((f) => f.endsWith(".ts"))) {
+      for (const call of ctx.toolkit.findCalls(file, ["trackEvent"])) {
+        facts.push({ kind: "analytics_event", key: call.args[0] ?? call.callee, file, line: call.line, payload: { args: call.args } });
+      }
+    }
+    return { facts };
+  },
+});
+```
+
+3. **Custom SQL invariants (`.repospec/rules/*.sql`)** — query both built-in graph tables and your custom `facts` / `fact_edges` / `metrics` tables automatically during `repospec generate` and `repospec check`.
+
+4. **Eject & customize UI, `/show-me`, or CI (`repospec eject <show-me|report|ci|extractor|facts|rule|all>`)**:
+   - `.repospec/report.ts` (`defineReport`) — restyle theme tokens, inject custom CSS/HTML header/briefing, add custom Studio tabs, attach client scripts, transform the payload, or replace the HTML renderer completely.
+   - `.repospec/show-me.ts` (`defineShowMe`) — override PR triage, shot selection, SVG cards, or markdown comments with access to `ctx.factDiff()`.
+   - `.repospec/ci.ts` (`defineCi`) — add custom programmatic pass/warn/fail gates executed by `repospec check`.
 
 ---
 

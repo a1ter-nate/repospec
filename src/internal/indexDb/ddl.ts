@@ -287,6 +287,40 @@ export function initIndexDbSchema(db: Database): void {
       edge_kind TEXT
     );
 
+    CREATE TABLE facts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      extractor_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      key TEXT NOT NULL,
+      file TEXT NOT NULL,
+      line INTEGER NOT NULL,
+      unit TEXT NOT NULL,
+      symbol TEXT,
+      severity TEXT,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE TABLE fact_edges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      extractor_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      from_ref TEXT NOT NULL,
+      to_ref TEXT NOT NULL,
+      file TEXT NOT NULL,
+      line INTEGER NOT NULL,
+      payload_json TEXT
+    );
+
+    CREATE TABLE metrics (
+      extractor_id TEXT NOT NULL,
+      scope_kind TEXT NOT NULL,
+      scope_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      value_num REAL,
+      value_text TEXT,
+      PRIMARY KEY (extractor_id, scope_kind, scope_id, name)
+    );
+
     CREATE INDEX idx_edges_from ON edges(from_id);
     CREATE INDEX idx_edges_to ON edges(to_id);
     CREATE INDEX idx_edges_kind ON edges(kind);
@@ -297,6 +331,11 @@ export function initIndexDbSchema(db: Database): void {
     CREATE INDEX idx_inv_evidence_file ON invariant_evidence(file);
     CREATE INDEX idx_http_endpoints_unit ON http_endpoints(unit);
     CREATE INDEX idx_env_bindings_name ON env_bindings(env_name);
+    CREATE INDEX idx_facts_kind ON facts(kind);
+    CREATE INDEX idx_facts_file ON facts(file);
+    CREATE INDEX idx_facts_key ON facts(kind, key);
+    CREATE INDEX idx_fact_edges_kind ON fact_edges(kind);
+    CREATE INDEX idx_metrics_name ON metrics(name);
 
     CREATE VIEW v_prod_files AS
     SELECT

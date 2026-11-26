@@ -5,6 +5,8 @@ import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments } from "../cano
 import { discoverRepo } from "../discover.ts";
 import { buildCrossDomainLinks } from "../extractors/crossLink.ts";
 import { projectInvariantsToGraph } from "../indexDb.ts";
+import { evaluateCiGates, type CiDefinition } from "@repospec/ci";
+import { loadRepoExtensions, type LoadedRepoExtensions } from "@repospec/core";
 import { buildVerificationScopeSummary } from "../internal/coverage.ts";
 import { buildAllDiagrams, buildStaticTraces, resolveEvidenceAnchors } from "../layout.ts";
 import { buildModuleArchitecture } from "../moduleGraph.ts";
@@ -29,6 +31,7 @@ export interface GenerateResult {
   readonly sdkModule: string;
   readonly dbPath: string;
   readonly drilldown: DrilldownIndex;
+  readonly repoExtensions: LoadedRepoExtensions;
 }
 
 export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
@@ -49,9 +52,21 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
       }),
   });
 
-  const fragments = yield* extractors.runAll(ctx);
+  const repoExtensions = yield* Effect.tryPromise({
+    try: () => loadRepoExtensions(ctx.rootDir),
+    catch: () =>
+      new RepoDiscoveryError({
+        rootDir: ctx.rootDir,
+        message: "Failed to load .repospec extensions",
+      }),
+  });
+
+  const fragments = yield* extractors.runAll(ctx, repoExtensions.extractors);
   const crossFragment = buildCrossDomainLinks(ctx, fragments);
   const merged = mergeFragments([...fragments, crossFragment]);
+  if (repoExtensions.diagnostics.length > 0) {
+    merged.diagnostics.push(...repoExtensions.diagnostics);
+  }
 
   const targetDbPath =
     dbOutPath ??
@@ -63,6 +78,7 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
   const evalResult = yield* sqliteSvc.buildAndEvaluate({
     dbPath: targetDbPath,
     rulesDir: RULES_DIR,
+    extraRulesDirs: repoExtensions.extraRulesDirs,
     repoName: ctx.repoName,
     commitSha: ctx.commitSha,
     scopeRootRel: ctx.scopeRootRel,
@@ -77,6 +93,9 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
     modules: moduleArch.modules,
     realCoverage,
     diagnostics: merged.diagnostics,
+    facts: merged.facts,
+    factEdges: merged.factEdges,
+    metrics: merged.metrics,
   });
 
   const projected = projectInvariantsToGraph(merged.nodes, merged.edges, evalResult.invariants);
@@ -88,6 +107,7 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
     ctx,
     extractorIds: [
       ...extractors.plugins.map((e) => e.id),
+      ...repoExtensions.extractors.map((e) => e.id),
       "cross-domain.linker.v4",
       "module-graph.v5",
       "sqlite.invariants.v4",
@@ -107,6 +127,9 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
     diagrams,
     verification: evalResult.verification,
     diagnostics: merged.diagnostics,
+    facts: merged.facts,
+    factEdges: merged.factEdges,
+    metrics: merged.metrics,
   });
 
   const spec = yield* decodeRepoSpecEffect(rawSpec);
@@ -123,6 +146,7 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
     sdkModule,
     dbPath: targetDbPath,
     drilldown,
+    repoExtensions,
   } satisfies GenerateResult;
 });
 
@@ -136,7 +160,7 @@ export const checkRepoSpecEffect = Effect.fn("repospec.check")(function* (params
     Effect.gen(function* () {
       const tmpDir = yield* repoFs.withTempDir("repospec-check-");
       const tmpDb = path.join(tmpDir, "check.sqlite");
-      const { spec, digest } = yield* generateRepoSpecEffect(params.repoDir, "artifact", tmpDb);
+      const { spec, digest, repoExtensions } = yield* generateRepoSpecEffect(params.repoDir, "artifact", tmpDb);
       let drifted = false;
       if (params.specPath) {
         const absSpec = path.resolve(params.specPath);
@@ -146,15 +170,24 @@ export const checkRepoSpecEffect = Effect.fn("repospec.check")(function* (params
           drifted = hashSpec(committed) !== digest;
         }
       }
+      const ciDef =
+        repoExtensions.ciOverride && typeof repoExtensions.ciOverride === "object"
+          ? (repoExtensions.ciOverride as CiDefinition)
+          : null;
+      const customCi = evaluateCiGates({ spec, digest }, ciDef);
       const failedInvariants = spec.invariants.filter((i) => i.status === "fail");
       const errorDiagnostics = spec.diagnostics.filter((d) => d.severity === "error");
-      const ok = !drifted && errorDiagnostics.length === 0 && (params.allowFail || failedInvariants.length === 0);
+      const ok =
+        !drifted &&
+        errorDiagnostics.length === 0 &&
+        (params.allowFail || (failedInvariants.length === 0 && customCi.ok));
       return {
         ok,
         drifted,
         digest,
         errorDiagnostics,
         failedInvariants: failedInvariants.map((i) => ({ id: i.id, name: i.name, count: i.violationCount })),
+        customGates: customCi.results,
         scopeSummary: buildVerificationScopeSummary(spec.verification),
         verification: spec.verification,
       };

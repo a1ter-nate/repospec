@@ -4,21 +4,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runGenerateRepoSpec } from "../src/effect/pipeline.ts";
-import { renderDiffDiagramSvg, renderSymbolCardSvg } from "../src/internal/showme/svgRenderer.ts";
-import { classifyFile, detectTestedInPr, parseIacDiff } from "../src/internal/showme/fileClass.ts";
-import { renderIacCardSvg } from "../src/internal/showme/iacCardSvg.ts";
-import { buildCompactDeltaGraph } from "../src/internal/showme/layoutFit.ts";
-import { buildShowMePrComment } from "../src/internal/showme/markdown.ts";
+import { renderDiffDiagramSvg, renderSymbolCardSvg } from "../packages/show-me/src/internal/svgRenderer.ts";
+import { classifyFile, detectTestedInPr, parseIacDiff } from "../packages/show-me/src/internal/fileClass.ts";
+import { renderIacCardSvg } from "../packages/show-me/src/internal/iacCardSvg.ts";
+import { buildCompactDeltaGraph } from "../packages/show-me/src/internal/layoutFit.ts";
+import { buildShowMePrComment } from "../packages/show-me/src/internal/markdown.ts";
 import {
   parseRankPreset,
   rankChangedFiles,
   rankDiffDiagrams,
   type RankingSpecSlice,
-} from "../src/internal/showme/ranking.ts";
-import { runShowMeBundle, type ShowMeManifest } from "../src/internal/showme/runner.ts";
-import { selectShots } from "../src/internal/showme/shots.ts";
-import { rasterizeSvgToPng } from "../src/internal/showme/svgPrimitives.ts";
-import { triageCommitDiff } from "../src/internal/showme/triage.ts";
+} from "../packages/show-me/src/internal/ranking.ts";
+import { runShowMeBundle, type ShowMeManifest } from "../packages/show-me/src/internal/runner.ts";
+import { selectShots } from "../packages/show-me/src/internal/shots.ts";
+import { rasterizeSvgToPng } from "../packages/show-me/src/internal/svgPrimitives.ts";
+import { triageCommitDiff } from "../packages/show-me/src/internal/triage.ts";
 import type { CommitArchDiff } from "../src/studio/commitDiff.ts";
 import type { DiffDiagramBundle } from "../src/studio/diffOverlay.ts";
 import type { DrilldownIndex } from "../src/studio/drilldown.ts";

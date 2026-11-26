@@ -1,4 +1,4 @@
-import type { CommitArchDiff } from "../../studio/commitDiff.ts";
+import type { CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
 import type { ImportanceBreakdown, RankedChangedFile, RankPreset } from "./ranking.ts";
 import type { ReviewLevel, TriageResult } from "./triage.ts";
 
