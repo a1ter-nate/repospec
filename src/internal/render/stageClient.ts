@@ -20,76 +20,84 @@ export function renderStageClientScript(): string {
     const covHeaderLabel = hasRealCov
       ? v.realLineCoveragePct + "% line cov (" + esc(v.coverageSource || "report") + ")"
       : v.directTestCoveragePct + "% static 1-hop reach";
-    const statusHtml =
-      '<button class="s-dot ' + (v.invariantsFailed > 0 ? "err status-fail" : "ok status-pass") + '" data-jump-checks-filter="fail" title="Failing structural invariants (' + v.invariantsPassed + " pass, " + v.invariantsNa + ' N/A)">' + v.invariantsFailed + " fail</button>" +
-      (v.invariantsWarned > 0 ? '<button class="s-dot warn status-warn" data-jump-checks-filter="warn" title="Click to view architectural warnings">' + v.invariantsWarned + " warn</button>" : "") +
-      '<span title="' + (hasRealCov ? "Execution line coverage ingested from " + esc(v.coverageReportFile || v.coverageSource || "coverage report") : "Static 1-hop test import reachability — not execution line/branch coverage") + '">' + DATA.summary.indexedSourceFiles + " files · " + covHeaderLabel + "</span>" +
-      (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
+    const metaHtml =
+      '<span class="header-meta" title="' + (hasRealCov ? "Execution line coverage ingested from " + esc(v.coverageReportFile || v.coverageSource || "coverage report") : "Static 1-hop test import reachability — not execution line/branch coverage") + '">' +
+      DATA.summary.indexedSourceFiles + " files · " + covHeaderLabel +
+      (DATA.repo.commitSha ? " @" + esc(DATA.repo.commitSha.slice(0, 7)) : "") +
+      "</span>";
 
     const BUILTIN_FACT_KINDS = new Set(["work_flow", "data_lifecycle", "ddia_hazard", "async_handoff", "state_machine"]);
     const customFacts = (DATA.extensions?.facts || []).filter((f) => !BUILTIN_FACT_KINDS.has(f.kind));
     const customTabs = DATA.customUi?.extraTabs || [];
     const flowCount = (DATA.flows?.workFlows?.length || 0) + (DATA.flows?.stateMachines?.length || 0) + (DATA.flows?.dataHubs?.length || 0);
     const hasSurfaces = DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0;
+    const checkHealth =
+      v.invariantsFailed > 0 || v.invariantsWarned > 0
+        ? '<span class="tab-health">' +
+          (v.invariantsFailed > 0 ? '<span class="tab-h-err">◆' + v.invariantsFailed + "</span>" : "") +
+          (v.invariantsWarned > 0 ? '<span class="tab-h-warn">▲' + v.invariantsWarned + "</span>" : "") +
+          "</span>"
+        : '<span class="tab-health"><span class="tab-h-ok">●</span></span>';
     const tabs = [
-      { id: "diff", label: "Diff (" + (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || "") + ")", show: Boolean(DATA.commitDiff) },
-      { id: "map", label: "Map", show: Boolean(runtimeDiag) },
-      { id: "flows", label: "Flows (" + (DATA.flows?.workFlows?.length || 0) + ")", show: flowCount > 0 },
-      { id: "data", label: "Surfaces", show: hasSurfaces },
-      { id: "facts", label: "Custom Facts (" + customFacts.length + ")", show: customFacts.length > 0 },
-      { id: "timeline", label: "Timeline (" + (DATA.timeline?.commits?.length || 0) + ")", show: Boolean(DATA.timeline?.commits?.length) },
-      ...customTabs.map((ct) => ({ id: "custom:" + ct.id, label: ct.label, show: true })),
+      { id: "diff", label: "Diff", count: (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || ""), show: Boolean(DATA.commitDiff) },
+      { id: "map", label: "Map", count: "", show: Boolean(runtimeDiag) },
+      { id: "flows", label: "Flows", count: String(DATA.flows?.workFlows?.length || 0), show: flowCount > 0 },
+      { id: "data", label: "Surfaces", count: "", show: hasSurfaces },
+      { id: "checks", label: "Checks", badgeHtml: checkHealth, count: "", show: (DATA.invariants || []).length > 0 },
+      { id: "facts", label: "Facts", count: String(customFacts.length), show: customFacts.length > 0 },
+      { id: "timeline", label: "Timeline", count: String(DATA.timeline?.commits?.length || 0), show: Boolean(DATA.timeline?.commits?.length) },
+      ...customTabs.map((ct) => ({ id: "custom:" + ct.id, label: ct.label, count: "", show: true })),
     ].filter((t) => t.show);
 
     let subNav = "";
     if (state.tab === "map") {
       if (state.e2eTraceSeed) {
-        subNav = '<div class="sub-toggles"><button class="pill-btn" data-close-e2e="1">← Back to Map</button><span class="crumb-sep">›</span><span class="crumb-cur">E2E Trace · ' + esc(state.e2eTraceSeed.filePath.split("/").pop()) + "</span></div>";
+        subNav = '<div class="sub-toggles"><button class="crumb-btn" data-close-e2e="1">← Map</button><span class="crumb-sep">/</span><span class="crumb-cur">E2E · ' + esc(state.e2eTraceSeed.filePath.split("/").pop()) + "</span></div>";
       } else if (state.activeFileGraph) {
         const fgPath = state.activeFileGraph;
         const fIdx = ddIdxByPath.get(fgPath);
         const fObj = fIdx !== undefined ? DD_FILES[fIdx] : null;
         const crumbs = [
-          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">›</span>'] : []),
-          '<button class="pill-btn" data-back-map="1">System</button>',
+          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">/</span>'] : []),
+          '<button class="crumb-btn" data-back-map="1">System</button>',
         ];
         if (fObj) {
           const unitModId = "modules:" + fObj.u;
           if (diagById.has(unitModId)) {
-            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(unitModId) + '">' + esc(fObj.u) + "</button>");
+            crumbs.push('<span class="crumb-sep">/</span><button class="crumb-btn" data-open-layers="' + esc(unitModId) + '">' + esc(fObj.u) + "</button>");
           }
           const logical = ddLogicalRel(fObj, ddUnitPeelPrefix(fObj.u));
           const segs = logical.split("/").filter(Boolean);
           let acc = "";
           for (let si = 0; si < segs.length - 1; si += 1) {
             acc = acc ? acc + "/" + segs[si] : segs[si];
-            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-folder="' + esc(fObj.u + "::" + acc) + '">' + esc(segs[si]) + "/</button>");
+            crumbs.push('<span class="crumb-sep">/</span><button class="crumb-btn" data-open-folder="' + esc(fObj.u + "::" + acc) + '">' + esc(segs[si]) + "</button>");
           }
         }
-        crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(fgPath.split("/").pop()) + "</span>");
+        crumbs.push('<span class="crumb-sep">/</span><span class="crumb-cur">' + esc(fgPath.split("/").pop()) + "</span>");
         subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
       } else if (state.activeFolder) {
         const af = state.activeFolder;
         const crumbs = [
-          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">›</span>'] : []),
-          '<button class="pill-btn" data-back-map="1">System</button>',
+          ...(state.returnToChecks ? ['<button class="pill-btn active" data-return-to-checks="1">← Checks</button><span class="crumb-sep">/</span>'] : []),
+          '<button class="crumb-btn" data-back-map="1">System</button>',
         ];
         const unitModDiag = diagById.get("modules:" + af.unitSlug);
         const unitLayerDiag = diagById.get("layers:" + af.unitSlug);
         const unitReturnId = af.returnDiagId || unitModDiag?.id || unitLayerDiag?.id || null;
         if (unitReturnId) {
-          crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(unitReturnId) + '">' + esc(af.unitSlug) + "</button>");
+          crumbs.push('<span class="crumb-sep">/</span><button class="crumb-btn" data-open-layers="' + esc(unitReturnId) + '">' + esc(af.unitSlug) + "</button>");
         } else {
-          crumbs.push('<span class="crumb-sep">›</span><span class="mono muted">' + esc(af.unitSlug) + "</span>");
+          crumbs.push('<span class="crumb-sep">/</span><span class="mono muted">' + esc(af.unitSlug) + "</span>");
         }
         const segs = af.folderPath.split("/").filter(Boolean);
         let acc = "";
         segs.forEach((seg, si) => {
           acc = acc ? acc + "/" + seg : seg;
           if (si < segs.length - 1) {
-            crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-folder="' + esc(af.unitSlug + "::" + acc) + '">' + esc(seg) + "/</button>");
+            crumbs.push('<span class="crumb-sep">/</span><button class="crumb-btn" data-open-folder="' + esc(af.unitSlug + "::" + acc) + '">' + esc(seg) + "</button>");
           } else {
-            crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(seg) + "/</span>");
+            crumbs.push('<span class="crumb-sep">/</span><span class="crumb-cur">' + esc(seg) + "/</span>");
           }
         });
         subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
@@ -100,19 +108,19 @@ export function renderStageClientScript(): string {
         const parentDiag = ld?.parentDiagramId ? diagById.get(ld.parentDiagramId) : null;
         const crumbs = [];
         if (!isSingleUnitAtlas || runtimeDiag) {
-          crumbs.push('<button class="pill-btn" data-back-map="1">System</button>');
+          crumbs.push('<button class="crumb-btn" data-back-map="1">System</button>');
         }
         if (parentDiag) {
-          crumbs.push('<span class="crumb-sep">›</span><button class="pill-btn" data-open-layers="' + esc(parentDiag.id) + '">' + esc(parentDiag.id.replace(/^modules:/, "")) + "</button>");
+          crumbs.push('<span class="crumb-sep">/</span><button class="crumb-btn" data-open-layers="' + esc(parentDiag.id) + '">' + esc(parentDiag.id.replace(/^modules:/, "")) + "</button>");
         }
         if (ld) {
           const shortTitle = ld.category === "subsystem"
             ? ld.id.split(":").slice(2).join(":") + "/"
             : ld.id.replace(/^(?:modules|layers):/, "");
-          crumbs.push('<span class="crumb-sep">›</span><span class="mono" style="color:#f8fafc;font-weight:600">' + esc(shortTitle) + "</span>");
+          crumbs.push('<span class="crumb-sep">/</span><span class="crumb-cur">' + esc(shortTitle) + "</span>");
         }
         if (ownerModDiag && ownerLayerDiag && ld && ld.category !== "subsystem") {
-          crumbs.push('<span class="seg-group" style="margin-left:4px">' +
+          crumbs.push('<span class="hud-sep"></span><span class="seg-group">' +
             '<button class="seg-btn' + (ld.category === "modules" ? " active" : "") + '" data-open-layers="' + esc(ownerModDiag.id) + '" title="Top-level module dependency graph ordered from entry points to foundations">Modules</button>' +
             '<button class="seg-btn' + (ld.category === "layers" ? " active" : "") + '" data-open-layers="' + esc(ownerLayerDiag.id) + '" title="Clean Architecture layers — red backward arrows highlight layer inversions">Layers</button>' +
             "</span>");
@@ -120,7 +128,7 @@ export function renderStageClientScript(): string {
         subNav = '<div class="sub-toggles">' + crumbs.join("") + "</div>";
       } else {
         subNav = '<div class="sub-toggles">' +
-          (moduleDiags.length === 1 ? '<button class="pill-btn" data-open-layers="' + esc(moduleDiags[0].id) + '" title="Drill into top-level module topology">Modules (' + moduleDiags[0].nodes.length + ")</button>" : "") +
+          (moduleDiags.length === 1 ? '<button class="pill-btn" data-open-layers="' + esc(moduleDiags[0].id) + '" title="Drill into top-level module topology">Modules <span class="tab-n">' + moduleDiags[0].nodes.length + "</span></button>" : "") +
           '<button class="pill-btn' + (state.mapMode === "runtime" ? " active" : "") + '" data-map-mode="runtime" title="Apps, services, datastores, and external APIs flowing left-to-right">Runtime</button>' +
           (packagesDiag ? '<button class="pill-btn' + (state.mapMode === "packages" ? " active" : "") + '" data-map-mode="packages" title="Internal workspace package dependency graph">Packages</button>' : "") +
           (domainsDiag ? '<button class="pill-btn' + (state.mapMode === "domains" ? " active" : "") + '" data-map-mode="domains" title="Business domain coupling graph — red arrows show bidirectional coupling">Domains</button>' : "") +
@@ -187,51 +195,63 @@ export function renderStageClientScript(): string {
               : renderBriefingDrawer();
       const drawerHtml = blastDrawerHtml + baseDrawerHtml;
 
-      const trayHtml = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0
-        ? '<div class="tray" title="Units indexed without static runtime edges to the core graph — click any chip to inspect"><span>No edges extracted:</span>' +
-          diag.unconnectedNodes.map((u) => '<span class="tray-chip" data-select-node="' + esc(u.id) + '">' + esc(u.label) + "</span>").join("") +
-          "</div>"
-        : "";
-
       const viewToggleHtml = canMatrix
         ? '<span class="seg-group">' +
           '<button class="seg-btn' + (!inMatrix ? " active" : "") + '" data-view-mode="flow" title="Visual node-and-wire dependency flow">Flow</button>' +
-          '<button class="seg-btn' + (inMatrix ? " active" : "") + '" data-view-mode="matrix" title="Design Structure Matrix: grid showing every dependency with zero crossing lines">Matrix (DSM)</button>' +
+          '<button class="seg-btn' + (inMatrix ? " active" : "") + '" data-view-mode="matrix" title="Design Structure Matrix: grid showing every dependency with zero crossing lines">Matrix</button>' +
           "</span>"
         : "";
 
       const wireToggleHtml = !inMatrix && detailCount > 0
-        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Showing key spine wires only — hover any card for its full neighborhood, or click to toggle all wires">' + (state.showAllEdges ? "All wires (" + diag.edges.length + ")" : "Key wires (" + visibleSpineCount + "/" + diag.edges.length + ")") + "</button>"
+        ? '<button class="tbtn' + (state.showAllEdges ? " active" : "") + '" data-toggle-wires="1" title="Showing key spine wires only — hover any card for its full neighborhood, or click to toggle all wires">' + (state.showAllEdges ? "All " + diag.edges.length : visibleSpineCount + "/" + diag.edges.length + " wires") + "</button>"
         : "";
 
       const canStepUp = Boolean(state.activeFileGraph || state.activeFolder || (state.activeLayerDiagId && !isSingleUnitAtlas));
       const hudTopLeft = subNav ? '<div class="hud-pill hud-top-left">' + subNav + "</div>" : "";
+      const lensLabel = state.canvasLens === "coverage" ? (hasRealCov ? "Coverage" : "Reachability") : state.canvasLens === "churn" ? "Churn" : "Normal";
       const lensHtml = !inMatrix && !state.activeFileGraph && !state.e2eTraceSeed && DD_FILES.length > 0
-        ? '<span class="seg-group" title="Heatmap lens overlay">' +
-          '<button class="seg-btn' + (state.canvasLens === "default" ? " active" : "") + '" data-lens="default">Normal</button>' +
-          '<button class="seg-btn' + (state.canvasLens === "coverage" ? " active" : "") + '" data-lens="coverage" title="' + (hasRealCov ? "Tint modules & files by real line coverage %" : "Tint modules & files by static 1-hop test import reachability (no coverage report ingested)") + '">' + (hasRealCov ? "Coverage" : "Reachability") + "</button>" +
-          '<button class="seg-btn' + (state.canvasLens === "churn" ? " active" : "") + '" data-lens="churn" title="Tint modules & files by git commit churn hotspots">Churn</button>' +
-          "</span>"
+        ? '<details class="more-wrap"><summary class="tbtn' + (state.canvasLens !== "default" ? " active" : "") + '" title="Heatmap lens overlay">Lens: ' + lensLabel + ' ▾</summary><div class="more-menu">' +
+          '<button class="' + (state.canvasLens === "default" ? "active" : "") + '" data-lens="default">Normal</button>' +
+          '<button class="' + (state.canvasLens === "coverage" ? "active" : "") + '" data-lens="coverage">' + (hasRealCov ? "Line Coverage" : "Static Reachability") + "</button>" +
+          '<button class="' + (state.canvasLens === "churn" ? "active" : "") + '" data-lens="churn">Git Churn Hotspots</button>' +
+          "</div></details>"
         : "";
-      const hudTopRight =
-        '<div class="hud-pill hud-top-right">' +
-        lensHtml +
-        viewToggleHtml +
-        wireToggleHtml +
-        (state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1" title="Bow-Tie focus: isolate only direct callers and dependencies of the selected card">Focus <span class="keycap">F</span></button>' : "") +
-        '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read this graph">?</button>' +
-        "</div>";
+      const rightParts = [
+        viewToggleHtml,
+        lensHtml,
+        wireToggleHtml,
+        state.selectedNodeId && !inMatrix ? '<button class="tbtn' + (state.focusMode ? " active" : "") + '" data-toggle-focus="1" title="Bow-Tie focus: isolate only direct callers and dependencies">Focus <span class="keycap">F</span></button>' : "",
+        '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read this graph">?</button>',
+      ].filter(Boolean);
+      const hudTopRight = '<div class="hud-pill hud-top-right">' + rightParts.join('<span class="hud-sep"></span>') + "</div>";
       const hudBottomLeft = !inMatrix
         ? '<div class="hud-pill hud-bottom-left">' +
-          '<button class="tbtn" data-zoom="in" title="Zoom in (+)">+</button>' +
-          '<button class="zoom-pct" id="zoom-pct" data-zoom="fit" title="Reset zoom (0)">' + Math.round(state.scale * 100) + "%</button>" +
           '<button class="tbtn" data-zoom="out" title="Zoom out (-)">−</button>' +
+          '<button class="zoom-pct" id="zoom-pct" data-zoom="fit" title="Reset zoom (0)">' + Math.round(state.scale * 100) + "%</button>" +
+          '<button class="tbtn" data-zoom="in" title="Zoom in (+)">+</button>' +
+          '<span class="hud-sep"></span>' +
           '<button class="tbtn" data-zoom="fit" title="Fit view (0)">Fit</button>' +
-          (canStepUp ? '<button class="tbtn" data-step-up="1" title="Up one level (Backspace)">↑</button>' : "") +
+          (canStepUp ? '<span class="hud-sep"></span><button class="tbtn" data-step-up="1" title="Up one level (Backspace)">↑</button>' : "") +
+          "</div>"
+        : "";
+      const unconnList = !inMatrix && diag.unconnectedNodes && diag.unconnectedNodes.length > 0 ? diag.unconnectedNodes : [];
+      const legendPopHtml = state.legendOpen
+        ? '<div class="hud-pop">' + renderLegend(diag).replace('<div class="legend">', "").replace("</div>", "") + '<span class="leg-item"><span class="keycap">2×</span> Double-click any card to drill in</span></div>'
+        : "";
+      const unconnPopHtml = state.unconnectedOpen && unconnList.length > 0
+        ? '<div class="hud-pop is-right"><div class="sec-title">No static edges extracted (' + unconnList.length + ")</div>" +
+          unconnList.map((u) => '<button class="hud-pop-row" data-select-node="' + esc(u.id) + '"><span class="fr-dot is-hollow"></span><span>' + esc(u.label) + "</span></button>").join("") +
           "</div>"
         : "";
       const hudLegend = !inMatrix
-        ? '<div class="hud-pill hud-bottom-center">' + renderLegend(diag).replace('<div class="legend">', "").replace("</div>", "") + '<span class="leg-item"><span class="keycap">2×</span> Drill in</span></div>'
+        ? '<div class="hud-pill hud-bottom-center">' +
+          '<span class="hud-pop-wrap">' + legendPopHtml +
+          '<button class="tbtn' + (state.legendOpen ? " active" : "") + '" data-toggle-legend="1" title="Toggle graph legend"><span class="hud-swatches"><i style="background:var(--accent)"></i><i style="background:var(--ok)"></i><i style="background:var(--err)"></i></span>Legend</button></span>' +
+          (unconnList.length > 0
+            ? '<span class="hud-sep"></span><span class="hud-pop-wrap">' + unconnPopHtml +
+              '<button class="tbtn' + (state.unconnectedOpen ? " active" : "") + '" data-toggle-unconnected="1" title="Units indexed without static runtime edges">◌ ' + unconnList.length + " unconnected ▾</button></span>"
+            : "") +
+          "</div>"
         : "";
 
       const selNodeObj = state.selectedNodeId && diag ? diag.nodes.find((n) => n.id === state.selectedNodeId) : null;
@@ -266,7 +286,6 @@ export function renderStageClientScript(): string {
         hudBottomLeft +
         hudLegend +
         (!inMatrix ? renderMinimapHtml(diag) : "") +
-        trayHtml +
         '<div class="edge-tooltip" id="edge-tooltip"></div>' +
         '<div class="canvas-shell' + (inMatrix ? " matrix-mode" : "") + '" id="canvas-shell">' +
         (inMatrix ? renderMatrixView(diag) : renderDiagramSvg(diag)) +
@@ -283,13 +302,16 @@ export function renderStageClientScript(): string {
       '<div class="brand"><span class="brand-dot"></span><span>' + esc(DATA.customUi?.brandLabel || DATA.repo.name) + '</span><span class="brand-ver">v' + esc(DATA.schemaVersion) + '</span><span class="live-badge" id="live-watch-badge"' + (liveWatchConnected ? ' style="display:inline-flex"' : "") + '>LIVE</span></div>' +
       (DATA.customUi?.headerHtml || "") +
       '<div class="tabs">' +
-      tabs.map((t) => '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-tab="' + esc(t.id) + '">' + esc(t.label) + "</button>").join("") +
+      tabs.map((t) => '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-tab="' + esc(t.id) + '">' + esc(t.label) + (t.count ? '<span class="tab-n">' + esc(t.count) + "</span>" : "") + (t.badgeHtml || "") + "</button>").join("") +
       "</div>" +
       "</div>" +
       '<div class="bar-right">' +
-      '<div class="status-pills">' + statusHtml + "</div>" +
-      '<button class="tbtn" data-copy-share="1" title="Copy shareable URL to current view & symbol">Share</button>' +
-      '<div class="search-wrap"><input class="search" id="global-search" placeholder="Jump to module, file, symbol..." value="' + esc(state.search) + '" /><span class="search-kbd">/</span>' + renderSearchDropdown() + "</div>" +
+      metaHtml +
+      '<div class="search-wrap"><input class="search" id="global-search" placeholder="Jump to…" value="' + esc(state.search) + '" /><span class="search-kbd">⌘K</span>' + renderSearchDropdown() + "</div>" +
+      '<details class="more-wrap"><summary class="tbtn" title="More actions">⋯</summary><div class="more-menu">' +
+      '<button data-copy-share="1">Copy shareable link</button>' +
+      (v.invariantsFailed > 0 ? '<button data-jump-checks-filter="fail">Jump to broken rules (' + v.invariantsFailed + ")</button>" : "") +
+      "</div></details>" +
       "</div>" +
       "</div>" +
       bodyHtml;

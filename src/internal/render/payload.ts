@@ -21,6 +21,19 @@ export function escapeHtml(text: string): string {
 }
 
 
+function inferFlowUnit(filePath: string): string {
+  const m = /^(?:apps|packages|services)\/([^/]+)\//.exec(filePath);
+  return m?.[1] ?? "root";
+}
+
+function inferFlowGroup(filePath: string): string {
+  const stripped = filePath
+    .replace(/^(?:apps|packages|services)\/[^/]+\//, "")
+    .replace(/^(?:functions|src|lib)\//, "");
+  const segs = stripped.split("/").filter(Boolean);
+  return segs.length > 1 ? (segs[0] ?? "root") : "root";
+}
+
 export function buildCompactRenderPayload(
   spec: RepoSpecV4,
   digest: string,
@@ -48,8 +61,11 @@ export function buildCompactRenderPayload(
       triggerKind: wf.triggerKind,
       file: wf.file,
       line: wf.line,
+      unit: inferFlowUnit(wf.file),
+      group: inferFlowGroup(wf.file),
       serialAwaitCount: wf.serialAwaitCount,
       hazardCount: wf.hazards.length,
+      hasError: wf.hazards.some((h) => h.severity === "error"),
       steps: wf.steps.slice(0, 20),
       hazards: wf.hazards.slice(0, 8),
       svg: renderWorkFlowSwimlaneSvg(wf, { mode: "current" }),
@@ -57,12 +73,22 @@ export function buildCompactRenderPayload(
     })),
     dataHubs: Array.from(byEntity.entries())
       .slice(0, inline ? 4 : 24)
-      .map(([entity, fields]) => ({
-        entity,
-        fieldCount: fields.length,
-        fields: fields.slice(0, 8),
-        svg: renderDataHubSvg(entity, fields),
-      })),
+      .map(([entity, fields]) => {
+        const writers = new Set<string>();
+        let multiWriterCount = 0;
+        for (const f of fields) {
+          if (f.multiWriterRisk) multiWriterCount += 1;
+          for (const w of f.writers) writers.add(w.file);
+        }
+        return {
+          entity,
+          fieldCount: fields.length,
+          writerCount: writers.size,
+          multiWriterCount,
+          fields: inline ? fields.slice(0, 8) : fields,
+          svg: renderDataHubSvg(entity, fields),
+        };
+      }),
     stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 16).map((sm) => ({
       id: sm.id,
       name: sm.name,

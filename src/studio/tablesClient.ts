@@ -36,56 +36,70 @@ export function renderTablesClientScript(): string {
   function renderSearchDropdown() {
     const q = state.search.trim().toLowerCase();
     if (!q) return '<div class="search-dropdown" id="search-dd"></div>';
-    const hits = [];
+    const groups = [
+      { title: "Flows", items: [] },
+      { title: "Endpoints", items: [] },
+      { title: "Modules & Units", items: [] },
+      { title: "Files & Symbols", items: [] },
+      { title: "Entities", items: [] },
+    ];
+    for (const wf of (DATA.flows?.workFlows || [])) {
+      if (wf.name.toLowerCase().includes(q) || wf.file.toLowerCase().includes(q)) {
+        groups[0].items.push({ kind: wf.triggerKind || "flow", label: wf.name + " · " + wf.file.split("/").pop(), action: "flow", id: wf.id });
+      }
+      if (groups[0].items.length >= 5) break;
+    }
+    for (const ep of (DATA.surfaces?.endpoints || [])) {
+      if (ep.path.toLowerCase().includes(q) || (ep.handlerFile || "").toLowerCase().includes(q)) {
+        groups[1].items.push({ kind: ep.method, label: ep.path, action: "endpoints", id: ep.path });
+      }
+      if (groups[1].items.length >= 6) break;
+    }
+    for (const m of (DATA.modules || [])) {
+      if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
+        groups[2].items.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
+      } else {
+        const symHit = m.topExports.find((s) => s.name.toLowerCase().includes(q));
+        if (symHit) groups[2].items.push({ kind: symHit.kind, label: symHit.name + " (" + m.name + ")", action: "module", id: m.id });
+      }
+      if (groups[2].items.length >= 5) break;
+    }
+    for (const n of DATA.nodes) {
+      if (groups[2].items.length >= 8) break;
+      if (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) {
+        groups[2].items.push({ kind: n.kind, label: shortPkg(n.label), action: "node", id: n.id });
+      }
+    }
     for (const f of DD_FILES) {
       if (f.p.toLowerCase().includes(q)) {
-        hits.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
+        groups[3].items.push({ kind: "file · " + f.u, label: f.p, action: "file", id: f.p });
       } else {
         const syms = f.m || [];
         for (let si = 0; si < syms.length; si += 1) {
           const symHit = syms[si];
           if (symHit[0].toLowerCase().includes(q)) {
-            hits.push({ kind: (symHit[1] === "pub" ? "pub " : "priv ") + symHit[2], label: formatSymDisplayName(symHit) + " (" + f.p.split("/").pop() + ")", action: "sym", id: f.p + "::" + si + "::" + symHit[3] });
+            groups[3].items.push({ kind: (symHit[1] === "pub" ? "pub " : "priv ") + symHit[2], label: formatSymDisplayName(symHit) + " (" + f.p.split("/").pop() + ")", action: "sym", id: f.p + "::" + si + "::" + symHit[3] });
             break;
           }
         }
       }
-      if (hits.length >= 10) break;
-    }
-    for (const m of (DATA.modules || [])) {
-      if (m.name.toLowerCase().includes(q) || m.relPath.toLowerCase().includes(q)) {
-        hits.push({ kind: m.role + " · L" + m.level, label: m.unitSlug + " / " + (m.kind === "directory" ? m.name + "/" : m.name), action: "module", id: m.id });
-      } else {
-        const symHit = m.topExports.find((s) => s.name.toLowerCase().includes(q));
-        if (symHit) {
-          hits.push({ kind: symHit.kind, label: symHit.name + " (" + m.name + ")", action: "module", id: m.id });
-        }
-      }
-      if (hits.length >= 8) break;
-    }
-    for (const n of DATA.nodes) {
-      if (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) {
-        hits.push({ kind: n.kind, label: shortPkg(n.label), action: "node", id: n.id });
-      }
-      if (hits.length >= 14) break;
-    }
-    for (const ep of DATA.surfaces.endpoints) {
-      if (ep.path.toLowerCase().includes(q)) {
-        hits.push({ kind: ep.method, label: ep.path + " (" + (ep.authGuard || "unannotated") + ")", action: "endpoints", id: ep.path });
-      }
-      if (hits.length >= 18) break;
+      if (groups[3].items.length >= 8) break;
     }
     for (const e of DATA.entities) {
       if (e.entity.toLowerCase().includes(q)) {
-        hits.push({ kind: e.datastore, label: e.entity, action: "entity", id: e.entity });
+        groups[4].items.push({ kind: e.datastore, label: e.entity, action: "entity", id: e.entity });
       }
-      if (hits.length >= 22) break;
+      if (groups[4].items.length >= 5) break;
     }
+    const nonEmpty = groups.filter((g) => g.items.length > 0);
     return (
       '<div class="search-dropdown open" id="search-dd">' +
-      (hits.length === 0
+      (nonEmpty.length === 0
         ? '<div class="search-item"><span class="muted">No matches</span></div>'
-        : hits.map((h) => '<div class="search-item" data-search-action="' + esc(h.action) + '" data-search-id="' + esc(h.id) + '"><span class="search-item-main">' + esc(h.label) + '</span><span class="search-item-kind">' + esc(h.kind) + "</span></div>").join("")) +
+        : nonEmpty.map((g) =>
+            '<div class="search-group-h">' + g.title + "</div>" +
+            g.items.map((h) => '<div class="search-item" data-search-action="' + esc(h.action) + '" data-search-id="' + esc(h.id) + '"><span class="search-item-main">' + esc(h.label) + '</span><span class="search-item-kind">' + esc(h.kind) + "</span></div>").join("")
+          ).join("")) +
       "</div>"
     );
   }

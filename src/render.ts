@@ -15,6 +15,7 @@ import { renderChecksClientScript } from "./internal/render/checksClient.ts";
 import { renderClickClientScript } from "./internal/render/clickClient.ts";
 import { renderEventsClientScript } from "./internal/render/eventsClient.ts";
 import { renderFlowsClientScript } from "./internal/render/flowsClient.ts";
+import { renderFlowsRailScript } from "./internal/render/flowsRailClient.ts";
 import { renderInspectorClientScript } from "./internal/render/inspectorClient.ts";
 import { renderMapFlowsBridgeClientScript } from "./internal/render/mapFlowsBridgeClient.ts";
 import { renderNodeInspectorClientScript } from "./internal/render/nodeInspectorClient.ts";
@@ -221,16 +222,22 @@ export function renderVisualHtml(
     surfTailOpen: false,
     flowsSubtab: isLibraryDefault && (DATA.flows?.workFlows?.length || 0) === 0 && (DATA.flows?.stateMachines?.length || 0) > 0 ? "machines" : "workflows",
     activeFlowId: null,
+    activeHubEntity: null,
+    activeSmId: null,
     flowMode: "current",
     flowSelectedStepIdx: null,
     flowSelectedHubField: null,
     flowSelectedSmState: null,
     flowSelectedAsyncIdx: null,
-    flowHazardsOnly: false,
+    flowFilterChip: "all",
+    flowRailHidden: false,
+    flowRailClosed: {},
     flowSearch: "",
     flowCodeFile: null,
     flowCodeLine: 1,
     flowReturnFromMap: false,
+    legendOpen: false,
+    unconnectedOpen: false,
     drawerCollapsed: (() => { try { return localStorage.getItem("repospec:drawer-collapsed") === "1"; } catch { return false; } })(),
     drawerWidth: (() => { try { const w = Number(localStorage.getItem("repospec:drawer-w")); return Number.isFinite(w) && w >= 280 ? w : null; } catch { return null; } })(),
     drawerSubtab: null,
@@ -258,6 +265,7 @@ export function renderVisualHtml(
 
   ${renderInspectorClientScript()}
   ${renderNodeInspectorClientScript()}
+  ${renderFlowsRailScript()}
   ${renderFlowsClientScript()}
   ${renderMapFlowsBridgeClientScript()}
   ${renderSurfacesApiClientScript()}

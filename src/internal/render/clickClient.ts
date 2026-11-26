@@ -276,6 +276,25 @@ export function renderClickClientScript(): string {
       return;
     }
 
+    if (target.closest("[data-toggle-legend]")) {
+      state.legendOpen = !state.legendOpen;
+      state.unconnectedOpen = false;
+      render();
+      return;
+    }
+
+    if (target.closest("[data-toggle-unconnected]")) {
+      state.unconnectedOpen = !state.unconnectedOpen;
+      state.legendOpen = false;
+      render();
+      return;
+    }
+
+    if ((state.legendOpen || state.unconnectedOpen) && !target.closest(".hud-pop-wrap")) {
+      state.legendOpen = false;
+      state.unconnectedOpen = false;
+    }
+
     if (target.closest("[data-toggle-guide]")) {
       state.showGuide = !state.showGuide;
       render();
@@ -388,6 +407,13 @@ export function renderClickClientScript(): string {
         state.mapMode = "runtime";
         state.selectedNodeId = id;
         state.selectedEdgeId = null;
+      } else if (act === "flow") {
+        state.tab = "flows";
+        state.flowsSubtab = "workflows";
+        state.activeFlowId = id;
+        state.flowSelectedStepIdx = null;
+        state.flowCodeFile = null;
+        ensureFileSourcesLoaded();
       } else if (act === "endpoints") {
         state.tab = "data";
         state.dataSubtab = "endpoints";

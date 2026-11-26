@@ -33,12 +33,7 @@ export function renderEventsClientScript(): string {
       rerenderSurfacesBody();
     } else if (target.id === "flow-search-input") {
       state.flowSearch = target.value;
-      render();
-      const fi = document.getElementById("flow-search-input");
-      if (fi instanceof HTMLInputElement) {
-        fi.focus();
-        fi.setSelectionRange(fi.value.length, fi.value.length);
-      }
+      rerenderFlowRail();
     }
   });
 
@@ -192,6 +187,7 @@ export function renderEventsClientScript(): string {
 
   document.addEventListener("keydown", (ev) => {
     const activeTag = document.activeElement?.tagName;
+    if (typeof handleFlowsKeydown === "function" && handleFlowsKeydown(ev)) return;
     if (typeof handleSurfacesKeydown === "function" && handleSurfacesKeydown(ev)) return;
     if (typeof handleChecksKeydown === "function" && handleChecksKeydown(ev)) return;
     if (ev.key === "Enter" && document.activeElement?.id === "global-search") {
@@ -209,6 +205,8 @@ export function renderEventsClientScript(): string {
       state.blastSeedId = null;
       state.activeTraceId = null;
       state.showGuide = false;
+      state.legendOpen = false;
+      state.unconnectedOpen = false;
       aiConfigOpen = false;
       state.search = "";
       render();

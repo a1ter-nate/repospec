@@ -1,60 +1,59 @@
 export function renderSurfacesCss(): string {
   return `
-  .surf-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #0b0f19; overflow: hidden; }
-  .surf-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-bottom: 1px solid #161e30; background: #0d121e; flex-shrink: 0; }
+  .surf-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg-0); overflow: hidden; }
+  .surf-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--h-bar); padding: 6px 20px; border-bottom: 1px solid var(--line-1); background: var(--bg-1); flex-shrink: 0; }
   .surf-nav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-  .surf-nav-btn { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 10px; font-size: 13px; font-weight: 500; color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s ease, color 0.12s ease; }
-  .surf-nav-btn:hover { color: var(--text-1); background: rgba(255,255,255,0.05); }
-  .surf-nav-btn.active { color: var(--text-1); font-weight: 600; background: #151c2c; border-color: var(--rs-border-hi); }
-  .surf-nav-n { font-size: 12px; color: var(--text-3); }
+  .surf-nav-btn { background: transparent; border: 1px solid transparent; border-radius: var(--r-2); padding: 5px 10px; font-size: var(--fs-13); font-weight: 500; color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+  .surf-nav-btn:hover { color: var(--text-1); background: var(--bg-2); }
+  .surf-nav-btn.active { color: var(--text-1); font-weight: 600; background: var(--bg-3); border-color: var(--line-2); }
+  .surf-nav-n { font-size: var(--fs-11); color: var(--text-4); }
   .surf-tools { display: flex; align-items: center; gap: 8px; }
   .surf-filter-wrap { position: relative; }
-  .surf-filter { width: 220px; padding: 5px 28px 5px 10px; font-size: 12.5px; }
-  .surf-filter:focus { width: 260px; }
+  .surf-filter { width: 220px; padding: 0 28px 0 10px; font-size: var(--fs-12); }
   .surf-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; border: 0; color: var(--text-3); cursor: pointer; font-size: 11px; padding: 2px 4px; }
   .surf-clear:hover { color: var(--text-1); }
   .surf-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .surf-overview { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 20px 22px; align-content: start; }
-  .surf-ov-col { background: #0d121e; border: 1px solid #161e30; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .surf-overview { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 18px 20px; align-content: start; }
+  .surf-ov-col { background: var(--bg-1); border: 1px solid var(--line-1); border-radius: var(--r-3); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .surf-ov-head { background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; color: inherit; }
   .surf-ov-head:hover .surf-ov-kicker { color: var(--accent); }
-  .surf-ov-kicker { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .surf-ov-kicker { font-size: var(--fs-11); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
   .surf-ov-num { display: flex; align-items: baseline; gap: 8px; }
-  .surf-ov-unit { font-size: 13px; color: var(--text-2); font-weight: 500; }
-  .surf-ov-sub { font-size: 12px; color: var(--text-3); font-family: var(--font-mono, monospace); }
-  .surf-ov-ledger { display: flex; flex-direction: column; border-top: 1px solid #161e30; padding-top: 8px; }
-  .surf-ov-tail { font-size: 12px; color: var(--text-3); padding: 6px 6px 2px; }
-  .surf-ov-verdicts { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #161e30; padding-top: 10px; }
-  .surf-verdict { background: transparent; border: 0; border-radius: 6px; padding: 6px 8px; text-align: left; font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: background 0.12s ease; }
-  .surf-verdict:hover { background: rgba(255,255,255,0.04); color: var(--text-1); }
+  .surf-ov-unit { font-size: var(--fs-13); color: var(--text-2); font-weight: 500; }
+  .surf-ov-sub { font-size: var(--fs-12); color: var(--text-3); font-family: var(--font-mono, monospace); }
+  .surf-ov-ledger { display: flex; flex-direction: column; border-top: 1px solid var(--line-1); padding-top: 8px; }
+  .surf-ov-tail { font-size: var(--fs-12); color: var(--text-3); padding: 6px 6px 2px; }
+  .surf-ov-verdicts { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line-1); padding-top: 10px; }
+  .surf-verdict { background: transparent; border: 0; border-radius: var(--r-2); padding: 6px 8px; text-align: left; font-size: var(--fs-13); font-weight: 500; color: var(--text-2); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: background var(--dur) var(--ease); }
+  .surf-verdict:hover { background: var(--bg-2); color: var(--text-1); }
   .surf-verdict.is-warn { color: var(--warn); }
-  .surf-chev { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
-  .surf-verdict-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 9px 22px; border-bottom: 1px solid #161e30; background: #0b0f19; flex-shrink: 0; }
+  .surf-chev { font-size: var(--fs-12); color: var(--text-3); flex-shrink: 0; }
+  .surf-verdict-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 20px; border-bottom: 1px solid var(--line-1); background: var(--bg-0); flex-shrink: 0; }
   .surf-facets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .surf-facet { background: #111622; border: 1px solid #1e293b; border-radius: 7px; padding: 5px 10px; font-size: 12.5px; font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s ease, border-color 0.12s ease; }
-  .surf-facet:hover { background: #151c2c; color: var(--text-1); }
-  .surf-facet.is-warn { color: var(--warn); border-color: rgba(245,194,107,0.3); }
-  .surf-facet.active { background: #151c2c; border-color: var(--accent); color: var(--text-1); }
-  .surf-facet.is-warn.active { background: rgba(245,194,107,0.14); border-color: var(--warn); color: var(--warn); }
+  .surf-facet { background: var(--bg-1); border: 1px solid var(--line-1); border-radius: var(--r-2); padding: 4px 10px; font-size: var(--fs-12); font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+  .surf-facet:hover { background: var(--bg-2); color: var(--text-1); border-color: var(--line-2); }
+  .surf-facet.is-warn { color: var(--warn); border-color: rgba(245,194,107,0.28); }
+  .surf-facet.active { background: var(--bg-3); border-color: var(--accent-line); color: var(--text-1); }
+  .surf-facet.is-warn.active { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
   .surf-posture { display: flex; align-items: center; gap: 8px; min-width: 180px; }
   .surf-split-api { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(400px, 460px) minmax(0, 1fr); }
   .surf-split-data { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
-  .surf-tile-pane { background: #0b0f19; border-right: 1px solid #161e30; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .surf-tile-pane { background: var(--bg-0); border-right: 1px solid var(--line-1); overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
   .surf-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .surf-tile-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
-  .surf-tile { background: #0d121e; border: 1px solid #161e30; border-radius: 9px; padding: 10px 12px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 7px; color: var(--text-2); transition: border-color 0.12s ease, background 0.12s ease; min-width: 0; }
-  .surf-tile:hover { background: #121827; border-color: var(--rs-border-hi); }
-  .surf-tile[aria-selected="true"] { background: #151c2c; border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(124,200,255,0.28); }
+  .surf-tile { background: var(--bg-1); border: 1px solid var(--line-1); border-radius: var(--r-3); padding: 10px 12px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 7px; color: var(--text-2); transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease); min-width: 0; }
+  .surf-tile:hover { background: var(--bg-2); border-color: var(--line-2); }
+  .surf-tile[aria-selected="true"] { background: var(--bg-3); border-color: var(--accent-line); box-shadow: inset 2px 0 0 var(--accent); }
   .surf-tile.is-dim { opacity: 0.35; }
   .surf-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .surf-tile-num { font-size: 16px; font-weight: 700; font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; color: var(--text-1); }
-  .surf-tile-title { font-size: 13px; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .surf-tile-sub { font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .surf-sub-sec { border-top: 1px solid #161e30; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .surf-tile-title { font-size: var(--fs-13); font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .surf-tile-sub { font-size: var(--fs-11); color: var(--text-3); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .surf-sub-sec { border-top: 1px solid var(--line-1); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
   .surf-sub-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .surf-sub-chip { background: #0d121e; border: 1px solid #161e30; border-radius: 7px; padding: 6px 9px; display: flex; justify-content: space-between; align-items: center; gap: 6px; cursor: pointer; color: var(--text-2); font-size: 12px; transition: background 0.12s ease, border-color 0.12s ease; }
-  .surf-sub-chip:hover { background: #121827; color: var(--text-1); }
-  .surf-sub-chip[aria-selected="true"] { background: #151c2c; border-color: var(--accent); color: var(--text-1); }
+  .surf-sub-chip { background: var(--bg-1); border: 1px solid var(--line-1); border-radius: var(--r-2); padding: 6px 9px; display: flex; justify-content: space-between; align-items: center; gap: 6px; cursor: pointer; color: var(--text-2); font-size: var(--fs-12); transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+  .surf-sub-chip:hover { background: var(--bg-2); color: var(--text-1); }
+  .surf-sub-chip[aria-selected="true"] { background: var(--bg-3); border-color: var(--accent-line); color: var(--text-1); }
   .surf-led-row { background: transparent; border: 0; border-radius: 5px; height: 28px; padding: 0 8px; display: grid; grid-template-columns: minmax(0, 148px) minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; color: var(--text-2); cursor: pointer; transition: background 0.12s ease; width: 100%; }
   .surf-led-row:hover { background: rgba(255,255,255,0.04); color: var(--text-1); }
   .surf-led-lbl { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
