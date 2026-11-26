@@ -2,6 +2,13 @@ export function renderEventsClientScript(): string {
   return `
   let drawerDrag = false;
   let flowDockDrag = false;
+  let flowPanActive = false;
+  let flowPanMoved = false;
+  let flowPanPid = -1;
+  let flowPanStartX = 0;
+  let flowPanStartY = 0;
+  let flowPanOrigTx = 0;
+  let flowPanOrigTy = 0;
 
   appEl.addEventListener("dblclick", (ev) => {
     const target = ev.target;
@@ -9,6 +16,11 @@ export function renderEventsClientScript(): string {
     if (target.closest("#fx-h-resizer")) {
       state.flowDockHeight = null;
       render();
+      return;
+    }
+    if (target.closest("#fx-stage-body") && !target.closest("[data-flow-step],[data-hub-field],[data-sm-state],[data-async-idx]")) {
+      ev.preventDefault();
+      fitFlowCanvas();
       return;
     }
     if (target.closest("#drawer-resizer")) {
@@ -71,6 +83,18 @@ export function renderEventsClientScript(): string {
       panCameraToMinimapEvent(ev);
       return;
     }
+    const fxPane = target.closest("#fx-stage-body");
+    if (fxPane && !target.closest("button, a, input")) {
+      flowPanActive = true;
+      flowPanMoved = false;
+      flowPanPid = ev.pointerId;
+      flowPanStartX = ev.clientX;
+      flowPanStartY = ev.clientY;
+      const c = state.flowCam || { tx: 0, ty: 0, scale: 1 };
+      flowPanOrigTx = c.tx;
+      flowPanOrigTy = c.ty;
+      return;
+    }
     if (target.closest("button, a, input, select, .hud-pill, .tray, .matrix-mode")) return;
     if (!spacePan && ev.button !== 1 && (target.closest("[data-node]") || target.closest("[data-edge]"))) return;
     const shell = target.closest("#canvas-shell");
@@ -89,6 +113,21 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointermove", (ev) => {
+    if (flowPanActive) {
+      const dx = ev.clientX - flowPanStartX;
+      const dy = ev.clientY - flowPanStartY;
+      if (!flowPanMoved && Math.hypot(dx, dy) < 4) return;
+      const pane = document.getElementById("fx-stage-body");
+      if (!flowPanMoved) {
+        flowPanMoved = true;
+        pane?.classList.add("dragging");
+        if (pane && typeof pane.setPointerCapture === "function" && flowPanPid >= 0) pane.setPointerCapture(flowPanPid);
+      }
+      const c = state.flowCam || { tx: 0, ty: 0, scale: 1 };
+      state.flowCam = { tx: flowPanOrigTx + dx, ty: flowPanOrigTy + dy, scale: c.scale };
+      applyFlowCam();
+      return;
+    }
     if (flowDockDrag) {
       const h = Math.max(180, Math.min(Math.round(window.innerHeight * 0.74), Math.round(window.innerHeight - ev.clientY)));
       state.flowDockHeight = h;
@@ -139,6 +178,22 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointerup", (ev) => {
+    if (flowPanActive) {
+      const wasPan = flowPanMoved;
+      flowPanActive = false;
+      flowPanMoved = false;
+      const pane = document.getElementById("fx-stage-body");
+      if (pane) {
+        pane.classList.remove("dragging");
+        if (pane.hasPointerCapture(ev.pointerId)) pane.releasePointerCapture(ev.pointerId);
+      }
+      if (wasPan) {
+        const swallow = (ce) => { ce.stopPropagation(); };
+        appEl.addEventListener("click", swallow, { capture: true, once: true });
+        setTimeout(() => appEl.removeEventListener("click", swallow, { capture: true }), 50);
+      }
+      return;
+    }
     if (flowDockDrag) {
       flowDockDrag = false;
       const hrz = document.getElementById("fx-h-resizer");
@@ -186,7 +241,25 @@ export function renderEventsClientScript(): string {
   appEl.addEventListener("wheel", (ev) => {
     if (INLINE) return;
     const target = ev.target;
-    if (!(target instanceof Element) || !target.closest("#canvas-shell") || target.closest(".matrix-mode")) return;
+    if (!(target instanceof Element)) return;
+    if (target.closest("#fx-stage-body")) {
+      ev.preventDefault();
+      const mult = ev.deltaMode === 1 ? 26 : ev.deltaMode === 2 ? 240 : 1;
+      const dx = ev.deltaX * mult;
+      const dy = ev.deltaY * mult;
+      const isPan = !ev.ctrlKey && !ev.metaKey && ev.deltaMode === 0 && (ev.shiftKey || Math.abs(dx) > Math.abs(dy) * 1.15);
+      if (isPan) {
+        const c = state.flowCam || { tx: 0, ty: 0, scale: 1 };
+        const px = ev.shiftKey && Math.abs(dx) < 1 ? dy : dx;
+        const py = ev.shiftKey && Math.abs(dx) < 1 ? 0 : dy;
+        state.flowCam = { tx: c.tx - px, ty: c.ty - py, scale: c.scale };
+        applyFlowCam();
+      } else {
+        zoomFlowAround(ev.clientX, ev.clientY, computeWheelZoomFactor(ev));
+      }
+      return;
+    }
+    if (!target.closest("#canvas-shell") || target.closest(".matrix-mode")) return;
     ev.preventDefault();
     const svg = document.getElementById("diagram-svg");
     if (!svg) return;

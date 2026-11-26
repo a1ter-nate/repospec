@@ -24,9 +24,10 @@ export function renderFlowsClientScript(): string {
       "</span>";
     const zoomBtns =
       '<span class="seg-group">' +
-      '<button class="seg-btn" data-flow-zoom="out" title="Zoom diagram out">−</button>' +
-      '<button class="seg-btn" id="fx-zoom-pct" data-flow-zoom="fit" title="Toggle Fit / 100%">100%</button>' +
-      '<button class="seg-btn" data-flow-zoom="in" title="Zoom diagram in">+</button>' +
+      '<button class="seg-btn" data-flow-zoom="out" title="Zoom out (-)">−</button>' +
+      '<button class="seg-btn" id="fx-zoom-pct" data-flow-zoom="reset" title="Reset to 100%">100%</button>' +
+      '<button class="seg-btn" data-flow-zoom="in" title="Zoom in (+)">+</button>' +
+      '<button class="seg-btn" data-flow-zoom="fit" title="Fit diagram to canvas (0)">Fit</button>' +
       "</span>";
     const dockToggleBtn =
       '<button class="tbtn' + (!state.flowDockCollapsed ? " active" : "") + '" data-toggle-flow-dock="1" title="Collapse or expand bottom workbench (])">' +
@@ -309,11 +310,11 @@ export function renderFlowsClientScript(): string {
     const fzBtn = target.closest("[data-flow-zoom]");
     if (fzBtn) {
       const dir = fzBtn.getAttribute("data-flow-zoom");
-      const cur = typeof state.flowZoom === "number" ? state.flowZoom : 1.05;
-      if (dir === "in") state.flowZoom = Math.min(2.4, Number((cur + 0.2).toFixed(2)));
-      else if (dir === "out") state.flowZoom = Math.max(0.65, Number((cur - 0.2).toFixed(2)));
-      else state.flowZoom = state.flowZoom === "fit" ? 1.05 : "fit";
-      applyFlowDiagramScale();
+      const r = document.getElementById("fx-stage-body")?.getBoundingClientRect();
+      if (dir === "in" && r) zoomFlowAround(r.left + r.width / 2, r.top + r.height / 2, 1.22);
+      else if (dir === "out" && r) zoomFlowAround(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.22);
+      else if (dir === "reset") fitFlowCanvas(1);
+      else fitFlowCanvas();
       return true;
     }
     const grpBtn = target.closest("[data-flow-group]");
