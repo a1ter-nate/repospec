@@ -96,14 +96,15 @@ export function renderDrilldownInspectorScript(): string {
       '<button class="action-btn sec-btn" data-copy-ctx="file" data-copy-ctx-id="' + esc(f.p) + '">Copy Agent Context</button>' +
       '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus (F)") + "</button>" +
       '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
-      (typeof renderFileBehaviorCard === "function" ? renderFileBehaviorCard(f.p) : "") +
+      (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p) : "") +
       findingsSec +
       renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false) +
       surfacePreviewSec +
       symsHtml +
       surfacesSec +
       callersSec +
-      importsSec
+      importsSec +
+      (typeof renderFileFlowFootnote === "function" ? renderFileFlowFootnote(f.p) : "")
     );
   }
 
@@ -119,6 +120,7 @@ export function renderDrilldownInspectorScript(): string {
       const fPath = rest.slice(colon + 1);
       const ch = diagNode?.childMeta;
       const cnt = ch ? ch.fileIdxs.length : unitHasFolderFiles(uSlug, fPath);
+      const folderFiles = ch ? ch.fileIdxs.map((idx) => DD_FILES[idx]?.p).filter(Boolean) : [];
       const fileRows = (ch ? ch.fileIdxs.slice(0, 24) : []).map((idx) => {
         const f = DD_FILES[idx];
         return '<div class="row"><span class="row-link mono" data-open-file="' + esc(f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
@@ -126,7 +128,8 @@ export function renderDrilldownInspectorScript(): string {
       return (
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(fPath + "/") + '</div><div class="drawer-sub">' + esc(uSlug + " · " + cnt + " files") + "</div></div></div>" +
         '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="action-btn" data-open-folder="' + esc(uSlug + "::" + fPath) + '">Drill into ' + esc(fPath.split("/").pop()) + "/ (" + cnt + ' files) →</button><button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
-        '<div class="sec"><div class="sec-title">Files Inside</div>' + (fileRows || '<div class="muted">Click Drill to explore files.</div>') + "</div>"
+        '<div class="sec"><div class="sec-title">Files Inside</div>' + (fileRows || '<div class="muted">Click Drill to explore files.</div>') + "</div>" +
+        (typeof renderLocationFlowsSection === "function" ? renderLocationFlowsSection({ files: folderFiles }) : "")
       );
     }
     if (diagNode?.ctxMeta) {

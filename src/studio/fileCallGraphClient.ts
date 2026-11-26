@@ -20,7 +20,7 @@ export function renderFileCallGraphClientScript(): string {
       const stream = new Response(bytes).body.pipeThrough(ds);
       const text = await new Response(stream).text();
       FILE_SOURCES = JSON.parse(text);
-      if (state.activeFileGraph || state.selectedNodeId || state.tab === "flows" || state.mapFlowId || state.canvasLens === "flows") render();
+      if (state.activeFileGraph || state.selectedNodeId || state.tab === "flows") render();
       return FILE_SOURCES;
     })().catch(() => {
       FILE_SOURCES = [];
@@ -154,7 +154,7 @@ export function renderFileCallGraphClientScript(): string {
         })),
       });
     }
-    if (typeof appendFileGraphAsyncCol === "function") appendFileGraphAsyncCol(f, cols);
+
     if (cols.length === 0) {
       cols.push({
         id: "sym_empty",
@@ -268,7 +268,7 @@ export function renderFileCallGraphClientScript(): string {
       if (!keptExtSet.has(oc[1])) continue;
       routeEdge("sym:" + idx + ":" + oc[0], "symext:" + oc[1], oc[2], "calls_external");
     }
-    if (typeof appendFileGraphAsyncEdges === "function") appendFileGraphAsyncEdges(f, idx, syms, routeEdge);
+
     return {
       id: "filegraph:" + filePath,
       title: f.p.split("/").pop() + " — Symbol Callstack",
@@ -471,7 +471,7 @@ export function renderFileCallGraphClientScript(): string {
       return (
         '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "PUBLIC " : "PRIVATE ") + s[2] + " · " + f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge ' + (s[1] === "pub" ? "b-pass" : "b-warn") + '">' + (s[1] === "pub" ? "PUBLIC" : "PRIVATE") + '</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
         '<div class="pill-row"><button class="tbtn" data-open-e2e="' + esc(f.p + "::" + selSymIdx) + '">Trace E2E →</button><button class="tbtn" data-copy-ctx="symbol" data-copy-ctx-id="' + selSymIdx + '">Copy Agent Context</button><button class="tbtn" data-copy-share="1">Share</button></div>' +
-        (typeof renderFileBehaviorCard === "function" ? renderFileBehaviorCard(f.p) : "") +
+        (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p, s[3], s[4]) : "") +
         renderWhatThisDoesBox(idx, f, s, callersList, calleesList, extsList) +
         callersHtml +
         calleesHtml +
@@ -483,7 +483,7 @@ export function renderFileCallGraphClientScript(): string {
     const privs = syms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "priv");
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.p + " · " + f.l + " lines") + "</div></div></div>" +
-      (typeof renderFileBehaviorCard === "function" ? renderFileBehaviorCard(f.p) : "") +
+      (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p) : "") +
       renderWhatThisDoesBox(idx, f, null, [], [], []) +
       '<div class="sec"><div class="sec-title"><span>Public Surface (' + pubs.length + ')</span><span class="muted">click for code</span></div>' +
       (pubs.length === 0 ? '<div class="muted">No exported functions/methods detected.</div>' : '<div class="pill-row">' + pubs.map((x) => '<button class="tray-chip" style="border-color:rgba(95,217,160,0.35);color:#6ee7b0" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +

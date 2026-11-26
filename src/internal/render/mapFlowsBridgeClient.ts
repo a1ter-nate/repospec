@@ -1,58 +1,28 @@
-import { renderMapFlowOverlayClientScript } from "./mapFlowOverlayClient.ts";
-
 export function renderMapFlowsBridgeClientScript(): string {
   return `
-  const ALL_FLOWS = (DATA.flows && (DATA.flows.flowIndex?.workFlows || DATA.flows.workFlows)) || [];
-  const ALL_HUBS = (DATA.flows && (DATA.flows.flowIndex?.dataHubs || DATA.flows.dataHubs)) || [];
-  const ALL_SMS = (DATA.flows && (DATA.flows.flowIndex?.stateMachines || DATA.flows.stateMachines)) || [];
-  const ALL_ASYNCS = (DATA.flows && (DATA.flows.flowIndex?.asyncHandoffs || DATA.flows.asyncHandoffs)) || [];
+  const ALL_FLOWS = (DATA.flows && DATA.flows.workFlows) || [];
+  const ALL_HUBS = (DATA.flows && DATA.flows.dataHubs) || [];
+  const ALL_SMS = (DATA.flows && DATA.flows.stateMachines) || [];
+  const ALL_ASYNCS = (DATA.flows && DATA.flows.asyncHandoffs) || [];
 
-  const FLOW_BY_ID = new Map();
-  const FLOWS_BY_FILE = new Map();
+  const FLOWS_STARTING_IN_FILE = new Map();
   for (const wf of ALL_FLOWS) {
-    FLOW_BY_ID.set(wf.id, wf);
-    const seenF = new Set();
-    const attach = (fp) => {
-      if (!fp || seenF.has(fp)) return;
-      seenF.add(fp);
-      const arr = FLOWS_BY_FILE.get(fp) || [];
-      arr.push(wf);
-      FLOWS_BY_FILE.set(fp, arr);
-    };
-    attach(wf.file);
-    for (const s of wf.steps || []) attach(s.file);
+    if (!wf.file) continue;
+    const arr = FLOWS_STARTING_IN_FILE.get(wf.file) || [];
+    arr.push(wf);
+    FLOWS_STARTING_IN_FILE.set(wf.file, arr);
   }
 
-  const HUB_FIELDS_BY_FILE = new Map();
+  const HUBS_BY_FILE = new Map();
   for (const hub of ALL_HUBS) {
     for (const f of hub.fields || []) {
-      const addRec = (fp, role, mode, line) => {
-        if (!fp) return;
-        const arr = HUB_FIELDS_BY_FILE.get(fp) || [];
-        arr.push({
-          entity: hub.entity,
-          field: f.field,
-          role,
-          mode,
-          line: line || 1,
-          multiWriterRisk: Boolean(f.multiWriterRisk),
-          derivedOnRead: Boolean(f.derivedOnRead),
-          writers: f.writers || [],
-          readers: f.readers || [],
-        });
-        HUB_FIELDS_BY_FILE.set(fp, arr);
-      };
-      for (const w of f.writers || []) addRec(w.file, "writer", w.mode || "write", w.line);
-      for (const r of f.readers || []) addRec(r.file, "reader", r.derived ? "derived" : "read", r.line);
+      for (const w of f.writers || []) {
+        if (!w.file) continue;
+        const arr = HUBS_BY_FILE.get(w.file) || [];
+        arr.push({ entity: hub.entity, field: f.field, multiWriterRisk: Boolean(f.multiWriterRisk), line: w.line || 1 });
+        HUBS_BY_FILE.set(w.file, arr);
+      }
     }
-  }
-
-  const SMS_BY_FILE = new Map();
-  for (const sm of ALL_SMS) {
-    if (!sm.file) continue;
-    const arr = SMS_BY_FILE.get(sm.file) || [];
-    arr.push(sm);
-    SMS_BY_FILE.set(sm.file, arr);
   }
 
   const ASYNC_BY_FILE = new Map();
@@ -69,135 +39,83 @@ export function renderMapFlowsBridgeClientScript(): string {
     }
   });
 
-  function stepOpTag(op) {
-    if (op === "db_read") return "R";
-    if (op === "db_write") return "W";
-    if (op === "db_commit") return "COMMIT";
-    if (op === "cache_del") return "CACHE";
-    if (op === "notify") return "NOTIFY";
-    if (op === "async_publish") return "PUB";
-    if (op === "ext_http") return "HTTP";
-    if (op === "respond") return "200";
-    return "CALL";
+  const SMS_BY_FILE = new Map();
+  for (const sm of ALL_SMS) {
+    if (!sm.file) continue;
+    const arr = SMS_BY_FILE.get(sm.file) || [];
+    arr.push(sm);
+    SMS_BY_FILE.set(sm.file, arr);
   }
 
-  function stepToneClass(step, wf) {
-    const hasHaz = (wf?.hazards || []).some((h) => h.line === step.line);
-    if (hasHaz) return "step-haz";
-    if (step.op === "respond") return "step-ok";
-    if (step.op === "notify" || step.op === "async_publish" || step.op === "cache_del") return "step-async";
-    if (step.op === "db_write" || step.op === "db_commit") return "step-write";
-    return "step-read";
-  }
-
-  function renderFileBehaviorCard(filePath) {
+  function renderFileFlowLaunchPills(filePath, symStart, symEnd) {
     if (!filePath) return "";
-    const flows = (FLOWS_BY_FILE.get(filePath) || []).slice(0, 4);
-    const hubs = (HUB_FIELDS_BY_FILE.get(filePath) || []).slice(0, 5);
-    const sms = (SMS_BY_FILE.get(filePath) || []).slice(0, 2);
-    const asyncs = (ASYNC_BY_FILE.get(filePath) || []).slice(0, 4);
-    if (flows.length === 0 && hubs.length === 0 && sms.length === 0 && asyncs.length === 0) return "";
+    const allFileFlows = FLOWS_STARTING_IN_FILE.get(filePath) || [];
+    const scopedFlows = typeof symStart === "number" && typeof symEnd === "number"
+      ? allFileFlows.filter((wf) => wf.line >= symStart - 2 && wf.line <= symEnd + 2)
+      : allFileFlows;
+    const flows = scopedFlows.length > 0 ? scopedFlows : allFileFlows;
+    const asyncs = (ASYNC_BY_FILE.get(filePath) || []).filter((r) => r.role === "producer");
+    const sms = SMS_BY_FILE.get(filePath) || [];
+    if (flows.length === 0 && asyncs.length === 0 && sms.length === 0) return "";
 
-    const blocks = [];
-
-    if (flows.length > 0) {
-      const flowItems = flows.map((wf) => {
-        const steps = (wf.steps || []).slice(0, 8);
-        const chips = steps.map((s, si) => {
-          const shortFn = String(s.fn || "").split(".").pop() || s.op;
-          const lbl = (si + 1) + ". " + stepOpTag(s.op) + ":" + (shortFn.length > 16 ? shortFn.slice(0, 15) + "…" : shortFn);
-          const jumpAttr = s.file === filePath
-            ? 'data-jump-line="' + s.line + '"'
-            : 'data-open-file="' + esc(s.file) + '" data-open-file-line="' + s.line + '"';
-          return '<button class="flow-chip ' + stepToneClass(s, wf) + '" ' + jumpAttr + ' title="' + esc(s.fn + " (" + s.op + " · :" + s.line + ")") + '">' + esc(lbl) + "</button>";
-        }).join('<span class="flow-arr">→</span>');
-        const hazBadge = wf.hazardCount > 0 ? '<span class="badge b-warn">' + wf.hazardCount + " DDIA</span>" : "";
-        return (
-          '<div class="beh-item">' +
-          '<div class="beh-item-head">' +
-          '<span class="mono" style="font-weight:600;color:#e6ebf5">' + esc(wf.name) + ' <span class="muted">(' + wf.serialAwaitCount + " awaits)</span></span>" +
-          '<div style="display:flex;gap:5px;align-items:center">' +
-          hazBadge +
-          '<button class="tbtn" data-map-flow-overlay="' + esc(wf.id) + '" title="Overlay numbered steps on the architecture Map">Walk on Map</button>' +
-          '<button class="tbtn" data-jump-flow="' + esc(wf.id) + '" title="Open full Swimlane Waterfall in Flows tab">Swimlane ↗</button>' +
-          "</div></div>" +
-          (chips ? '<div class="flow-strip">' + chips + "</div>" : "") +
-          "</div>"
-        );
-      }).join("");
-      blocks.push('<div class="beh-sub"><div class="beh-sub-lbl">Work Flows (' + flows.length + ')</div>' + flowItems + "</div>");
+    const pills = [];
+    for (const wf of flows.slice(0, 3)) {
+      const badge = wf.hazardCount > 0 ? " · " + wf.hazardCount + "!" : "";
+      pills.push(
+        '<button class="flow-launch-pill' + (wf.hazardCount > 0 ? " has-warn" : "") + '" data-jump-flow="' + esc(wf.id) + '" title="Open ' + esc(wf.name) + ' Swimlane in Flows tab">▶ Flow: ' + esc(wf.name) + " (" + wf.serialAwaitCount + " awaits" + badge + ") ↗</button>"
+      );
     }
-
-    if (hubs.length > 0) {
-      const seenKey = new Set();
-      const hubRows = [];
-      for (const h of hubs) {
-        const k = h.entity + "." + h.field + ":" + h.role;
-        if (seenKey.has(k)) continue;
-        seenKey.add(k);
-        const peers = (h.writers || []).filter((w) => w.file !== filePath).slice(0, 3);
-        const peerBtns = peers.map((p) =>
-          '<button class="tray-chip" data-open-file="' + esc(p.file) + '" data-open-file-line="' + p.line + '" title="Jump to sibling writer ' + esc(p.file) + '">↗ ' + esc(p.file.split("/").pop()) + ":" + p.line + "</button>"
-        ).join("");
-        hubRows.push(
-          '<div class="beh-item">' +
-          '<div class="beh-item-head">' +
-          '<span class="mono">' + (h.role === "writer" ? "Writes " : "Reads ") + '<strong style="color:#c7a4ff">' + esc(h.entity + "." + h.field) + "</strong></span>" +
-          '<div style="display:flex;gap:5px;align-items:center">' +
-          (h.multiWriterRisk ? '<span class="badge b-warn">multi-writer</span>' : h.derivedOnRead ? '<span class="badge b-info">derived</span>' : "") +
-          '<button class="tbtn" data-jump-hub="' + esc(h.entity + "::" + h.field) + '">Hub ↗</button>' +
-          "</div></div>" +
-          (peerBtns ? '<div class="pill-row" style="margin-top:4px"><span class="muted" style="font-size:11px">Also mutated by:</span>' + peerBtns + "</div>" : "") +
-          "</div>"
-        );
-      }
-      blocks.push('<div class="beh-sub"><div class="beh-sub-lbl">Entity Data Lifecycle</div>' + hubRows.join("") + "</div>");
+    if (flows.length > 3) {
+      pills.push('<button class="flow-launch-pill" data-jump-flow="' + esc(flows[0].id) + '">+' + (flows.length - 3) + " more flows ↗</button>");
     }
-
-    if (asyncs.length > 0) {
-      const aRows = asyncs.map((item) => {
-        const ah = item.ah;
-        const peer = item.role === "producer" ? ah.consumer : ah.producer;
-        const peerBtn = peer && ddIdxByPath.has(peer.file)
-          ? '<button class="tray-chip async-chip" data-open-file="' + esc(peer.file) + '" data-open-file-line="' + peer.line + '">' + (item.role === "producer" ? "Consumer: " : "Producer: ") + esc(peer.file.split("/").pop()) + ":" + peer.line + " →</button>"
-          : '<span class="muted mono" style="font-size:11px">' + (peer ? esc(peer.fn) : "external consumer") + "</span>";
-        return (
-          '<div class="beh-item">' +
-          '<div class="beh-item-head">' +
-          '<span class="mono" style="color:#c7a4ff">⚡ ' + (item.role === "producer" ? "Publishes → " : "Consumes ← ") + esc(ah.channel) + "</span>" +
-          '<span class="badge b-purple">' + esc(ah.transport) + "</span>" +
-          "</div>" +
-          '<div class="pill-row" style="margin-top:4px">' + peerBtn + "</div>" +
-          "</div>"
-        );
-      }).join("");
-      blocks.push('<div class="beh-sub"><div class="beh-sub-lbl">Cross-Boundary Async</div>' + aRows + "</div>");
+    for (const rec of asyncs.slice(0, 2)) {
+      pills.push(
+        '<button class="flow-launch-pill is-async" data-jump-async="' + rec.idx + '" title="Inspect cross-boundary async handoff in Flows tab">⚡ Kicks off: ' + esc(rec.ah.channel) + " ↗</button>"
+      );
     }
-
-    if (sms.length > 0) {
-      const smRows = sms.map((sm) =>
-        '<div class="beh-item">' +
-        '<div class="beh-item-head">' +
-        '<span class="mono" style="font-weight:600">' + esc(sm.name) + "</span>" +
-        '<button class="tbtn" data-jump-sm="' + esc(sm.id + "::" + (sm.states?.[0] || "")) + '">Statechart ↗</button>' +
-        "</div>" +
-        '<div class="flow-strip">' + (sm.states || []).slice(0, 6).map((st) => '<span class="badge b-cyan">' + esc(st) + "</span>").join('<span class="flow-arr">→</span>') + "</div>" +
-        "</div>"
-      ).join("");
-      blocks.push('<div class="beh-sub"><div class="beh-sub-lbl">State Machine</div>' + smRows + "</div>");
+    for (const sm of sms.slice(0, 1)) {
+      pills.push(
+        '<button class="flow-launch-pill" data-jump-sm="' + esc(sm.id + "::" + (sm.states?.[0] || "")) + '" title="Inspect statechart in Flows tab">◈ Statechart: ' + esc(sm.name) + " ↗</button>"
+      );
     }
-
-    return (
-      '<div class="behavior-card">' +
-      '<div class="sec-title"><span>How This File Works</span><span class="badge b-cyan">RUNTIME FLOW</span></div>' +
-      blocks.join("") +
-      "</div>"
-    );
+    return '<div class="flow-launch-row">' + pills.join("") + "</div>";
   }
 
-  function matchNodeFlows(node, unitDir, fileList) {
-    const fileSet = fileList && fileList.length > 0 ? new Set(fileList) : null;
-    const prefix = unitDir ? unitDir.replace(/\\/+$/, "") + "/" : "";
+  function renderFileFlowFootnote(filePath) {
+    if (!filePath) return "";
+    const hubs = HUBS_BY_FILE.get(filePath) || [];
+    const asyncs = ASYNC_BY_FILE.get(filePath) || [];
+    if (hubs.length === 0 && asyncs.length === 0) return "";
+    const seen = new Set();
+    const rows = [];
+    for (const h of hubs) {
+      const k = h.entity + "." + h.field;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      rows.push(
+        '<div class="row"><span class="row-link mono" data-jump-hub="' + esc(h.entity + "::" + h.field) + '">Writes ' + esc(k) + "</span>" +
+        (h.multiWriterRisk ? '<span class="badge b-warn">multi-writer</span>' : '<span class="badge b-na">Hub ↗</span>') +
+        "</div>"
+      );
+    }
+    for (const rec of asyncs.slice(0, 4)) {
+      const verb = rec.role === "producer" ? "Publishes → " : "Consumes ← ";
+      rows.push(
+        '<div class="row"><span class="row-link mono" data-jump-async="' + rec.idx + '">⚡ ' + verb + esc(rec.ah.channel) + '</span><span class="badge b-purple">' + esc(rec.ah.transport) + "</span></div>"
+      );
+    }
+    return '<div class="sec">' + renderDisclosure({
+      title: "Data Lifecycles & Async Triggers",
+      badge: rows.length,
+      badgeClass: "b-info",
+      open: false,
+      bodyHtml: rows.join(""),
+    }) + "</div>";
+  }
+
+  function renderLocationFlowsSection(opts) {
+    const prefix = opts.dirPrefix ? opts.dirPrefix.replace(/\\/+$/, "") + "/" : "";
+    const fileSet = opts.files && opts.files.length > 0 ? new Set(opts.files) : null;
     const flows = ALL_FLOWS.filter((wf) => {
       if (fileSet && fileSet.has(wf.file)) return true;
       if (prefix && wf.file.startsWith(prefix)) return true;
@@ -208,131 +126,118 @@ export function renderMapFlowsBridgeClientScript(): string {
       const cf = ah.consumer?.file || "";
       if (fileSet && (fileSet.has(pf) || fileSet.has(cf))) return true;
       if (prefix && (pf.startsWith(prefix) || cf.startsWith(prefix))) return true;
-      if (node && (node.kind === "external_service" || node.kind === "datastore")) {
-        const lbl = String(node.label || "").toLowerCase();
-        return lbl.includes("pubsub") || lbl.includes("queue") || lbl.includes("bus")
-          ? ah.transport.toLowerCase().includes("pubsub") || ah.transport.toLowerCase().includes("queue") || ah.transport.toLowerCase().includes("bus")
-          : false;
+      if (opts.nodeKind === "external_service") {
+        const lbl = String(opts.nodeLabel || "").toLowerCase();
+        return (lbl.includes("pubsub") || lbl.includes("queue") || lbl.includes("bus")) &&
+          (ah.transport.toLowerCase().includes("pubsub") || ah.transport.toLowerCase().includes("queue") || ah.transport.toLowerCase().includes("bus"));
       }
       return false;
     });
-    const hubs = node?.kind === "datastore"
-      ? ALL_HUBS
-      : ALL_HUBS.filter((hub) =>
-          (hub.fields || []).some((f) =>
-            (f.writers || []).some((w) => (fileSet && fileSet.has(w.file)) || (prefix && w.file.startsWith(prefix)))
-          )
-        );
-    return { flows, hubs, asyncs };
+    const hubs = opts.nodeKind === "datastore" ? ALL_HUBS : [];
+    if (flows.length === 0 && asyncs.length === 0 && hubs.length === 0) return "";
+
+    const disclosures = [];
+    if (flows.length > 0) {
+      const hazCount = flows.reduce((s, w) => s + (w.hazardCount || 0), 0);
+      disclosures.push(renderDisclosure({
+        title: "Flows Kicking Off Here",
+        meta: hazCount > 0 ? flows.length + " entrypoints · " + hazCount + " DDIA flags" : flows.length + " entrypoints",
+        badge: flows.length,
+        badgeClass: hazCount > 0 ? "b-warn" : "b-cyan",
+        tone: hazCount > 0 ? "warn" : "info",
+        open: false,
+        bodyHtml: flows.slice(0, 14).map((wf) =>
+          '<div class="row">' +
+          '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-jump-flow="' + esc(wf.id) + '" title="Open ' + esc(wf.name) + ' in Flows tab">▶ ' + esc(wf.name) + "</span>" +
+          '<span style="display:flex;gap:4px;align-items:center;flex-shrink:0">' +
+          '<span class="muted mono" style="font-size:11px">' + wf.serialAwaitCount + "a</span>" +
+          (wf.hazardCount > 0 ? '<span class="badge b-warn">' + wf.hazardCount + "!</span>" : '<span class="badge b-na">' + esc(wf.triggerKind || "http") + "</span>") +
+          "</span></div>"
+        ).join("") + (flows.length > 14 ? '<div class="muted" style="font-size:11px">+' + (flows.length - 14) + " more in Flows tab</div>" : ""),
+      }));
+    }
+    if (asyncs.length > 0) {
+      disclosures.push(renderDisclosure({
+        title: "Async Triggers & Channels",
+        badge: asyncs.length,
+        badgeClass: "b-purple",
+        tone: "info",
+        open: false,
+        bodyHtml: asyncs.slice(0, 10).map((ah) => {
+          const idx = ALL_ASYNCS.indexOf(ah);
+          return '<div class="row"><span class="row-link mono" data-jump-async="' + Math.max(0, idx) + '">⚡ ' + esc(ah.channel) + '</span><span class="badge b-na">' + esc(ah.transport) + "</span></div>";
+        }).join(""),
+      }));
+    }
+    if (hubs.length > 0) {
+      disclosures.push(renderDisclosure({
+        title: "Entity Data Hubs",
+        badge: hubs.length,
+        badgeClass: "b-purple",
+        tone: "info",
+        open: false,
+        bodyHtml: hubs.slice(0, 10).map((h) =>
+          '<div class="row"><span class="row-link mono" data-jump-hub="' + esc(h.entity + "::" + (h.fields?.[0]?.field || "")) + '">' + esc(h.entity) + '</span><span class="muted mono">' + h.fieldCount + " fields</span></div>"
+        ).join(""),
+      }));
+    }
+    return '<div class="sec"><div class="sec-title"><span>Flows From This Location</span><span class="muted">opens in Flows</span></div>' + disclosures.join("") + "</div>";
   }
 
-  function renderNodeFlowsRollup(node, unitDir, fileList) {
-    const m = matchNodeFlows(node, unitDir, fileList);
-    if (m.flows.length === 0 && m.hubs.length === 0 && m.asyncs.length === 0) return "";
-    const parts = [];
-    if (m.flows.length > 0) {
-      const hazTot = m.flows.reduce((s, w) => s + (w.hazardCount || 0), 0);
-      parts.push(
-        renderDisclosure({
-          title: "Work Flows (" + m.flows.length + ")",
-          meta: hazTot > 0 ? hazTot + " DDIA flags · click Walk to trace on Map" : "ordered entrypoint traces",
-          badge: m.flows.length,
-          badgeClass: hazTot > 0 ? "b-warn" : "b-cyan",
-          tone: hazTot > 0 ? "warn" : "info",
-          open: m.flows.length <= 6 || hazTot > 0,
-          bodyHtml: m.flows.slice(0, 10).map((wf) =>
-            '<div class="row">' +
-            '<span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-open-file="' + esc(wf.file) + '" data-open-file-line="' + wf.line + '" title="' + esc(wf.file) + '">' + esc(wf.name) + (wf.hazardCount > 0 ? " [" + wf.hazardCount + "!]" : "") + "</span>" +
-            '<span style="display:flex;gap:4px;flex-shrink:0">' +
-            '<button class="tbtn" data-map-flow-overlay="' + esc(wf.id) + '" title="Overlay this flow on the Map">Walk</button>' +
-            '<button class="tbtn" data-jump-flow="' + esc(wf.id) + '" title="Open Swimlane">↗</button>' +
-            "</span></div>"
-          ).join("") + (m.flows.length > 10 ? '<div class="muted">+' + (m.flows.length - 10) + " more in Flows tab</div>" : ""),
-        })
-      );
+  function handleMapFlowClick(target) {
+    const jumpFlowBtn = target.closest("[data-jump-flow]");
+    if (jumpFlowBtn) {
+      state.flowReturnFromMap = state.tab === "map";
+      state.tab = "flows";
+      state.flowsSubtab = "workflows";
+      state.activeFlowId = jumpFlowBtn.getAttribute("data-jump-flow");
+      state.flowMode = "current";
+      state.flowSelectedStepIdx = null;
+      state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
+      render();
+      return true;
     }
-    if (m.hubs.length > 0) {
-      parts.push(
-        renderDisclosure({
-          title: "Entity Data Hubs (" + m.hubs.length + ")",
-          meta: "multi-site field writers & derivations",
-          badge: m.hubs.length,
-          badgeClass: "b-purple",
-          tone: "info",
-          open: node?.kind === "datastore",
-          bodyHtml: m.hubs.slice(0, 8).map((h) => {
-            const firstF = h.fields?.[0];
-            const firstW = firstF?.writers?.[0];
-            return (
-              '<div class="row">' +
-              '<span class="row-link mono" data-jump-hub="' + esc(h.entity + "::" + (firstF?.field || "")) + '">' + esc(h.entity) + ' <span class="muted">(' + h.fieldCount + " fields)</span></span>" +
-              (firstW && ddIdxByPath.has(firstW.file) ? '<button class="tbtn" data-open-file="' + esc(firstW.file) + '" data-open-file-line="' + firstW.line + '">Code</button>' : "") +
-              "</div>"
-            );
-          }).join(""),
-        })
-      );
+    const jumpHubBtn = target.closest("[data-jump-hub]");
+    if (jumpHubBtn) {
+      state.flowReturnFromMap = state.tab === "map";
+      state.tab = "flows";
+      state.flowsSubtab = "hubs";
+      state.flowSelectedHubField = jumpHubBtn.getAttribute("data-jump-hub");
+      state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
+      render();
+      return true;
     }
-    if (m.asyncs.length > 0) {
-      parts.push(
-        renderDisclosure({
-          title: "Async Handoffs (" + m.asyncs.length + ")",
-          meta: "queues, pubsub, triggers & consumers",
-          badge: m.asyncs.length,
-          badgeClass: "b-purple",
-          tone: "info",
-          open: m.asyncs.length <= 5,
-          bodyHtml: m.asyncs.slice(0, 8).map((ah) =>
-            '<div class="row">' +
-            '<span class="row-link mono" style="color:#c7a4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-open-file="' + esc(ah.producer.file) + '" data-open-file-line="' + ah.producer.line + '">⚡ ' + esc(ah.channel) + "</span>" +
-            '<span class="badge b-na">' + esc(ah.transport) + "</span>" +
-            "</div>"
-          ).join(""),
-        })
-      );
+    const jumpSmBtn = target.closest("[data-jump-sm]");
+    if (jumpSmBtn) {
+      state.flowReturnFromMap = state.tab === "map";
+      state.tab = "flows";
+      state.flowsSubtab = "machines";
+      state.flowSelectedSmState = jumpSmBtn.getAttribute("data-jump-sm");
+      state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
+      render();
+      return true;
     }
-    return '<div class="sec"><div class="sec-title"><span>Work Flows &amp; Lifecycles</span><span class="muted">space-time</span></div>' + parts.join("") + "</div>";
+    const jumpAsyncBtn = target.closest("[data-jump-async]");
+    if (jumpAsyncBtn) {
+      state.flowReturnFromMap = state.tab === "map";
+      state.tab = "flows";
+      state.flowsSubtab = "async";
+      state.flowSelectedAsyncIdx = Number(jumpAsyncBtn.getAttribute("data-jump-async")) || 0;
+      state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
+      render();
+      return true;
+    }
+    if (target.closest("[data-return-to-map]")) {
+      state.tab = "map";
+      state.flowReturnFromMap = false;
+      render();
+      return true;
+    }
+    return false;
   }
-
-  function computeNodeFlowBadge(n) {
-    if (!n || ALL_FLOWS.length === 0) return null;
-    if (n.id.startsWith("file:")) {
-      const fp = n.id.slice(5);
-      const fls = FLOWS_BY_FILE.get(fp) || [];
-      const asy = ASYNC_BY_FILE.get(fp) || [];
-      if (fls.length > 0) {
-        const hz = fls.reduce((s, w) => s + (w.hazardCount || 0), 0);
-        return { text: fls.length + " flow" + (fls.length === 1 ? "" : "s") + (hz > 0 ? " · " + hz + "!" : ""), warn: hz > 0 };
-      }
-      if (asy.length > 0) return { text: "⚡ async", warn: false };
-      return null;
-    }
-    const specNode = nodeById.get(n.id);
-    if (specNode) {
-      if (specNode.kind === "datastore" && ALL_HUBS.length > 0) {
-        return { text: ALL_HUBS.length + " hubs", warn: false };
-      }
-      const dir = typeof specNode.meta?.dir === "string" ? specNode.meta.dir : "";
-      if (dir) {
-        const pref = dir.replace(/\\/+$/, "") + "/";
-        let cnt = 0;
-        let hz = 0;
-        for (const wf of ALL_FLOWS) {
-          if (wf.file.startsWith(pref)) { cnt += 1; hz += wf.hazardCount || 0; }
-        }
-        if (cnt > 0) return { text: cnt + " flows" + (hz > 0 ? " · " + hz + "!" : ""), warn: hz > 0 };
-      }
-    }
-    const mod = moduleById.get(n.id);
-    if (mod && mod.files && mod.files.length > 0) {
-      let cnt = 0;
-      for (const mf of mod.files) {
-        if (FLOWS_BY_FILE.has(mf.file)) cnt += (FLOWS_BY_FILE.get(mf.file) || []).length;
-      }
-      if (cnt > 0) return { text: cnt + " flow" + (cnt === 1 ? "" : "s"), warn: false };
-    }
-    return null;
-  }
-  ${renderMapFlowOverlayClientScript()}
 `;
 }

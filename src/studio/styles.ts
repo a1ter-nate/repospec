@@ -326,26 +326,10 @@ export function renderStudioCss(inline: boolean): string {
   .live-badge { display: none; align-items: center; gap: 5px; font-size: 11.5px; font-family: var(--font-mono, monospace); color: #5fd9a0; background: #10281f; border: 1px solid rgba(95,217,160,0.35); border-radius: 999px; padding: 2px 8px; }
   .live-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #5fd9a0; }
 
-  .behavior-card { background: #101726; border: 1px solid rgba(79,216,196,0.28); border-left: 3px solid #4fd8c4; border-radius: 9px; padding: 11px 12px; display: flex; flex-direction: column; gap: 9px; }
-  .beh-sub { display: flex; flex-direction: column; gap: 6px; }
-  .beh-sub-lbl { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-  .beh-item { background: #0c121f; border: 1px solid #1b253a; border-radius: 7px; padding: 8px 9px; display: flex; flex-direction: column; gap: 5px; }
-  .beh-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .flow-strip { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-  .flow-arr { color: #64748b; font-size: 11px; }
-  .flow-chip { border: 1px solid #26334d; background: #131c2e; color: #dbe7f8; border-radius: 5px; padding: 2px 7px; font-family: var(--font-mono, monospace); font-size: 11px; cursor: pointer; transition: all 0.1s ease; }
-  .flow-chip:hover { border-color: #7cc8ff; background: #1b2842; }
-  .flow-chip.step-read { border-color: rgba(56,189,248,0.38); color: #93c5fd; }
-  .flow-chip.step-write { border-color: rgba(245,158,11,0.42); color: #fcd34d; }
-  .flow-chip.step-async { border-color: rgba(168,85,247,0.46); color: #d8b4fe; }
-  .flow-chip.step-ok { border-color: rgba(34,197,94,0.45); color: #86efac; }
-  .flow-chip.step-haz { border-color: rgba(239,68,68,0.65); background: rgba(239,68,68,0.16); color: #fca5a5; }
-  .flow-chip.active { outline: 2px solid #7cc8ff; background: #1e3a5f; color: #ffffff; }
-  .async-chip { border-color: rgba(168,85,247,0.45) !important; color: #d8b4fe !important; }
-  .flow-scrubber { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 36; max-width: calc(100% - 28px); width: 760px; background: rgba(11,16,28,0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(124,200,255,0.45); border-radius: 10px; padding: 9px 12px; box-shadow: var(--rs-shadow); }
-  .flow-scrub-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .flow-select { background: #131c2e; color: var(--text-1); border: 1px solid var(--rs-border-hi); border-radius: 6px; padding: 4px 8px; font-family: var(--font-mono, monospace); font-size: 12px; max-width: 280px; }
-  .svg-node.flow-step-active .node-shape { stroke: #38bdf8 !important; stroke-width: 2.6 !important; fill: rgba(56,189,248,0.16) !important; }
-  .svg-node.flow-step-haz .node-shape { stroke: #ef4444 !important; stroke-width: 2.6 !important; fill: rgba(239,68,68,0.16) !important; }
+  .flow-launch-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .flow-launch-pill { border: 1px solid rgba(79,216,196,0.36); background: rgba(79,216,196,0.09); color: #67e8f9; border-radius: 6px; padding: 3px 9px; font-family: var(--font-mono, monospace); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.12s ease; }
+  .flow-launch-pill:hover { background: rgba(79,216,196,0.18); border-color: rgba(124,200,255,0.65); color: #ffffff; }
+  .flow-launch-pill.has-warn { border-color: rgba(245,194,107,0.42); background: rgba(245,158,11,0.1); color: #fcd34d; }
+  .flow-launch-pill.is-async { border-color: rgba(168,85,247,0.42); background: rgba(168,85,247,0.1); color: #d8b4fe; }
 `;
 }

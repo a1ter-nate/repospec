@@ -24,7 +24,9 @@ export function renderFlowsClientScript(): string {
         );
         const wf = filtered.find((w) => w.id === state.activeFlowId) || filtered[0] || fl.workFlows[0];
         const mode = state.flowMode === "optimized" ? "optimized" : "current";
-        const picker = filtered.slice(0, 14).map((w) => {
+        const pickerItems = filtered.slice(0, 14);
+        if (wf && !pickerItems.some((w) => w.id === wf.id)) pickerItems.unshift(wf);
+        const picker = pickerItems.map((w) => {
           const badge = w.hazardCount > 0 ? " [" + w.hazardCount + "!]" : "";
           return '<button class="pill-btn' + (w.id === wf.id ? " active" : "") + '" data-select-flow="' + esc(w.id) + '">' + esc(w.name) + badge + "</button>";
         }).join("");
@@ -168,9 +170,12 @@ export function renderFlowsClientScript(): string {
       }
     }
 
+    const backMapBtn = state.flowReturnFromMap
+      ? '<button class="pill-btn" data-return-to-map="1" title="Return to your previous Map / file location">← Back to Map</button>'
+      : "";
     const filterBar =
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
-      '<div class="sub-toggles"><strong>Work Flows &amp; Lifecycles</strong> <span class="mono muted">' + fl.workFlows.length + " flows · " + fl.hazards.length + " DDIA flags</span>" + subBtns + "</div>" +
+      '<div class="sub-toggles">' + backMapBtn + '<strong>Work Flows &amp; Lifecycles</strong> <span class="mono muted">' + fl.workFlows.length + " flows · " + fl.hazards.length + " DDIA flags</span>" + subBtns + "</div>" +
       '<div class="sub-toggles">' +
       '<input id="flow-search-input" class="search" style="width:180px;padding:4px 9px;font-size:12px" placeholder="Filter flows / files…" value="' + esc(state.flowSearch || "") + '" />' +
       '<button class="pill-btn' + (hzOnly ? " active" : "") + '" data-flow-hazards-only="1">Hazards only</button>' +

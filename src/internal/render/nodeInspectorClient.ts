@@ -208,18 +208,18 @@ export function renderNodeInspectorClientScript(): string {
     const sourceCodeSec = provFile
       ? renderInlineSourceDisclosure(provFile, node.provenance?.line, { open: true })
       : "";
-    const flowsRollupSec = typeof renderNodeFlowsRollup === "function"
-      ? renderNodeFlowsRollup(node, unitDir, null)
+    const flowsFromHereSec = typeof renderLocationFlowsSection === "function"
+      ? renderLocationFlowsSection({ dirPrefix: unitDir, nodeKind: node.kind, nodeLabel: node.label })
       : "";
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(shortPkg(node.label)) + '</div><div class="drawer-sub">' + esc(node.kind) + (node.meta?.archetype ? " · " + esc(node.meta.archetype) : "") + (node.meta?.layerAxis ? " · " + esc(node.meta.layerAxis) : "") + "</div></div></div>" +
       provenanceLinksHtml(node.provenance?.file, node.provenance?.line) +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
-      flowsRollupSec +
       findingsSec +
       layerAnatomySec +
       connSec +
+      flowsFromHereSec +
       sourceCodeSec +
       surfaceSec +
       govSec

@@ -39,17 +39,6 @@ export function renderEventsClientScript(): string {
     }
   });
 
-  appEl.addEventListener("change", (ev) => {
-    const target = ev.target;
-    if (target instanceof HTMLSelectElement && target.id === "map-flow-select") {
-      state.mapFlowId = target.value || null;
-      state.mapFlowStepIdx = 0;
-      state.canvasLens = "flows";
-      ensureFileSourcesLoaded();
-      render();
-    }
-  });
-
   appEl.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0 && ev.button !== 1) return;
     const target = ev.target;

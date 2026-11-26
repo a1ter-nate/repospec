@@ -201,7 +201,8 @@ export function renderInspectorClientScript(): string {
         biggest.map((i) => {
           const f = DD_FILES[i];
           return '<div class="row"><span class="row-link mono" data-open-file-graph="' + esc(f.p) + '">' + esc(f.p.split("/").pop()) + '</span><span class="mono muted">' + f.l + "L · " + f.e + " exp</span></div>";
-        }).join("") + "</div>"
+        }).join("") + "</div>" +
+        (typeof renderLocationFlowsSection === "function" ? renderLocationFlowsSection({ files: Array.from(folderFileSet) }) : "")
       );
     }
 
@@ -418,20 +419,22 @@ export function renderInspectorClientScript(): string {
     const singleFileCodeSec = singleFilePath
       ? renderInlineSourceDisclosure(singleFilePath, 1, { open: true })
       : "";
-    const modFlowSec = singleFilePath && typeof renderFileBehaviorCard === "function"
-      ? renderFileBehaviorCard(singleFilePath)
-      : typeof renderNodeFlowsRollup === "function"
-        ? renderNodeFlowsRollup(null, "", mod.files.map((f) => f.file))
-        : "";
+    const singleFileLaunch = singleFilePath && typeof renderFileFlowLaunchPills === "function"
+      ? renderFileFlowLaunchPills(singleFilePath)
+      : "";
+    const modFlowsSec = !singleFilePath && typeof renderLocationFlowsSection === "function"
+      ? renderLocationFlowsSection({ files: mod.files.map((f) => f.file) })
+      : "";
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(mod.kind === "directory" ? mod.name + "/" : mod.name) + '</div><div class="drawer-sub">' + esc(mod.unitSlug + " · " + mod.language + " · " + mod.relPath) + "</div></div></div>" +
       pillsHtml +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
-      modFlowSec +
+      singleFileLaunch +
       singleFileCodeSec +
       apiSec +
       flowSec +
+      modFlowsSec +
       filesSec
     );
   }

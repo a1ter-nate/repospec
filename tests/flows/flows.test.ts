@@ -249,10 +249,9 @@ describe("@repospec/flows — Work Flows, Data Lifecycles, State Machines, Async
 
     const html = renderReportHtml({ spec: res.spec, digest: res.digest, inline: false });
     expect(html).toContain("renderFlowsTab");
-    expect(html).toContain("renderFileBehaviorCard");
-    expect(html).toContain("renderMapFlowScrubber");
-    expect(html).toContain("async_handoff");
-    expect(html).toContain("flowIndex");
+    expect(html).toContain("renderFileFlowLaunchPills");
+    expect(html).toContain("renderLocationFlowsSection");
+    expect(html).toContain("data-return-to-map");
     const studioScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     const studioApp = studioScripts[studioScripts.length - 1]?.[1] ?? "";
     expect(() => new Function(studioApp)).not.toThrow();

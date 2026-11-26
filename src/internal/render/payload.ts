@@ -39,7 +39,7 @@ export function buildCompactRenderPayload(
     byEntity.set(lf.entity, arr);
   }
   const flowPayload = {
-    workFlows: flowBundle.workFlows.slice(0, inline ? 8 : 24).map((wf) => ({
+    workFlows: flowBundle.workFlows.slice(0, inline ? 8 : 80).map((wf) => ({
       id: wf.id,
       name: wf.name,
       entryFn: wf.entryFn ?? wf.name,
@@ -54,14 +54,14 @@ export function buildCompactRenderPayload(
       optimizedSvg: renderWorkFlowSwimlaneSvg(wf, { mode: "optimized" }),
     })),
     dataHubs: Array.from(byEntity.entries())
-      .slice(0, inline ? 4 : 12)
+      .slice(0, inline ? 4 : 24)
       .map(([entity, fields]) => ({
         entity,
         fieldCount: fields.length,
         fields: fields.slice(0, 8),
         svg: renderDataHubSvg(entity, fields),
       })),
-    stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 12).map((sm) => ({
+    stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 16).map((sm) => ({
       id: sm.id,
       name: sm.name,
       file: sm.file,
@@ -73,39 +73,10 @@ export function buildCompactRenderPayload(
       svg: renderStateMachineSvg(sm),
     })),
     asyncCount: flowBundle.asyncHandoffs.length,
-    asyncHandoffs: flowBundle.asyncHandoffs.slice(0, 12),
+    asyncHandoffs: flowBundle.asyncHandoffs.slice(0, 40),
     asyncHandoffsSvg:
       flowBundle.asyncHandoffs.length > 0 ? renderAsyncHandoffsSvg(flowBundle.asyncHandoffs) : "",
-    hazards: flowBundle.hazards.slice(0, inline ? 20 : 80),
-    flowIndex: {
-      workFlows: flowBundle.workFlows.slice(0, inline ? 12 : 80).map((wf) => ({
-        id: wf.id,
-        name: wf.name,
-        entryFn: wf.entryFn ?? wf.name,
-        triggerKind: wf.triggerKind,
-        file: wf.file,
-        line: wf.line,
-        serialAwaitCount: wf.serialAwaitCount,
-        hazardCount: wf.hazards.length,
-        steps: wf.steps.slice(0, 16),
-        hazards: wf.hazards.slice(0, 6),
-      })),
-      dataHubs: Array.from(byEntity.entries())
-        .slice(0, inline ? 8 : 40)
-        .map(([entity, fields]) => ({
-          entity,
-          fieldCount: fields.length,
-          fields: fields.slice(0, 8),
-        })),
-      stateMachines: flowBundle.stateMachines.slice(0, inline ? 8 : 20).map((sm) => ({
-        id: sm.id,
-        name: sm.name,
-        file: sm.file,
-        line: sm.line,
-        states: sm.states,
-      })),
-      asyncHandoffs: flowBundle.asyncHandoffs.slice(0, inline ? 12 : 40),
-    },
+    hazards: flowBundle.hazards.slice(0, inline ? 20 : 120),
   };
   return {
     schemaVersion: spec.schemaVersion,
