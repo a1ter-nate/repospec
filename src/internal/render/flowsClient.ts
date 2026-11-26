@@ -297,6 +297,35 @@ export function renderFlowsClientScript(): string {
     return matched.slice(0, 5);
   }
 
+  function applyHubHoverSpotlight(nodeEl) {
+    const svg = nodeEl?.closest(".rs-hub-svg");
+    if (!svg) return;
+    svg.querySelectorAll(".is-hi").forEach((el) => el.classList.remove("is-hi"));
+    svg.classList.add("hub-hover");
+    nodeEl.classList.add("is-hi");
+    const fid = nodeEl.getAttribute("data-hub-file-id");
+    const rid = nodeEl.getAttribute("data-hub-reader-id");
+    const fIdx = nodeEl.getAttribute("data-hub-fld-idx");
+    svg.querySelectorAll(".rs-hub-edge").forEach((edge) => {
+      const eSrc = edge.getAttribute("data-hub-src");
+      const eDst = edge.getAttribute("data-hub-dst");
+      const eFld = edge.getAttribute("data-hub-fld");
+      if ((fid && eSrc === fid) || (rid && eDst === rid) || (fIdx !== null && eFld === fIdx)) {
+        edge.classList.add("is-hi");
+        if (eSrc) svg.querySelector('[data-hub-file-id="' + eSrc + '"]')?.classList.add("is-hi");
+        if (eDst) svg.querySelector('[data-hub-reader-id="' + eDst + '"]')?.classList.add("is-hi");
+        if (eFld !== null) svg.querySelector('[data-hub-fld-idx="' + eFld + '"]')?.classList.add("is-hi");
+      }
+    });
+  }
+
+  function clearHubHoverSpotlight() {
+    document.querySelectorAll(".rs-hub-svg.hub-hover").forEach((svg) => {
+      svg.classList.remove("hub-hover");
+      svg.querySelectorAll(".is-hi").forEach((el) => el.classList.remove("is-hi"));
+    });
+  }
+
   function handleFlowClick(target) {
     const flowSubBtn = target.closest("[data-flows-sub]");
     if (flowSubBtn) {

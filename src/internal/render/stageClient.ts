@@ -329,6 +329,11 @@ export function renderStageClientScript(): string {
   appEl.addEventListener("mouseover", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    const hubNode = target.closest(".rs-hub-node");
+    if (hubNode) {
+      applyHubHoverSpotlight(hubNode);
+      return;
+    }
     const svgNode = target.closest("[data-node]");
     if (svgNode) {
       const nid = svgNode.getAttribute("data-node");
@@ -362,6 +367,10 @@ export function renderStageClientScript(): string {
   appEl.addEventListener("mouseout", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    if (target.closest(".rs-hub-node")) {
+      const rel = ev.relatedTarget;
+      if (!(rel instanceof Element) || !rel.closest(".rs-hub-node")) clearHubHoverSpotlight();
+    }
     if (target.closest("[data-node]") || target.closest("g[data-edge]") || target.closest(".drawer [data-select-node]")) {
       const rel = ev.relatedTarget;
       if (!(rel instanceof Element) || (!rel.closest("[data-node]") && !rel.closest("g[data-edge]") && !rel.closest(".drawer [data-select-node]"))) {

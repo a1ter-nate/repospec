@@ -1,6 +1,4 @@
 import type {
-  AsyncHandoff,
-  EntityFieldLifecycle,
   ExtractedStateMachine,
   FlowAnalysisBundle,
   FlowLane,
@@ -8,7 +6,10 @@ import type {
   WorkFlowRecord,
 } from "./types.ts";
 import { buildFlowsHtmlDocument } from "./flowsHtml.ts";
+import { renderAsyncHandoffsSvg, renderDataHubSvg } from "./hubAsyncSvg.ts";
 import { renderStateMachineSvg as renderCleanStateMachineSvg } from "./stateMachineSvg.ts";
+
+export { renderAsyncHandoffsSvg, renderDataHubSvg };
 
 function esc(s: string): string {
   return s
@@ -307,67 +308,6 @@ export function renderWorkFlowSwimlaneSvg(
   return parts.join("");
 }
 
-export function renderDataHubSvg(entityName: string, fields: readonly EntityFieldLifecycle[]): string {
-  const shown = fields.slice(0, 16);
-  const rowH = 44;
-  const width = 720;
-  const height = Math.max(180, 44 + shown.length * rowH + 20);
-  const parts: string[] = [
-    `<svg class="rs-flow-svg" viewBox="0 0 ${width} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg">`,
-    `<defs><marker id="dh-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#94a3b8"/></marker><marker id="dh-err" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f59e0b"/></marker></defs>`,
-    `<text x="100" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">WHO CHANGES IT</text>`,
-    `<text x="360" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">FIELD ON: ${esc(entityName)}</text>`,
-    `<text x="620" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">WHO READS IT</text>`,
-    `<rect x="256" y="28" width="208" height="${Math.max(80, shown.length * rowH + 10)}" rx="8" fill="rgba(148,163,184,0.06)" stroke="#334155"/>`,
-  ];
-
-  shown.forEach((f, idx) => {
-    const y = 36 + idx * rowH;
-    const stroke = f.multiWriterRisk ? "#f59e0b" : f.derivedOnRead ? "#38bdf8" : "#22c55e";
-    const fill = f.multiWriterRisk ? "rgba(245,158,11,0.13)" : f.derivedOnRead ? "rgba(56,189,248,0.13)" : "rgba(34,197,94,0.11)";
-    const writerFiles = new Set(f.writers.map((w) => w.file)).size;
-    const writerLabel =
-      f.writers.length === 0
-        ? "no backend writer"
-        : writerFiles === 1
-          ? trunc(f.writers[0]?.fn ?? "writer", 21)
-          : `${writerFiles} files (${f.writers.length} edits)`;
-    const writerSub = f.multiWriterRisk
-      ? "3+ files edit this"
-      : writerFiles === 1
-        ? "single owner"
-        : `${writerFiles} files edit this`;
-    const readerLabel =
-      f.readers.length === 0
-        ? "read via whole doc"
-        : trunc(f.readers.map((r) => r.fn).slice(0, 2).join(", "), 22);
-    const readerSub = f.derivedOnRead ? "computed on read" : f.readers.length === 0 ? "no field-level reader" : "field reader";
-    const fieldKey = `${entityName}::${f.field}`;
-    const firstFile = f.writers[0]?.file ?? f.readers[0]?.file ?? ".";
-    const firstLine = f.writers[0]?.line ?? f.readers[0]?.line ?? 1;
-
-    parts.push(
-      `<g class="rs-hub-row" data-hub-field="${esc(fieldKey)}" data-first-file="${esc(firstFile)}" data-first-line="${firstLine}" style="cursor:pointer">`,
-      `<title>${esc(`${entityName}.${f.field} — edited in ${writerFiles} file(s) (${f.writers.length} site(s)), ${f.readers.length} direct reader(s) — click to inspect code`)}</title>`,
-      `<rect x="10" y="${y}" width="180" height="34" rx="5" fill="${fill}" stroke="${stroke}"/>`,
-      `<text x="100" y="${y + 15}" text-anchor="middle" fill="#e2e8f0" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(writerLabel)}</text>`,
-      `<text x="100" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${esc(writerSub)}</text>`,
-      `<path d="M190,${y + 17} C224,${y + 17} 232,${y + 17} 264,${y + 17}" fill="none" stroke="${stroke}" stroke-width="${f.multiWriterRisk ? "2" : "1.4"}" marker-end="url(#${f.multiWriterRisk ? "dh-err" : "dh-arr"})"/>`,
-      `<rect x="266" y="${y}" width="188" height="34" rx="5" fill="${fill}" stroke="${stroke}"${f.derivedOnRead ? ' stroke-dasharray="3 2"' : ""}/>`,
-      `<text x="360" y="${y + 15}" text-anchor="middle" fill="#f8fafc" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(f.field, 24))}</text>`,
-      `<text x="360" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${f.derivedOnRead ? "computed on read" : `${f.writers.length} edits · ${f.readers.length} readers`}</text>`,
-      `<path d="M454,${y + 17} C488,${y + 17} 496,${y + 17} 528,${y + 17}" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#dh-arr)"/>`,
-      `<rect x="530" y="${y}" width="180" height="34" rx="5" fill="rgba(148,163,184,0.09)" stroke="#475569"/>`,
-      `<text x="620" y="${y + 15}" text-anchor="middle" fill="#cbd5e1" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(readerLabel)}</text>`,
-      `<text x="620" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${esc(readerSub)}</text>`,
-      `</g>`,
-    );
-  });
-
-  parts.push(`</svg>`);
-  return parts.join("");
-}
-
 export function renderStateMachineSvg(machine: ExtractedStateMachine): string {
   const states: string[] = [];
   for (const st of (machine.states ?? []).slice(0, 24)) {
@@ -382,64 +322,6 @@ export function renderStateMachineSvg(machine: ExtractedStateMachine): string {
     transitions.push(tr);
   }
   return renderCleanStateMachineSvg({ ...machine, states, transitions });
-}
-
-export function renderAsyncHandoffsSvg(handoffs: readonly AsyncHandoff[]): string {
-  const shown = handoffs.slice(0, 24);
-  const rowH = 44;
-  const width = 720;
-  const height = Math.max(130, 36 + shown.length * rowH + 14);
-  const parts: string[] = [
-    `<svg class="rs-flow-svg" viewBox="0 0 ${width} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg">`,
-    `<defs><marker id="ah-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#c084fc"/></marker></defs>`,
-    `<text x="110" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">WHAT FIRES IT</text>`,
-    `<text x="360" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">BACKGROUND CHANNEL</text>`,
-    `<text x="610" y="18" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">WHAT HANDLES IT</text>`,
-  ];
-
-  shown.forEach((h, idx) => {
-    const y = 30 + idx * rowH;
-    const color = h.delivery === "best-effort" ? "#f59e0b" : "#38bdf8";
-    const prodFile = h.producer.file.split("/").pop() ?? h.producer.file;
-    const consFile = h.consumer ? (h.consumer.file.split("/").pop() ?? h.consumer.file) : "";
-    const deliveryTxt =
-      h.transport === "fcm"
-        ? "push · best-effort"
-        : h.transport === "cron"
-          ? "cron · scheduled"
-          : `${h.transport} · ${h.delivery}`;
-    const unmatchedTitle =
-      h.transport === "fcm"
-        ? "mobile app (push)"
-        : h.transport === "cron"
-          ? "HTTP job (dynamic URL)"
-          : "external listener";
-    const unmatchedSub =
-      h.transport === "fcm"
-        ? "handled outside backend"
-        : h.transport === "cron"
-          ? "URL defined via Terraform var"
-          : "outside this repository";
-    parts.push(
-      `<g class="rs-async-row" data-async-idx="${idx}" style="cursor:pointer">`,
-      `<title>${esc(`${h.producer.fn} -> ${h.channel} -> ${h.consumer?.fn ?? unmatchedTitle} — click to inspect code`)}</title>`,
-      `<rect x="10" y="${y}" width="200" height="32" rx="5" fill="rgba(56,189,248,0.12)" stroke="#38bdf8"/>`,
-      `<text x="110" y="${y + 14}" text-anchor="middle" fill="#e2e8f0" font-size="9.2" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.producer.fn, 26))}</text>`,
-      `<text x="110" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(trunc(prodFile, 22))}:${h.producer.line}</text>`,
-      `<line x1="210" y1="${y + 16}" x2="262" y2="${y + 16}" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ah-arr)"/>`,
-      `<rect x="264" y="${y}" width="192" height="32" rx="16" fill="rgba(192,132,252,0.12)" stroke="${color}"/>`,
-      `<text x="360" y="${y + 14}" text-anchor="middle" fill="#e9d5ff" font-size="9" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.channel, 26))}</text>`,
-      `<text x="360" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(deliveryTxt)}</text>`,
-      `<line x1="456" y1="${y + 16}" x2="508" y2="${y + 16}" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ah-arr)"/>`,
-      `<rect x="510" y="${y}" width="200" height="32" rx="5" fill="${h.consumer ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.08)"}" stroke="${h.consumer ? "#22c55e" : "#475569"}"${h.consumer ? "" : ' stroke-dasharray="3 2"'}/>`,
-      `<text x="610" y="${y + 14}" text-anchor="middle" fill="${h.consumer ? "#86efac" : "#94a3b8"}" font-size="9.2" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.consumer ? h.consumer.fn : unmatchedTitle, 26))}</text>`,
-      `<text x="610" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${h.consumer ? `${esc(trunc(consFile, 22))}:${h.consumer.line}` : unmatchedSub}</text>`,
-      `</g>`,
-    );
-  });
-
-  parts.push(`</svg>`);
-  return parts.join("");
 }
 
 export function renderFlowsHtmlReport(
