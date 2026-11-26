@@ -1,32 +1,53 @@
 export function renderFlowsRailCss(): string {
   return `
-  .workspace.flows-full { grid-template-columns: minmax(0, 1fr); position: relative; overflow: hidden; }
-  .fx { display: grid; grid-template-columns: 42px 224px minmax(0, 1fr); padding: 0 !important; overflow: hidden !important; background: var(--bg-0); transition: grid-template-columns var(--dur) var(--ease); position: relative; }
-  .fx.rail-off { grid-template-columns: 42px 0 minmax(0, 1fr); }
-  .fx-act { background: var(--bg-1); border-right: 1px solid var(--line-1); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; z-index: 5; }
-  .fx-act-btn { width: 34px; height: 40px; border-radius: var(--r-2); border: 1px solid transparent; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text-3); font: 600 10px/1 var(--font-mono, monospace); cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); position: relative; }
-  .fx-act-btn:hover { background: var(--bg-2); color: var(--text-1); }
-  .fx-act-btn.active { background: var(--bg-3); color: var(--text-1); box-shadow: inset 2px 0 0 var(--accent); }
-  .fx-act-btn.active svg { color: var(--accent); }
-  .fx-act-spacer { flex: 1; }
-  .fr { background: var(--bg-1); border-right: 1px solid var(--line-1); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .fx.rail-off .fr { border-right: 0; }
-  .fr-top { padding: 8px 7px 7px; border-bottom: 1px solid var(--line-1); display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .workspace.flows-full { grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+  .fx-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; background: var(--bg-0); overflow: hidden; }
+  .fx-stage-head { min-height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 14px; background: var(--bg-1); border-bottom: 1px solid var(--line-1); flex-wrap: wrap; }
+  .fx-head-l { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+  .fx-head-r { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .fx-sub-nav { display: inline-flex; align-items: center; gap: 2px; background: var(--bg-0); border: 1px solid var(--line-1); border-radius: var(--r-2); padding: 2px; }
+  .fx-sub-btn { background: transparent; border: 0; border-radius: var(--r-1); height: 26px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: var(--fs-12); font-weight: 500; cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); white-space: nowrap; }
+  .fx-sub-btn:hover { background: var(--bg-2); color: var(--text-1); }
+  .fx-sub-btn.active { background: var(--bg-3); color: var(--text-1); font-weight: 600; }
+  .fx-sub-btn.active svg { color: var(--accent); }
+  .fx-sub-n { font-family: var(--font-mono, monospace); font-size: var(--fs-11); color: var(--text-4); }
+  .fx-sub-btn.active .fx-sub-n { color: var(--text-2); }
+  .fx-route-tag { display: inline-flex; align-items: center; gap: 6px; max-width: 340px; overflow: hidden; }
+  .fx-route-path { font: 500 12px/1 var(--font-mono, monospace); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-legend-strip { display: flex; align-items: center; gap: 14px; padding: 5px 16px; border-bottom: 1px solid var(--line-1); background: var(--bg-1); font-size: var(--fs-12); color: var(--text-3); flex-wrap: wrap; flex-shrink: 0; }
+  .fx-legend-chip { display: inline-flex; align-items: center; gap: 6px; }
+  .fx-diagram-pane { flex: 1 1 0; min-height: 180px; overflow: auto; padding: 16px 20px 20px; background-color: var(--bg-0); background-image: radial-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px); background-size: 22px 22px; position: relative; }
+  .fx-svg-wrap { display: inline-block; min-width: 100%; }
+  .fx-svg-wrap svg { display: block; width: 100%; height: auto; }
+  .fx-diagram-pane [data-async-idx].is-sel rect:first-of-type { stroke: var(--accent) !important; stroke-width: 1.8 !important; }
+  .fx-h-resizer { height: 6px; flex-shrink: 0; cursor: row-resize; background: var(--bg-1); position: relative; z-index: 10; touch-action: none; }
+  .fx-h-resizer::after { content: ""; position: absolute; left: 0; right: 0; top: 2px; height: 2px; background: var(--line-2); transition: background var(--dur) var(--ease); }
+  .fx-h-resizer:hover::after, .fx-col.h-resizing .fx-h-resizer::after { background: var(--accent); }
+  .fx-dock { flex: 0 0 var(--fx-dock-h, 44vh); min-height: 180px; max-height: 74vh; display: grid; grid-template-columns: 310px minmax(280px, 0.78fr) minmax(360px, 1.22fr); background: var(--bg-1); overflow: hidden; }
+  .fx-dock.is-collapsed { flex: 0 0 0 !important; min-height: 0; height: 0; border: 0; }
+  .fx-dock-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line-1); overflow: hidden; }
+  .fx-dock-col:last-child { border-right: 0; }
+  .fx-dock-head { height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line-1); background: var(--bg-1); }
+  .fx-dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .fx-code-body { flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px 12px; display: flex; flex-direction: column; }
+  .fx-code-body .code-frame { flex: 1; min-height: 0; }
+  .fx-code-body .code-box { flex: 1; max-height: none !important; }
+  .fr-top { padding: 7px 8px 6px; border-bottom: 1px solid var(--line-1); display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
   .fr-search-wrap { position: relative; }
-  .fr-search { width: 100%; background: var(--bg-2); color: var(--text-1); border: 1px solid var(--line-2); border-radius: var(--r-2); padding: 5px 22px 5px 24px; font-size: var(--fs-12); outline: none; transition: border-color var(--dur) var(--ease); }
+  .fr-search { width: 100%; background: var(--bg-2); color: var(--text-1); border: 1px solid var(--line-2); border-radius: var(--r-2); padding: 4px 22px 4px 24px; font-size: var(--fs-12); outline: none; transition: border-color var(--dur) var(--ease); }
   .fr-search:focus { border-color: var(--accent); }
   .fr-search::placeholder { color: var(--text-4); }
   .fr-search-ico { position: absolute; left: 7px; top: 50%; transform: translateY(-50%); color: var(--text-4); pointer-events: none; display: inline-flex; }
-  .fr-search-kbd { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font: 600 10px/16px var(--font-mono, monospace); color: var(--text-4); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 4px; pointer-events: none; }
-  .fr-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+  .fr-search-kbd { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font: 600 10px/15px var(--font-mono, monospace); color: var(--text-4); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 4px; pointer-events: none; }
+  .fr-chips { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .fr-chip { background: transparent; border: 1px solid var(--line-1); border-radius: var(--r-1); padding: 2px 6px; font-size: var(--fs-11); font-weight: 500; color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
   .fr-chip:hover { background: var(--bg-2); color: var(--text-1); }
   .fr-chip.active { background: var(--bg-3); color: var(--text-1); border-color: var(--accent-line); }
   .fr-chip.is-err.active { border-color: rgba(255,138,138,0.45); color: var(--err); background: var(--err-soft); }
   .fr-chip-n { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--text-4); }
   .fr-chip.active .fr-chip-n { color: inherit; opacity: 0.85; }
-  .fr-list { flex: 1; overflow-y: auto; padding: 4px 5px 14px; display: flex; flex-direction: column; gap: 2px; }
-  .fr-group-h { position: sticky; top: 0; z-index: 2; width: 100%; background: var(--bg-1); border: 0; height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 5px; font: 600 10.5px/1 var(--font-sans, sans-serif); text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); cursor: pointer; text-align: left; }
+  .fr-list { flex: 1; overflow-y: auto; padding: 4px 6px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .fr-group-h { position: sticky; top: 0; z-index: 2; width: 100%; background: var(--bg-1); border: 0; height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 6px; font: 600 10.5px/1 var(--font-sans, sans-serif); text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); cursor: pointer; text-align: left; }
   .fr-group-h:hover { color: var(--text-1); }
   .fr-group-l { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
   .fr-group-r { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono, monospace); font-size: 10.5px; color: var(--text-4); }
@@ -34,7 +55,7 @@ export function renderFlowsRailCss(): string {
   .fr-dot.is-err { background: var(--err); }
   .fr-dot.is-warn { background: var(--warn); }
   .fr-dot.is-hollow { border: 1.5px solid var(--text-4); background: transparent; }
-  .fr-item { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 5px 6px; border-radius: var(--r-2); text-align: left; background: transparent; border: 0; cursor: pointer; transition: background var(--dur) var(--ease); }
+  .fr-item { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 7px; border-radius: var(--r-2); text-align: left; background: transparent; border: 0; cursor: pointer; transition: background var(--dur) var(--ease); }
   .fr-item:hover { background: var(--bg-2); }
   .fr-item[aria-selected="true"] { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
   .fr-glyph { width: 22px; height: 22px; border-radius: var(--r-1); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--bg-2); border: 1px solid var(--line-1); color: var(--text-3); }
@@ -53,7 +74,7 @@ export function renderFlowsRailCss(): string {
   .fr-pips.hot i { background: var(--warn); }
   .fr-hz { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font: 600 10px/16px var(--font-mono, monospace); text-align: center; color: var(--warn); background: var(--warn-soft); }
   .fr-hz.is-err { color: var(--err); background: var(--err-soft); }
-  .fr-bar { width: 28px; height: 5px; border-radius: 3px; background: var(--line-1); overflow: hidden; display: inline-block; }
+  .fr-bar { width: 30px; height: 5px; border-radius: 3px; background: var(--line-1); overflow: hidden; display: inline-block; }
   .fr-bar i { display: block; height: 100%; background: var(--bar); border-radius: 3px; }
   .fr-bar.is-warn i { background: var(--warn); }
   .fr-sm-states { padding: 2px 0 6px 20px; display: flex; flex-direction: column; gap: 1px; }
@@ -61,25 +82,12 @@ export function renderFlowsRailCss(): string {
   .fr-sm-row:hover { background: var(--bg-2); color: var(--text-1); }
   .fr-sm-row[aria-selected="true"] { background: var(--bg-3); color: var(--text-1); box-shadow: inset 2px 0 0 var(--accent); }
   .fr-deliv { font: 600 10px/1 var(--font-mono, monospace); padding: 2px 5px; border-radius: 4px; color: var(--text-3); background: var(--bg-2); border: 1px solid var(--line-1); }
-  .fx-stage { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-0); }
-  .fx-stage-head { min-height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 14px; background: var(--bg-1); border-bottom: 1px solid var(--line-1); flex-wrap: wrap; }
-  .fx-head-l { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-  .fx-head-r { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .fx-route-tag { display: inline-flex; align-items: center; gap: 6px; max-width: 340px; overflow: hidden; }
-  .fx-route-path { font: 500 12px/1 var(--font-mono, monospace); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fx-legend-strip { display: flex; align-items: center; gap: 14px; padding: 6px 16px; border-bottom: 1px solid var(--line-1); background: var(--bg-1); font-size: var(--fs-12); color: var(--text-3); flex-wrap: wrap; flex-shrink: 0; }
-  .fx-legend-chip { display: inline-flex; align-items: center; gap: 6px; }
-  .fx-stage-body { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px 28px; background-color: var(--bg-0); background-image: radial-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px); background-size: 22px 22px; }
-  .fx-svg-wrap { display: inline-block; min-width: 100%; }
-  .fx-svg-wrap svg { display: block; width: 100%; height: auto; }
-  .fx-stage-body [data-async-idx].is-sel rect:first-of-type { stroke: var(--accent) !important; stroke-width: 1.8 !important; }
-  .fx-inspector { position: absolute; top: 0; right: 0; bottom: 0; width: min(520px, 46vw); max-width: calc(100% - 48px); z-index: 32; background: var(--bg-1); border-left: 1px solid var(--line-3); box-shadow: -16px 0 40px rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; overflow-y: auto; padding: 0 18px 20px; gap: 12px; }
-  .fx-step-box { padding: 10px 12px; border-radius: var(--r-2); background: var(--bg-2); border: 1px solid var(--accent-line); display: flex; flex-direction: column; gap: 6px; }
-  .fx-haz-card { padding: 8px 10px; border-radius: var(--r-2); background: var(--bg-2); border: 1px solid var(--line-1); border-left: 2px solid var(--warn); cursor: pointer; transition: background var(--dur) var(--ease); }
+  .fx-step-box { padding: 9px 11px; border-radius: var(--r-2); background: var(--bg-2); border: 1px solid var(--accent-line); display: flex; flex-direction: column; gap: 6px; }
+  .fx-haz-card { padding: 7px 10px; border-radius: var(--r-2); background: var(--bg-2); border: 1px solid var(--line-1); border-left: 2px solid var(--warn); cursor: pointer; transition: background var(--dur) var(--ease); }
   .fx-haz-card:hover { background: var(--bg-3); }
   .fx-haz-card.is-err { border-left-color: var(--err); }
   .fx-empty { padding: 28px 16px; text-align: center; color: var(--text-3); font-size: var(--fs-13); }
-  @media (max-width: 960px) { .fx { grid-template-columns: 42px 190px minmax(0, 1fr); } .fx-inspector { width: min(440px, 86vw); } }
+  @media (max-width: 1024px) { .fx-dock { grid-template-columns: 260px minmax(0, 1fr); } .fx-dock-col.is-code { display: none; } }
 `;
 }
 
@@ -96,7 +104,6 @@ export function renderFlowsRailScript(): string {
       states: '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M8.7 10.7a5 5 0 0 1 6.6 0"/><polyline points="14 7 16 10.5 12.5 11"/>',
       async: '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>',
       search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-      sidebar: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>',
     };
     return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (p[kind] || p.trigger) + "</svg>";
   }
@@ -109,8 +116,7 @@ export function renderFlowsRailScript(): string {
 
   function flowBaseFile(filePath) {
     const parts = String(filePath || "").split("/").filter(Boolean);
-    if (parts.length <= 2) return parts.join("/");
-    return parts.slice(-2).join("/");
+    return parts.length <= 2 ? parts.join("/") : parts.slice(-2).join("/");
   }
 
   function flowGroupName(wf) {
@@ -162,6 +168,22 @@ export function renderFlowsRailScript(): string {
     });
   }
 
+  function renderFlowSubNav(fl, sub) {
+    const items = [
+      { id: "workflows", icon: "flows", label: "Swimlanes", count: fl.workFlows.length },
+      { id: "hubs", icon: "db", label: "Data Hubs", count: fl.dataHubs.length },
+      { id: "machines", icon: "states", label: "Statecharts", count: fl.stateMachines.length },
+      { id: "async", icon: "async", label: "Async", count: fl.asyncCount || 0 },
+    ];
+    return (
+      '<nav class="fx-sub-nav" aria-label="Flow views">' +
+      items.map((b) =>
+        '<button class="fx-sub-btn' + (sub === b.id ? " active" : "") + '" data-flows-sub="' + b.id + '">' +
+        flowGlyphSvg(b.icon) + "<span>" + b.label + '</span><span class="fx-sub-n">' + b.count + "</span></button>"
+      ).join("") + "</nav>"
+    );
+  }
+
   function renderFlowRailListHtml(fl, sub) {
     const closed = state.flowRailClosed || {};
     if (sub === "workflows") {
@@ -190,17 +212,15 @@ export function renderFlowsRailScript(): string {
         const hdr =
           '<button class="fr-group-h" data-flow-group="' + esc(gk) + '">' +
           '<span class="fr-group-l"><span>' + (isClosed ? "▸" : "▾") + '</span><span>' + esc(gName) + "</span></span>" +
-          '<span class="fr-group-r">' + (hasErr ? '<span class="fr-dot is-err" title="Contains error-severity DDIA hazard"></span>' : "") + "<span>" + items.length + "</span></span>" +
+          '<span class="fr-group-r">' + (hasErr ? '<span class="fr-dot is-err" title="Error-severity DDIA hazard"></span>' : "") + "<span>" + items.length + "</span></span>" +
           "</button>";
         if (isClosed) return hdr;
-        const rows = items.map((w) => {
+        return hdr + items.map((w) => {
           const tg = flowTriggerGlyph(w.triggerKind);
           const gCls = w.hasError ? "g-err" : tg.cls;
           const hzBadge = w.hasError
-            ? '<span class="fr-hz is-err" title="Error-severity DDIA hazard">' + w.hazardCount + "</span>"
-            : w.hazardCount >= 2
-              ? '<span class="fr-hz" title="' + w.hazardCount + ' DDIA flags">' + w.hazardCount + "</span>"
-              : "";
+            ? '<span class="fr-hz is-err">' + w.hazardCount + "</span>"
+            : w.hazardCount >= 2 ? '<span class="fr-hz">' + w.hazardCount + "</span>" : "";
           return (
             '<button class="fr-item" data-select-flow="' + esc(w.id) + '" aria-selected="' + (w.id === activeId ? "true" : "false") + '" title="' + esc(w.name + " · " + w.file + ":" + w.line) + '">' +
             '<span class="fr-glyph ' + gCls + '">' + flowGlyphSvg(tg.icon) + "</span>" +
@@ -209,7 +229,6 @@ export function renderFlowsRailScript(): string {
             "</button>"
           );
         }).join("");
-        return hdr + rows;
       }).join("");
     }
 
@@ -233,12 +252,11 @@ export function renderFlowsRailScript(): string {
         if (isClosed) return hdr;
         return hdr + sec.items.map((h) => {
           const pct = Math.max(12, Math.round((h.fieldCount / maxFields) * 100));
-          const writersTxt = h.writerCount ? " · " + h.writerCount + "w" : "";
           return (
             '<button class="fr-item" data-select-hub="' + esc(h.entity) + '" aria-selected="' + (h.entity === activeEntity ? "true" : "false") + '">' +
             '<span class="fr-glyph ' + (h.multiWriterCount > 0 ? "g-warn" : "g-http") + '">' + flowGlyphSvg("db") + "</span>" +
-            '<span class="fr-main"><span class="fr-title mono">' + esc(h.entity) + '</span><span class="fr-sub">' + h.fieldCount + " fields" + writersTxt + "</span></span>" +
-            '<span class="fr-meta"><span class="fr-bar' + (h.multiWriterCount > 0 ? " is-warn" : "") + '"><i style="width:' + pct + '%"></i></span>' + (h.multiWriterCount > 0 ? '<span class="fr-dot is-warn" title="' + h.multiWriterCount + ' multi-writer fields"></span>' : "") + "</span>" +
+            '<span class="fr-main"><span class="fr-title mono">' + esc(h.entity) + '</span><span class="fr-sub">' + h.fieldCount + " fields" + (h.writerCount ? " · " + h.writerCount + "w" : "") + "</span></span>" +
+            '<span class="fr-meta"><span class="fr-bar' + (h.multiWriterCount > 0 ? " is-warn" : "") + '"><i style="width:' + pct + '%"></i></span>' + (h.multiWriterCount > 0 ? '<span class="fr-dot is-warn"></span>' : "") + "</span>" +
             "</button>"
           );
         }).join("");
@@ -303,24 +321,14 @@ export function renderFlowsRailScript(): string {
           '<button class="fr-item" data-async-idx="' + idx + '" aria-selected="' + (idx === selIdx ? "true" : "false") + '">' +
           '<span class="fr-glyph ' + (isCron ? "g-cron" : "g-trigger") + '">' + flowGlyphSvg(isCron ? "cron" : "queue") + "</span>" +
           '<span class="fr-main"><span class="fr-title mono">' + esc(ah.channel) + '</span><span class="fr-sub">' + esc(ah.producer?.fn || "producer") + "</span></span>" +
-          '<span class="fr-meta"><span class="fr-deliv">' + esc(ah.delivery || "async") + "</span>" + (!ah.consumer ? '<span class="fr-dot is-hollow" title="External or dynamic consumer"></span>' : "") + "</span>" +
+          '<span class="fr-meta"><span class="fr-deliv">' + esc(ah.delivery || "async") + "</span>" + (!ah.consumer ? '<span class="fr-dot is-hollow"></span>' : "") + "</span>" +
           "</button>"
         );
       }).join("");
     }).join("");
   }
 
-  function renderFlowRail(fl, sub) {
-    const actBtns = [
-      { id: "workflows", icon: "flows", label: "Swimlane Waterfalls", count: fl.workFlows.length },
-      { id: "hubs", icon: "db", label: "Data Hubs", count: fl.dataHubs.length },
-      { id: "machines", icon: "states", label: "Statecharts", count: fl.stateMachines.length },
-      { id: "async", icon: "async", label: "Async Handoffs", count: fl.asyncCount || 0 },
-    ].map((b) =>
-      '<button class="fx-act-btn' + (sub === b.id ? " active" : "") + '" data-flows-sub="' + b.id + '" title="' + b.label + " (" + b.count + ')">' +
-      flowGlyphSvg(b.icon) + "<span>" + b.count + "</span></button>"
-    ).join("");
-
+  function renderFlowBrowserCol(fl, sub) {
     const chip = state.flowFilterChip || "all";
     let chipsHtml = "";
     if (sub === "workflows") {
@@ -342,15 +350,9 @@ export function renderFlowsRailScript(): string {
         (mwN > 0 ? '<button class="fr-chip' + (chip === "mw" ? " active" : "") + '" data-flow-chip="mw"><span class="fr-dot is-warn"></span>Multi-writer <span class="fr-chip-n">' + mwN + "</span></button>" : "") +
         "</div>";
     }
-
     const placeholders = { workflows: "Filter flows or files…", hubs: "Filter entities…", machines: "Filter statecharts…", async: "Filter channels…" };
     return (
-      '<nav class="fx-act" aria-label="Flow views">' +
-      actBtns +
-      '<div class="fx-act-spacer"></div>' +
-      '<button class="fx-act-btn" data-toggle-flow-rail="1" title="' + (state.flowRailHidden ? "Show list rail ([)" : "Hide list rail ([)") + '">' + flowGlyphSvg("sidebar") + "</button>" +
-      "</nav>" +
-      '<aside class="fr">' +
+      '<section class="fx-dock-col">' +
       '<div class="fr-top">' +
       '<div class="fr-search-wrap">' +
       '<span class="fr-search-ico">' + flowGlyphSvg("search") + "</span>" +
@@ -360,7 +362,7 @@ export function renderFlowsRailScript(): string {
       chipsHtml +
       "</div>" +
       '<div class="fr-list" id="fr-list">' + renderFlowRailListHtml(fl, sub) + "</div>" +
-      "</aside>"
+      "</section>"
     );
   }
 
@@ -378,8 +380,7 @@ export function renderFlowsRailScript(): string {
       const list = getFilteredWorkFlows(fl);
       if (list.length === 0) return;
       const curIdx = Math.max(0, list.findIndex((w) => w.id === state.activeFlowId));
-      const next = list[(curIdx + delta + list.length) % list.length];
-      state.activeFlowId = next.id;
+      state.activeFlowId = list[(curIdx + delta + list.length) % list.length].id;
       state.flowSelectedStepIdx = null;
       state.flowCodeFile = null;
       render();
@@ -388,8 +389,7 @@ export function renderFlowsRailScript(): string {
     if (sub === "hubs") {
       const hubs = getFilteredHubs(fl);
       if (hubs.length === 0) return;
-      const curEntity = state.activeHubEntity || hubs[0].entity;
-      const curIdx = Math.max(0, hubs.findIndex((h) => h.entity === curEntity));
+      const curIdx = Math.max(0, hubs.findIndex((h) => h.entity === (state.activeHubEntity || hubs[0].entity)));
       const next = hubs[(curIdx + delta + hubs.length) % hubs.length];
       state.activeHubEntity = next.entity;
       state.flowSelectedHubField = next.entity + "::" + (next.fields?.[0]?.field || "");
@@ -410,8 +410,7 @@ export function renderFlowsRailScript(): string {
     }
     const as = fl.asyncHandoffs || [];
     if (as.length === 0) return;
-    const curIdx = state.flowSelectedAsyncIdx ?? 0;
-    state.flowSelectedAsyncIdx = (curIdx + delta + as.length) % as.length;
+    state.flowSelectedAsyncIdx = ((state.flowSelectedAsyncIdx ?? 0) + delta + as.length) % as.length;
     state.flowCodeFile = null;
     render();
   }
@@ -426,17 +425,14 @@ export function renderFlowsRailScript(): string {
     const natW = vb.length === 4 && vb[2] > 0 ? vb[2] : 1080;
     const availW = Math.max(320, body.clientWidth - 40);
     let targetW;
-    if (state.flowZoom === "fit") {
-      targetW = availW;
-    } else {
+    if (state.flowZoom === "fit") targetW = availW;
+    else {
       const z = typeof state.flowZoom === "number" && state.flowZoom > 0 ? state.flowZoom : 1.05;
       targetW = Math.max(availW, Math.round(natW * z));
     }
     wrap.style.width = targetW + "px";
     const pctEl = document.getElementById("fx-zoom-pct");
-    if (pctEl) {
-      pctEl.textContent = state.flowZoom === "fit" ? "Fit" : Math.round((targetW / natW) * 100) + "%";
-    }
+    if (pctEl) pctEl.textContent = state.flowZoom === "fit" ? "Fit" : Math.round((targetW / natW) * 100) + "%";
   }
 
   function handleFlowsKeydown(ev) {
@@ -452,42 +448,21 @@ export function renderFlowsRailScript(): string {
       }
       return false;
     }
-    if (ev.key === "Escape" && state.flowInspectorOpen) {
+    if (ev.key === "]" || ev.key === "[") {
       ev.preventDefault();
-      state.flowInspectorOpen = false;
-      render();
-      return true;
-    }
-    if (ev.key === "]") {
-      ev.preventDefault();
-      state.flowInspectorOpen = !state.flowInspectorOpen;
-      if (state.flowInspectorOpen) ensureFileSourcesLoaded();
-      render();
-      return true;
-    }
-    if (ev.key === "[") {
-      ev.preventDefault();
-      state.flowRailHidden = !state.flowRailHidden;
+      state.flowDockCollapsed = !state.flowDockCollapsed;
       render();
       return true;
     }
     if (ev.key === "/") {
       ev.preventDefault();
-      if (state.flowRailHidden) { state.flowRailHidden = false; render(); }
+      if (state.flowDockCollapsed) { state.flowDockCollapsed = false; render(); }
       const inp = document.getElementById("flow-search-input");
       if (inp instanceof HTMLInputElement) inp.focus();
       return true;
     }
-    if (ev.key === "j" || ev.key === "ArrowDown") {
-      ev.preventDefault();
-      stepFlowSelection(1);
-      return true;
-    }
-    if (ev.key === "k" || ev.key === "ArrowUp") {
-      ev.preventDefault();
-      stepFlowSelection(-1);
-      return true;
-    }
+    if (ev.key === "j" || ev.key === "ArrowDown") { ev.preventDefault(); stepFlowSelection(1); return true; }
+    if (ev.key === "k" || ev.key === "ArrowUp") { ev.preventDefault(); stepFlowSelection(-1); return true; }
     return false;
   }
 `;

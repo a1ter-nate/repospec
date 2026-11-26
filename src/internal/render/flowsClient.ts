@@ -14,8 +14,9 @@ export function renderFlowsClientScript(): string {
     const fl = DATA.flows || { workFlows: [], dataHubs: [], stateMachines: [], asyncHandoffs: [], asyncHandoffsSvg: "", asyncCount: 0, hazards: [] };
     const sub = state.flowsSubtab || "workflows";
     const backMapBtn = state.flowReturnFromMap
-      ? '<button class="pill-btn" data-return-to-map="1" title="Return to your previous Map / file location">← Map</button><span class="crumb-sep">/</span>'
+      ? '<button class="pill-btn" data-return-to-map="1" title="Return to your previous Map / file location">← Map</button>'
       : "";
+    const subNav = renderFlowSubNav(fl, sub);
     const navStepBtns =
       '<span class="seg-group">' +
       '<button class="seg-btn" data-flow-step-nav="-1" title="Previous (k)">‹</button>' +
@@ -27,21 +28,23 @@ export function renderFlowsClientScript(): string {
       '<button class="seg-btn" id="fx-zoom-pct" data-flow-zoom="fit" title="Toggle Fit / 100%">100%</button>' +
       '<button class="seg-btn" data-flow-zoom="in" title="Zoom diagram in">+</button>' +
       "</span>";
-    const inspToggleBtn =
-      '<button class="tbtn' + (state.flowInspectorOpen ? " active" : "") + '" data-toggle-flow-inspector="1" title="Open or close Flow Inspector & Code (])">' +
-      (state.flowInspectorOpen ? "Hide Code" : "Code & Details") + "</button>";
+    const dockToggleBtn =
+      '<button class="tbtn' + (!state.flowDockCollapsed ? " active" : "") + '" data-toggle-flow-dock="1" title="Collapse or expand bottom workbench (])">' +
+      (state.flowDockCollapsed ? "▴ Panel" : "▾ Panel") + "</button>";
     const guideBtn = '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read this view">?</button>';
 
     let stageHead = "";
     let legendStrip = "";
     let stageBody = "";
-    let drawerHtml = "";
+    let ctxTitle = "Details";
+    let ctxAction = "";
+    let ctxHtml = '<div class="muted" style="font-size:12px">Select an item below to inspect triggers, tradeoffs, and code.</div>';
+    let codeHtml = '<div class="muted mono" style="padding:12px">No source file mapped.</div>';
 
     if (sub === "workflows") {
       if (fl.workFlows.length === 0) {
-        stageHead = '<div class="fx-stage-head"><div class="fx-head-l">' + backMapBtn + '<span class="crumb-cur">Swimlanes</span></div><div class="fx-head-r">' + guideBtn + "</div></div>";
+        stageHead = '<div class="fx-stage-head"><div class="fx-head-l">' + backMapBtn + subNav + '</div><div class="fx-head-r">' + dockToggleBtn + guideBtn + "</div></div>";
         stageBody = '<div class="fx-empty">No work flows extracted. Add entrypoints or .repospec/flows.yaml.</div>';
-        drawerHtml = '<div class="drawer-body"><div class="muted">Select a work flow to inspect triggers, steps, DDIA tradeoffs, and source code.</div></div>';
       } else {
         const filtered = getFilteredWorkFlows(fl);
         const wf = filtered.find((w) => w.id === state.activeFlowId) || filtered[0] || fl.workFlows[0];
@@ -58,14 +61,14 @@ export function renderFlowsClientScript(): string {
           "</span>";
         stageHead =
           '<div class="fx-stage-head">' +
-          '<div class="fx-head-l">' + backMapBtn +
+          '<div class="fx-head-l">' + backMapBtn + subNav +
+          '<span class="hud-sep"></span>' +
           '<span class="muted" style="font-size:12px">' + esc(flowGroupName(wf)) + '</span><span class="crumb-sep">/</span>' +
           '<span class="crumb-cur">' + esc(wf.name) + "</span>" +
-          routeBadge +
-          flowPipsHtml(wf.serialAwaitCount) +
-          (wf.hazardCount > 0 ? '<span class="fr-hz' + (wf.hasError ? " is-err" : "") + '" title="' + wf.hazardCount + ' DDIA flags">' + wf.hazardCount + "</span>" : "") +
+          routeBadge + flowPipsHtml(wf.serialAwaitCount) +
+          (wf.hazardCount > 0 ? '<span class="fr-hz' + (wf.hasError ? " is-err" : "") + '">' + wf.hazardCount + "</span>" : "") +
           "</div>" +
-          '<div class="fx-head-r">' + modeBtns + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
+          '<div class="fx-head-r">' + modeBtns + zoomBtns + dockToggleBtn + navStepBtns + guideBtn + "</div>" +
           "</div>";
         stageBody = mode === "optimized" && wf.optimizedSvg ? wf.optimizedSvg : wf.svg;
 
@@ -76,52 +79,40 @@ export function renderFlowsClientScript(): string {
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : (selStep?.line || wf.line);
         const callees = selStep ? findStepCalleeFiles(wf.file, selStep.fn) : [];
 
-        const upHtml = (up.routes.length > 0 || up.callers.length > 0)
-          ? '<div class="sec"><div class="sec-title">What Makes It Happen</div>' +
-            up.routes.map((ep) => '<div class="row"><span class="surf-meth mono ' + flowMethodCls(ep.method) + '">' + esc(ep.method) + '</span><span class="mono" style="overflow:hidden;text-overflow:ellipsis">' + esc(ep.path) + "</span></div>").join("") +
-            up.callers.map((c) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(c.file) + '" data-flow-jump-line="' + c.line + '"><span class="mono">' + esc(c.file.split("/").pop()) + '</span><span class="mono muted">:' + c.line + " →</span></div>").join("") +
-            "</div>"
-          : "";
-
         const stepBox = selStep
           ? '<div class="fx-step-box">' +
             '<div class="mono" style="font-weight:700;color:var(--accent)">Step #' + (selStep.index + 1) + " · " + esc(selStep.fn) + "</div>" +
             '<div class="sub-toggles"><span class="badge b-info">' + esc(selStep.op) + '</span><span class="badge b-na">' + esc(selStep.lane) + '</span><span class="badge b-na">' + (selStep.afterResponse ? "post-response" : "blocking") + "</span>" +
             (selStep.bestEffort ? '<span class="badge b-warn">best-effort</span>' : "") + "</div>" +
             (callees.length > 0
-              ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:11px">Callees:</span>' +
+              ? '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:11px">Callees:</span>' +
                 callees.map((cf) => '<button class="tbtn" data-flow-jump-file="' + esc(cf.file) + '" data-flow-jump-line="1">' + esc(cf.file.split("/").pop()) + " →</button>").join("") +
                 "</div>"
               : "") +
             "</div>"
           : "";
 
+        const upHtml = (up.routes.length > 0 || up.callers.length > 0)
+          ? '<div><div class="sec-title" style="margin-bottom:4px">What Makes It Happen</div>' +
+            up.routes.map((ep) => '<div class="row"><span class="surf-meth mono ' + flowMethodCls(ep.method) + '">' + esc(ep.method) + '</span><span class="mono" style="overflow:hidden;text-overflow:ellipsis">' + esc(ep.path) + "</span></div>").join("") +
+            up.callers.map((c) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(c.file) + '" data-flow-jump-line="' + c.line + '"><span class="mono">' + esc(c.file.split("/").pop()) + '</span><span class="mono muted">:' + c.line + " →</span></div>").join("") +
+            "</div>"
+          : "";
+
         const hazHtml = (wf.hazards || []).length > 0
-          ? '<div class="sec"><div class="sec-title">DDIA Tradeoffs (' + wf.hazards.length + ")</div>" +
+          ? '<div><div class="sec-title" style="margin-bottom:5px">DDIA Tradeoffs (' + wf.hazards.length + ")</div>" +
+            '<div style="display:flex;flex-direction:column;gap:6px">' +
             wf.hazards.map((h) =>
               '<div class="fx-haz-card' + (h.severity === "error" ? " is-err" : "") + '" data-flow-jump-file="' + esc(h.file) + '" data-flow-jump-line="' + h.line + '">' +
               '<div class="mono" style="font-weight:600;color:' + (h.severity === "error" ? "var(--err)" : "var(--warn)") + '">' + esc(h.kind) + ' <span class="muted">:' + h.line + "</span></div>" +
-              '<div style="font-size:12px;color:var(--text-2);margin-top:3px">' + esc(h.summary) + "</div></div>",
-            ).join("") + "</div>"
+              '<div style="font-size:12px;color:var(--text-2);margin-top:2px">' + esc(h.summary) + "</div></div>",
+            ).join("") + "</div></div>"
           : "";
 
-        const ctxCount = up.routes.length + up.callers.length + (wf.hazards || []).length;
-        const flSub = state.drawerSubtab === "context" && ctxCount > 0 ? "context" : "code";
-        const flTabs = ctxCount > 0
-          ? '<div class="drawer-tabs">' +
-            '<button class="drawer-tab' + (flSub === "code" ? " active" : "") + '" data-drawer-sub="code">Code</button>' +
-            '<button class="drawer-tab' + (flSub === "context" ? " active" : "") + '" data-drawer-sub="context">Triggers &amp; Tradeoffs (' + ctxCount + ")</button>" +
-            "</div>"
-          : "";
-        const flBody = flSub === "context"
-          ? (upHtml + hazHtml)
-          : (stepBox + renderFlowCodeSnippet(focusFile, focusLine));
-
-        drawerHtml =
-          '<div class="drawer-head"><div><div class="drawer-title">' + esc(wf.name) + '</div><div class="drawer-sub">' + esc(wf.file) + ":" + wf.line + '</div></div>' +
-          '<button class="tbtn" data-copy-flow-ctx="' + esc(wf.id) + '" title="Copy DDIA flow brief for an agent">Copy Context</button></div>' +
-          flTabs +
-          '<div class="drawer-body">' + flBody + "</div>";
+        ctxTitle = esc(wf.name) + ' <span class="mono muted" style="font-weight:400">' + wf.serialAwaitCount + " awaits</span>";
+        ctxAction = '<button class="tbtn" data-copy-flow-ctx="' + esc(wf.id) + '" title="Copy DDIA flow brief for an agent">Copy Context</button>';
+        ctxHtml = (stepBox + hazHtml + upHtml) || '<div class="muted" style="font-size:12px">Click any step bar above to inspect callees and exact line code.</div>';
+        codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }
     } else if (sub === "hubs") {
       const hubs = getFilteredHubs(fl);
@@ -129,12 +120,11 @@ export function renderFlowsClientScript(): string {
       const hub = hubs.find((h) => h.entity === targetEntity) || hubs[0] || null;
       stageHead =
         '<div class="fx-stage-head">' +
-        '<div class="fx-head-l">' + backMapBtn +
-        '<span class="muted" style="font-size:12px">Data Hubs</span><span class="crumb-sep">/</span>' +
-        '<span class="crumb-cur">' + esc(hub ? hub.entity : "None") + "</span>" +
+        '<div class="fx-head-l">' + backMapBtn + subNav +
+        '<span class="hud-sep"></span><span class="crumb-cur">' + esc(hub ? hub.entity : "None") + "</span>" +
         (hub ? '<span class="mono muted" style="font-size:12px">' + hub.fieldCount + " fields" + (hub.writerCount ? " · " + hub.writerCount + " writers" : "") + "</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + dockToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       legendStrip =
         '<div class="fx-legend-strip">' +
@@ -147,23 +137,21 @@ export function renderFlowsClientScript(): string {
       const fields = hub?.fields || [];
       const selKey = state.flowSelectedHubField || "";
       const selField = fields.find((f) => (hub.entity + "::" + f.field) === selKey) || fields[0] || null;
-      if (!hub || !selField) {
-        drawerHtml = '<div class="drawer-body"><div class="muted">Click any field row to inspect its writers, readers, and source code.</div></div>';
-      } else {
+      if (hub && selField) {
         const focusFile = state.flowCodeFile || selField.writers?.[0]?.file || selField.readers?.[0]?.file || ".";
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : (selField.writers?.[0]?.line || selField.readers?.[0]?.line || 1);
-        drawerHtml =
-          '<div class="drawer-head"><div><div class="drawer-title">' + esc(hub.entity + "." + selField.field) + '</div><div class="drawer-sub">' + (selField.multiWriterRisk ? "Multi-writer SSOT risk" : selField.derivedOnRead ? "Read-time derived" : "Tracked entity field") + "</div></div></div>" +
-          '<div class="drawer-body">' +
-          '<div class="sec"><div class="sec-title">Writers (' + (selField.writers?.length || 0) + ")</div>" +
+        ctxTitle = '<span class="mono">' + esc(hub.entity + "." + selField.field) + "</span>";
+        ctxAction = selField.multiWriterRisk ? '<span class="badge b-warn">multi-writer</span>' : selField.derivedOnRead ? '<span class="badge b-info">derived</span>' : "";
+        ctxHtml =
+          '<div><div class="sec-title" style="margin-bottom:4px">Writers (' + (selField.writers?.length || 0) + ")</div>" +
           (selField.writers || []).map((w) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(w.file) + '" data-flow-jump-line="' + w.line + '"><span class="mono">' + esc(w.fn) + '</span><span class="mono muted">' + esc(w.mode) + " · " + esc(w.file.split("/").pop()) + ":" + w.line + "</span></div>").join("") +
           "</div>" +
-          '<div class="sec"><div class="sec-title">Readers &amp; Derivations (' + (selField.readers?.length || 0) + ")</div>" +
+          '<div><div class="sec-title" style="margin-bottom:4px">Readers &amp; Derivations (' + (selField.readers?.length || 0) + ")</div>" +
           ((selField.readers || []).length > 0
             ? selField.readers.map((r) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(r.file) + '" data-flow-jump-line="' + r.line + '"><span class="mono">' + esc(r.fn) + '</span><span class="mono muted">' + (r.derived ? "derived · " : "") + esc(r.file.split("/").pop()) + ":" + r.line + "</span></div>").join("")
             : '<div class="muted" style="font-size:12px">Direct document reads.</div>') +
-          "</div>" +
-          '<div class="sec"><div class="sec-title">Code Reference</div>' + renderFlowCodeSnippet(focusFile, focusLine) + "</div></div>";
+          "</div>";
+        codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }
     } else if (sub === "machines") {
       const parts = String(state.flowSelectedSmState || "").split("::");
@@ -171,101 +159,93 @@ export function renderFlowsClientScript(): string {
       const sm = fl.stateMachines.find((m) => m.id === targetSmId) || fl.stateMachines[0] || null;
       stageHead =
         '<div class="fx-stage-head">' +
-        '<div class="fx-head-l">' + backMapBtn +
-        '<span class="muted" style="font-size:12px">Statecharts</span><span class="crumb-sep">/</span>' +
-        '<span class="crumb-cur">' + esc(sm ? sm.name : "None") + "</span>" +
+        '<div class="fx-head-l">' + backMapBtn + subNav +
+        '<span class="hud-sep"></span><span class="crumb-cur">' + esc(sm ? sm.name : "None") + "</span>" +
         (sm ? '<span class="mono muted" style="font-size:12px">' + sm.stateCount + " states · " + sm.transitionCount + " transitions</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + dockToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       stageBody = sm ? sm.svg : '<div class="fx-empty">No declared state machines extracted.</div>';
 
-      if (!sm) {
-        drawerHtml = '<div class="drawer-body"><div class="muted">Click any state node to inspect transitions, guards, and callers.</div></div>';
-      } else {
+      if (sm) {
         const activeSt = (parts[0] === sm.id ? parts[1] : "") || sm.states?.[0] || "";
         const outTr = (sm.transitions || []).filter((t) => t.from === activeSt);
         const inTr = (sm.transitions || []).filter((t) => t.to === activeSt);
         const up = findFlowUpstreamRefs(sm.file);
         const focusFile = state.flowCodeFile || sm.file;
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : sm.line;
-        drawerHtml =
-          '<div class="drawer-head"><div><div class="drawer-title">' + esc(sm.name) + ' · ' + esc(activeSt) + '</div><div class="drawer-sub">' + esc(sm.file) + ":" + sm.line + "</div></div></div>" +
-          '<div class="drawer-body">' +
-          '<div class="sec"><div class="sec-title">Outgoing Transitions (' + outTr.length + ")</div>" +
+        ctxTitle = esc(sm.name) + ' · <span class="mono">' + esc(activeSt) + "</span>";
+        ctxHtml =
+          '<div><div class="sec-title" style="margin-bottom:4px">Outgoing (' + outTr.length + ")</div>" +
           (outTr.length > 0 ? outTr.map((t) => '<div class="row"><span class="mono">→ ' + esc(t.to) + '</span><span class="badge b-na">' + esc(t.guard ? "guard: " + t.guard : t.event) + "</span></div>").join("") : '<div class="muted" style="font-size:12px">Terminal state.</div>') +
           "</div>" +
-          '<div class="sec"><div class="sec-title">Incoming Transitions (' + inTr.length + ")</div>" +
+          '<div><div class="sec-title" style="margin-bottom:4px">Incoming (' + inTr.length + ")</div>" +
           (inTr.length > 0 ? inTr.map((t) => '<div class="row"><span class="mono">' + esc(t.from) + ' →</span><span class="mono muted">' + esc(t.event) + "</span></div>").join("") : '<div class="muted" style="font-size:12px">Initial state.</div>') +
           "</div>" +
           (up.callers.length > 0
-            ? '<div class="sec"><div class="sec-title">Files Using This Machine (' + up.callers.length + ")</div>" +
+            ? '<div><div class="sec-title" style="margin-bottom:4px">Callers (' + up.callers.length + ")</div>" +
               up.callers.map((c) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(c.file) + '" data-flow-jump-line="' + c.line + '"><span class="mono">' + esc(c.file.split("/").pop()) + '</span><span class="mono muted">:' + c.line + " →</span></div>").join("") + "</div>"
-            : "") +
-          '<div class="sec"><div class="sec-title">Code Reference</div>' + renderFlowCodeSnippet(focusFile, focusLine) + "</div></div>";
+            : "");
+        codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }
     } else {
       const ah = (fl.asyncHandoffs || [])[state.flowSelectedAsyncIdx ?? 0];
       stageHead =
         '<div class="fx-stage-head">' +
-        '<div class="fx-head-l">' + backMapBtn +
-        '<span class="muted" style="font-size:12px">Async Handoffs</span><span class="crumb-sep">/</span>' +
-        '<span class="crumb-cur">' + esc(ah ? ah.channel : (fl.asyncCount + " channels")) + "</span>" +
+        '<div class="fx-head-l">' + backMapBtn + subNav +
+        '<span class="hud-sep"></span><span class="crumb-cur">' + esc(ah ? ah.channel : (fl.asyncCount + " channels")) + "</span>" +
         (ah ? '<span class="badge b-purple">' + esc(ah.transport) + "</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + dockToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       stageBody = fl.asyncHandoffsSvg || '<div class="fx-empty">No cross-boundary async handoffs extracted.</div>';
-      if (!ah) {
-        drawerHtml = '<div class="drawer-body"><div class="muted">Click any async handoff row to inspect producer, channel semantics, and consumer code.</div></div>';
-      } else {
+      if (ah) {
         const focusFile = state.flowCodeFile || ah.producer.file;
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : ah.producer.line;
-        drawerHtml =
-          '<div class="drawer-head"><div><div class="drawer-title">' + esc(ah.channel) + '</div><div class="drawer-sub">' + esc(ah.transport) + " · " + esc(ah.delivery) + "</div></div></div>" +
-          '<div class="drawer-body">' +
-          '<div class="sec"><div class="sec-title">Endpoints</div>' +
+        ctxTitle = '<span class="mono">' + esc(ah.channel) + "</span>";
+        ctxAction = '<span class="badge b-purple">' + esc(ah.delivery) + "</span>";
+        ctxHtml =
+          '<div><div class="sec-title" style="margin-bottom:4px">Endpoints</div>' +
           '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.producer.file) + '" data-flow-jump-line="' + ah.producer.line + '"><span class="mono">Producer: ' + esc(ah.producer.fn) + '</span><span class="mono muted">:' + ah.producer.line + " →</span></div>" +
           (ah.consumer
             ? '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(ah.consumer.file) + '" data-flow-jump-line="' + ah.consumer.line + '"><span class="mono">Consumer: ' + esc(ah.consumer.fn) + '</span><span class="mono muted">:' + ah.consumer.line + " →</span></div>"
             : '<div class="muted" style="font-size:12px;margin-top:6px">Consumer lives outside this repository or uses dynamic subscription.</div>') +
-          "</div>" +
-          '<div class="sec"><div class="sec-title">Code Reference</div>' + renderFlowCodeSnippet(focusFile, focusLine) + "</div></div>";
+          "</div>";
+        codeHtml = renderFlowCodeSnippet(focusFile, focusLine);
       }
     }
 
-    const drawerTopbar =
-      '<div class="drawer-topbar"><span class="drawer-kicker">Flow Inspector</span><button class="tbtn" data-toggle-flow-inspector="1" title="Close inspector (Esc)">✕</button></div>';
-    const inspectorOverlay = state.flowInspectorOpen
-      ? '<aside class="fx-inspector" id="drawer">' + drawerTopbar + drawerHtml + "</aside>"
-      : "";
+    const dockStyle = state.flowDockHeight && !state.flowDockCollapsed ? ' style="--fx-dock-h:' + state.flowDockHeight + 'px"' : "";
     return (
       '<div class="workspace flows-full" id="workspace">' +
-      '<div class="canvas-panel fx' + (state.flowRailHidden ? " rail-off" : "") + '">' +
-      renderFlowRail(fl, sub) +
-      '<section class="fx-stage">' + stageHead + legendStrip + renderInfoPopoverHtml() +
-      '<div class="fx-stage-body" id="fx-stage-body"><div class="fx-svg-wrap" id="fx-svg-wrap">' + stageBody + "</div></div>" +
-      inspectorOverlay +
-      "</section>" +
+      '<div class="fx-col" id="fx-col">' +
+      stageHead + legendStrip + renderInfoPopoverHtml() +
+      '<div class="fx-diagram-pane" id="fx-stage-body"><div class="fx-svg-wrap" id="fx-svg-wrap">' + stageBody + "</div></div>" +
+      (!state.flowDockCollapsed ? '<div class="fx-h-resizer" id="fx-h-resizer" title="Drag to resize · Double-click to reset"></div>' : "") +
+      '<div class="fx-dock' + (state.flowDockCollapsed ? " is-collapsed" : "") + '" id="fx-dock"' + dockStyle + ">" +
+      renderFlowBrowserCol(fl, sub) +
+      '<section class="fx-dock-col"><div class="fx-dock-head"><span class="drawer-title" style="font-size:13px">' + ctxTitle + "</span>" + ctxAction + '</div><div class="fx-dock-body">' + ctxHtml + "</div></section>" +
+      '<section class="fx-dock-col is-code"><div class="fx-code-body">' + codeHtml + "</div></section>" +
+      "</div>" +
       "</div>" +
       "</div>"
     );
   }
 
   function renderFlowCodeSnippet(filePath, focusLine) {
-    if (!filePath || filePath === ".") return '<div class="muted mono">No source file mapped.</div>';
+    if (!filePath || filePath === ".") return '<div class="muted mono" style="padding:10px">No source file mapped.</div>';
     const fIdx = ddIdxByPath.get(filePath);
-    if (fIdx === undefined) return '<div class="mono muted">' + esc(filePath) + ":" + (focusLine || 1) + "</div>";
+    if (fIdx === undefined) return '<div class="mono muted" style="padding:10px">' + esc(filePath) + ":" + (focusLine || 1) + "</div>";
     if (!FILE_SOURCES) {
       ensureFileSourcesLoaded();
-      return '<div class="mono muted">Loading source for ' + esc(filePath) + ":" + (focusLine || 1) + "…</div>";
+      return '<div class="mono muted" style="padding:10px">Loading source for ' + esc(filePath) + ":" + (focusLine || 1) + "…</div>";
     }
     const raw = FILE_SOURCES[fIdx];
-    if (!raw) return '<div class="mono muted">' + esc(filePath) + ":" + (focusLine || 1) + " (source not embedded in inline mode)</div>";
+    if (!raw) return '<div class="mono muted" style="padding:10px">' + esc(filePath) + ":" + (focusLine || 1) + " (source not embedded in inline mode)</div>";
     const lines = raw.split("\\n");
     const ln = Math.max(1, Math.min(lines.length, Number(focusLine) || 1));
     const start = state.codeFullFile ? 0 : Math.max(0, ln - 8);
-    const end = state.codeFullFile ? Math.min(lines.length, start + 140) : Math.min(lines.length, ln + 10);
+    const end = state.codeFullFile ? Math.min(lines.length, start + 140) : Math.min(lines.length, ln + 12);
     const rows = [];
     for (let i = start; i < end; i += 1) {
       const isHi = i + 1 === ln;
@@ -278,12 +258,12 @@ export function renderFlowsClientScript(): string {
     return (
       '<div class="code-frame">' +
       '<div class="code-chrome">' +
-      '<div class="code-chrome-left"><span class="code-fname" title="' + esc(filePath) + '">' + esc(filePath.split("/").pop()) + '</span><span class="code-range">:' + ln + '</span><span class="badge b-na">' + langChipForPath(filePath) + "</span></div>" +
+      '<div class="code-chrome-left"><span class="code-fname" title="' + esc(filePath) + '">' + esc(filePath) + '</span><span class="code-range">:' + ln + '</span><span class="badge b-na">' + langChipForPath(filePath) + "</span></div>" +
       '<div class="code-chrome-right">' +
       '<button class="tbtn" data-code-full="' + (state.codeFullFile ? "0" : "1") + '">' + (state.codeFullFile ? "Excerpt" : "Full") + "</button>" +
       '<button class="tbtn" data-open-file="' + esc(filePath) + '" data-open-file-line="' + ln + '">Call Graph →</button>' +
       "</div></div>" +
-      '<div class="code-box" style="max-height:420px">' + rows.join("") + "</div></div>"
+      '<div class="code-box">' + rows.join("") + "</div></div>"
     );
   }
 
@@ -306,9 +286,7 @@ export function renderFlowsClientScript(): string {
       const target = DD_FILES[edge.to];
       if (!target) continue;
       const hay = target.p.toLowerCase();
-      if (tokens.some((tok) => hay.includes(tok.replace(/services?$|dao$/, "")))) {
-        matched.push({ file: target.p, line: edge.line });
-      }
+      if (tokens.some((tok) => hay.includes(tok.replace(/services?$|dao$/, "")))) matched.push({ file: target.p, line: edge.line });
     }
     return matched.slice(0, 5);
   }
@@ -323,14 +301,8 @@ export function renderFlowsClientScript(): string {
       render();
       return true;
     }
-    if (target.closest("[data-toggle-flow-rail]")) {
-      state.flowRailHidden = !state.flowRailHidden;
-      render();
-      return true;
-    }
-    if (target.closest("[data-toggle-flow-inspector]")) {
-      state.flowInspectorOpen = !state.flowInspectorOpen;
-      if (state.flowInspectorOpen) ensureFileSourcesLoaded();
+    if (target.closest("[data-toggle-flow-dock]")) {
+      state.flowDockCollapsed = !state.flowDockCollapsed;
       render();
       return true;
     }
@@ -368,6 +340,7 @@ export function renderFlowsClientScript(): string {
       state.activeFlowId = selFlowBtn.getAttribute("data-select-flow");
       state.flowSelectedStepIdx = null;
       state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
       render();
       return true;
     }
@@ -378,6 +351,7 @@ export function renderFlowsClientScript(): string {
       const hub = (DATA.flows?.dataHubs || []).find((h) => h.entity === ent);
       state.flowSelectedHubField = ent + "::" + (hub?.fields?.[0]?.field || "");
       state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
       render();
       return true;
     }
@@ -388,6 +362,7 @@ export function renderFlowsClientScript(): string {
       const sm = (DATA.flows?.stateMachines || []).find((m) => m.id === smId);
       state.flowSelectedSmState = smId + "::" + (sm?.states?.[0] || "");
       state.flowCodeFile = null;
+      ensureFileSourcesLoaded();
       render();
       return true;
     }
@@ -401,7 +376,7 @@ export function renderFlowsClientScript(): string {
     if (stepEl) {
       state.flowSelectedStepIdx = Number(stepEl.getAttribute("data-flow-step"));
       state.flowCodeFile = null;
-      state.flowInspectorOpen = true;
+      state.flowDockCollapsed = false;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -412,7 +387,7 @@ export function renderFlowsClientScript(): string {
       state.flowSelectedHubField = key;
       if (key.includes("::")) state.activeHubEntity = key.split("::")[0];
       state.flowCodeFile = null;
-      state.flowInspectorOpen = true;
+      state.flowDockCollapsed = false;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -423,7 +398,7 @@ export function renderFlowsClientScript(): string {
       state.flowSelectedSmState = key;
       if (key.includes("::")) state.activeSmId = key.split("::")[0];
       state.flowCodeFile = null;
-      state.flowInspectorOpen = true;
+      state.flowDockCollapsed = false;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -432,7 +407,7 @@ export function renderFlowsClientScript(): string {
     if (asyncEl) {
       state.flowSelectedAsyncIdx = Number(asyncEl.getAttribute("data-async-idx"));
       state.flowCodeFile = null;
-      state.flowInspectorOpen = true;
+      state.flowDockCollapsed = false;
       ensureFileSourcesLoaded();
       render();
       const row = document.querySelector('#fx-stage-body [data-async-idx="' + state.flowSelectedAsyncIdx + '"]');
@@ -446,7 +421,7 @@ export function renderFlowsClientScript(): string {
     if (jumpEl) {
       state.flowCodeFile = jumpEl.getAttribute("data-flow-jump-file");
       state.flowCodeLine = Number(jumpEl.getAttribute("data-flow-jump-line")) || 1;
-      state.flowInspectorOpen = true;
+      state.flowDockCollapsed = false;
       ensureFileSourcesLoaded();
       render();
       return true;

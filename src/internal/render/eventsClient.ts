@@ -1,10 +1,16 @@
 export function renderEventsClientScript(): string {
   return `
   let drawerDrag = false;
+  let flowDockDrag = false;
 
   appEl.addEventListener("dblclick", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    if (target.closest("#fx-h-resizer")) {
+      state.flowDockHeight = null;
+      render();
+      return;
+    }
     if (target.closest("#drawer-resizer")) {
       state.drawerWidth = null;
       try { localStorage.removeItem("repospec:drawer-w"); } catch {}
@@ -41,6 +47,14 @@ export function renderEventsClientScript(): string {
     if (ev.button !== 0 && ev.button !== 1) return;
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    const hrz = target.closest("#fx-h-resizer");
+    if (hrz) {
+      ev.preventDefault();
+      flowDockDrag = true;
+      hrz.setPointerCapture(ev.pointerId);
+      document.getElementById("fx-col")?.classList.add("h-resizing");
+      return;
+    }
     const rz = target.closest("#drawer-resizer");
     if (rz) {
       ev.preventDefault();
@@ -75,6 +89,12 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointermove", (ev) => {
+    if (flowDockDrag) {
+      const h = Math.max(180, Math.min(Math.round(window.innerHeight * 0.74), Math.round(window.innerHeight - ev.clientY)));
+      state.flowDockHeight = h;
+      document.getElementById("fx-dock")?.style.setProperty("--fx-dock-h", h + "px");
+      return;
+    }
     if (drawerDrag) {
       const w = Math.max(280, Math.min(Math.round(window.innerWidth * 0.72), Math.round(window.innerWidth - ev.clientX)));
       state.drawerWidth = w;
@@ -119,6 +139,13 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointerup", (ev) => {
+    if (flowDockDrag) {
+      flowDockDrag = false;
+      const hrz = document.getElementById("fx-h-resizer");
+      if (hrz && hrz.hasPointerCapture(ev.pointerId)) hrz.releasePointerCapture(ev.pointerId);
+      document.getElementById("fx-col")?.classList.remove("h-resizing");
+      return;
+    }
     if (drawerDrag) {
       drawerDrag = false;
       const rz = document.getElementById("drawer-resizer");
