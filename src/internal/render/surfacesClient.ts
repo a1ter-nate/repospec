@@ -15,8 +15,8 @@ export function renderSurfacesCss(): string {
   .surf-clear:hover { color: var(--text-1); }
   .surf-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .surf-overview { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 20px 22px; align-content: start; }
-  .surf-ov-col { background: #0d121e; border: 1px solid #161e30; border-radius: 9px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .surf-ov-head { background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: inherit; }
+  .surf-ov-col { background: #0d121e; border: 1px solid #161e30; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .surf-ov-head { background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; color: inherit; }
   .surf-ov-head:hover .surf-ov-kicker { color: var(--accent); }
   .surf-ov-kicker { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
   .surf-ov-num { display: flex; align-items: baseline; gap: 8px; }
@@ -29,34 +29,48 @@ export function renderSurfacesCss(): string {
   .surf-verdict:hover { background: rgba(255,255,255,0.04); color: var(--text-1); }
   .surf-verdict.is-warn { color: var(--warn); }
   .surf-chev { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
-  .surf-verdict-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 9px 22px; border-bottom: 1px solid #161e30; background: #0b0f19; flex-shrink: 0; }
-  .surf-facet { background: #111622; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 10px; font-size: 12.5px; font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s ease, border-color 0.12s ease; }
+  .surf-verdict-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 9px 22px; border-bottom: 1px solid #161e30; background: #0b0f19; flex-shrink: 0; }
+  .surf-facets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .surf-facet { background: #111622; border: 1px solid #1e293b; border-radius: 7px; padding: 5px 10px; font-size: 12.5px; font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s ease, border-color 0.12s ease; }
   .surf-facet:hover { background: #151c2c; color: var(--text-1); }
   .surf-facet.is-warn { color: var(--warn); border-color: rgba(245,194,107,0.3); }
   .surf-facet.active { background: #151c2c; border-color: var(--accent); color: var(--text-1); }
   .surf-facet.is-warn.active { background: rgba(245,194,107,0.14); border-color: var(--warn); color: var(--warn); }
-  .surf-split-api { flex: 1; min-height: 0; display: grid; grid-template-columns: 380px minmax(0, 1fr); }
+  .surf-posture { display: flex; align-items: center; gap: 8px; min-width: 180px; }
+  .surf-split-api { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(400px, 460px) minmax(0, 1fr); }
   .surf-split-data { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
-  .surf-ledger { background: #0d121e; border-right: 1px solid #161e30; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; }
+  .surf-tile-pane { background: #0b0f19; border-right: 1px solid #161e30; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .surf-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .surf-tile-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  .surf-tile { background: #0d121e; border: 1px solid #161e30; border-radius: 9px; padding: 10px 12px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 7px; color: var(--text-2); transition: border-color 0.12s ease, background 0.12s ease; min-width: 0; }
+  .surf-tile:hover { background: #121827; border-color: var(--rs-border-hi); }
+  .surf-tile[aria-selected="true"] { background: #151c2c; border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(124,200,255,0.28); }
+  .surf-tile.is-dim { opacity: 0.35; }
+  .surf-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .surf-tile-num { font-size: 16px; font-weight: 700; font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; color: var(--text-1); }
+  .surf-tile-title { font-size: 13px; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .surf-tile-sub { font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .surf-sub-sec { border-top: 1px solid #161e30; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .surf-sub-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .surf-sub-chip { background: #0d121e; border: 1px solid #161e30; border-radius: 7px; padding: 6px 9px; display: flex; justify-content: space-between; align-items: center; gap: 6px; cursor: pointer; color: var(--text-2); font-size: 12px; transition: background 0.12s ease, border-color 0.12s ease; }
+  .surf-sub-chip:hover { background: #121827; color: var(--text-1); }
+  .surf-sub-chip[aria-selected="true"] { background: #151c2c; border-color: var(--accent); color: var(--text-1); }
   .surf-led-row { background: transparent; border: 0; border-radius: 5px; height: 28px; padding: 0 8px; display: grid; grid-template-columns: minmax(0, 148px) minmax(0, 1fr) auto; align-items: center; gap: 10px; text-align: left; color: var(--text-2); cursor: pointer; transition: background 0.12s ease; width: 100%; }
   .surf-led-row:hover { background: rgba(255,255,255,0.04); color: var(--text-1); }
-  .surf-led-row[aria-selected="true"] { background: #151c2c; color: var(--text-1); box-shadow: inset 2px 0 0 var(--accent); }
-  .surf-led-row.is-child { padding-left: 20px; }
-  .surf-led-row.is-dim { opacity: 0.35; }
   .surf-led-lbl { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .surf-led-num { font-size: 12.5px; color: var(--text-3); text-align: right; min-width: 28px; }
   .surf-led-sub { font-size: 11px; color: var(--text-4); }
-  .surf-led-kids { display: flex; flex-direction: column; margin-bottom: 4px; }
-  .surf-bar-track { height: 6px; border-radius: 2px; background: rgba(255,255,255,0.06); display: flex; overflow: hidden; width: 100%; }
+  .surf-bar-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); display: flex; overflow: hidden; width: 100%; }
   .surf-bar-track.sm { width: 64px; display: inline-flex; vertical-align: middle; }
   .surf-bar-base { background: var(--bar); height: 100%; }
   .surf-bar-pub { border: 1px solid var(--text-3); height: 100%; background: transparent; }
   .surf-bar-warn { background: var(--warn); height: 100%; }
+  .surf-dot-strip { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; min-height: 10px; }
   .surf-detail { background: #0d121e; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
   .surf-det-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #161e30; position: sticky; top: 0; background: #0d121e; z-index: 4; }
   .surf-det-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
   .surf-det-list { display: flex; flex-direction: column; padding: 4px 12px 18px; }
-  .surf-det-pad { padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .surf-det-pad { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
   .surf-det-sec { display: flex; flex-direction: column; gap: 6px; }
   .surf-sec-k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
   .surf-chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -65,27 +79,27 @@ export function renderSurfacesCss(): string {
   .surf-sticky-sub { position: sticky; top: 0; background: #0d121e; padding: 8px 6px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); border-bottom: 1px solid #161e30; }
   .surf-det-wrap { border-bottom: 1px solid rgba(22,30,48,0.65); }
   .surf-det-wrap.is-open { background: #111622; border-radius: 6px; margin: 3px 0; border: 1px solid #1e293b; }
-  .surf-det-row { background: transparent; border: 0; width: 100%; min-height: 26px; padding: 3px 6px; display: grid; grid-template-columns: 58px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; text-align: left; color: var(--text-1); cursor: pointer; transition: background 0.12s ease; }
+  .surf-det-row { background: transparent; border: 0; width: 100%; min-height: 28px; padding: 3px 6px; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; text-align: left; color: var(--text-1); cursor: pointer; transition: background 0.12s ease; }
   .surf-det-row.is-static { cursor: default; grid-template-columns: minmax(0, 1fr) auto auto; border-bottom: 1px solid rgba(22,30,48,0.65); }
   .surf-det-row:hover { background: rgba(255,255,255,0.04); }
   .surf-det-row[aria-selected="true"] { box-shadow: inset 2px 0 0 var(--accent); background: #151c2c; }
-  .surf-meth { font-size: 12px; font-weight: 600; }
+  .surf-meth { font-size: 11.5px; font-weight: 600; }
   .surf-meth.m-read { color: var(--text-3); }
   .surf-meth.m-write { color: var(--text-1); }
   .surf-meth.m-del { color: var(--err); }
   .surf-path { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .surf-path-dim { color: var(--text-4); }
-  .surf-guard-col { font-size: 12px; white-space: nowrap; }
-  .surf-warn-txt { color: var(--warn); font-size: 12px; font-weight: 500; }
+  .surf-guard-col { font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .surf-warn-txt { color: var(--warn); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
   .surf-pub-pill { border: 1px solid var(--text-3); border-radius: 4px; padding: 0 6px; font-size: 11px; color: var(--text-2); }
   .surf-guard-txt { font-size: 12px; color: var(--text-3); }
   .surf-loc-col { font-size: 11.5px; color: var(--text-4); white-space: nowrap; }
-  .surf-row-exp { padding: 8px 12px 10px 74px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #161e30; }
+  .surf-row-exp { padding: 8px 12px 10px 68px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #161e30; }
   .surf-exp-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-2); }
   .surf-exp-acts { display: flex; gap: 8px; }
   .surf-exp-acts .tbtn, .surf-det-pad .tbtn { background: #151c2c; border-color: var(--rs-border-hi); color: var(--text-1); }
   .surf-exp-acts .tbtn:hover, .surf-det-pad .tbtn:hover { background: #1d263b; border-color: var(--accent); }
-  .surf-matrix-pane { overflow: auto; border-right: 1px solid #161e30; padding: 8px 14px 20px; background: #0b0f19; }
+  .surf-matrix-pane { overflow: auto; border-right: 1px solid #161e30; padding: 12px 14px 20px; background: #0b0f19; }
   .surf-mx-tbl, .surf-cfg-tbl { width: 100%; border-collapse: collapse; }
   .surf-mx-tbl th, .surf-cfg-tbl th { position: sticky; top: 0; background: #0b0f19; z-index: 2; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); padding: 6px 4px; border-bottom: 1px solid #161e30; text-align: left; }
   .surf-cfg-tbl th { background: #0d121e; }
@@ -97,7 +111,7 @@ export function renderSurfacesCss(): string {
   .surf-mx-name { padding: 0 8px 0 6px; font-size: 12.5px; color: var(--text-1); white-space: nowrap; }
   .surf-mx-ref { padding: 0 8px; white-space: nowrap; }
   .surf-mx-n { font-size: 12px; color: var(--text-3); margin-left: 6px; display: inline-block; min-width: 26px; text-align: right; }
-  .surf-dot-on { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bar); vertical-align: middle; }
+  .surf-dot-on { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--bar); vertical-align: middle; }
   .surf-dot-warn { display: inline-block; width: 7px; height: 7px; background: var(--warn); transform: rotate(45deg); vertical-align: middle; }
   .surf-dot-off { display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.1); vertical-align: middle; }
   .surf-sq-sec { display: inline-block; width: 8px; height: 8px; border-radius: 1px; background: #c7a4ff; vertical-align: middle; }
@@ -106,7 +120,7 @@ export function renderSurfacesCss(): string {
   .surf-cfg-row:hover { background: rgba(255,255,255,0.04); }
   .surf-cfg-row.is-secret .surf-cfg-name { box-shadow: inset 2px 0 0 #c7a4ff; }
   .surf-cfg-name { padding: 0 10px; font-size: 12.5px; color: var(--text-1); white-space: nowrap; }
-  .surf-tail-btn { margin-top: 8px; background: transparent; border: 1px dashed #1e293b; border-radius: 6px; padding: 7px 10px; font-size: 12.5px; color: var(--text-3); cursor: pointer; text-align: left; width: 100%; }
+  .surf-tail-btn { margin-top: 10px; background: transparent; border: 1px dashed #1e293b; border-radius: 7px; padding: 8px 12px; font-size: 12.5px; color: var(--text-3); cursor: pointer; text-align: left; width: 100%; }
   .surf-tail-btn:hover { color: var(--text-1); border-color: var(--rs-border-hi); background: rgba(255,255,255,0.03); }
   .surf-caveat { padding: 8px 16px; font-size: 12px; color: var(--text-3); border-bottom: 1px solid #161e30; background: #0b0f19; }
   .surf-empty { padding: 20px 16px; font-size: 12.5px; color: var(--text-3); }
@@ -117,13 +131,8 @@ export function renderSurfacesClientScript(): string {
   return `
   function surfModel() {
     return DATA.surfacesModel || {
-      endpoints: [],
-      entities: [],
-      entityDomains: [],
-      entityDatastores: [],
-      envVars: [],
-      envServices: [],
-      foreignKeys: [],
+      endpoints: [], entities: [], entityDomains: [], entityDatastores: [],
+      envVars: [], envServices: [], foreignKeys: [],
       totals: {
         endpoints: 0, rawEndpoints: 0, noGuardEndpoints: 0, publicEndpoints: 0,
         writeEndpoints: 0, sourceEndpoints: 0, contractOnlyEndpoints: 0,
@@ -133,6 +142,19 @@ export function renderSurfacesClientScript(): string {
         declaredOnlyVars: 0, builtinVars: 0, foreignKeys: 0, cascadeFks: 0,
       },
     };
+  }
+
+  function surfIconSvg(kind) {
+    const p = {
+      globe: '<circle cx="12" cy="12" r="9"/><path d="M2 12h20"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>',
+      shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+      unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+      db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+      key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9"/><path d="M16 7l2 2"/><path d="M19 4l2 2"/>',
+      box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>',
+      link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    };
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (p[kind] || p.box) + "</svg>";
   }
 
   function renderSurfBar(total, warnCount, maxVal, publicCount) {
@@ -160,11 +182,7 @@ export function renderSurfacesClientScript(): string {
       const u = shortPkg(ep.unit);
       apiUnits.set(u, (apiUnits.get(u) || 0) + 1);
     }
-    const apiSub = Array.from(apiUnits.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([u, c]) => u + " " + c)
-      .join(" · ");
+    const apiSub = Array.from(apiUnits.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([u, c]) => u + " " + c).join(" · ");
 
     const topEnts = sm.entities.slice(0, 5);
     const maxEnt = topEnts.reduce((m, e) => Math.max(m, e.totalRefs), 1);
@@ -180,75 +198,53 @@ export function renderSurfacesClientScript(): string {
     const apiCol =
       '<div class="surf-ov-col">' +
       '<button class="surf-ov-head" data-surf-go="endpoints">' +
-      '<div class="surf-ov-kicker">API</div>' +
-      '<div class="surf-ov-num"><span class="tl-val">' + t.endpoints + '</span><span class="surf-ov-unit">routes</span></div>' +
-      '<div class="surf-ov-sub">' + esc(apiSub || "no routes indexed") + "</div>" +
+      '<span class="chk-ico ' + (t.noGuardEndpoints > 0 ? "t-warn" : "t-info") + '">' + surfIconSvg("globe") + "</span>" +
+      '<div><div class="surf-ov-kicker">API</div><div class="surf-ov-num"><span class="tl-val">' + t.endpoints + '</span><span class="surf-ov-unit">routes</span></div><div class="surf-ov-sub">' + esc(apiSub || "no routes") + "</div></div>" +
       "</button>" +
       '<div class="surf-ov-ledger">' +
-      (topApi.length === 0
-        ? '<div class="muted" style="font-size:12.5px">No HTTP routes indexed.</div>'
-        : topApi.map((g) =>
-            '<button class="surf-led-row" data-surf-go="endpoints" data-surf-group="' + esc(g.key) + '">' +
-            '<span class="surf-led-lbl mono">' + esc(g.label) + "</span>" +
-            renderSurfBar(g.items.length, g.unknownCount, maxApi, g.publicCount) +
-            '<span class="surf-led-num mono">' + g.items.length + "</span>" +
-            "</button>"
-          ).join("")) +
+      topApi.map((g) =>
+        '<button class="surf-led-row" data-surf-go="endpoints" data-surf-group="' + esc(g.key) + '"><span class="surf-led-lbl mono">' + esc(g.label) + "</span>" + renderSurfBar(g.items.length, g.unknownCount, maxApi, g.publicCount) + '<span class="surf-led-num mono">' + g.items.length + "</span></button>"
+      ).join("") +
       "</div>" +
       '<div class="surf-ov-verdicts">' +
       (t.noGuardEndpoints > 0 ? '<button class="surf-verdict is-warn" data-surf-go="endpoints" data-surf-facet="no_guard"><span>' + t.noGuardEndpoints + ' routes show no guard</span><span class="surf-chev">›</span></button>' : "") +
       (t.publicEndpoints > 0 ? '<button class="surf-verdict" data-surf-go="endpoints" data-surf-facet="public"><span>' + t.publicEndpoints + ' public by contract</span><span class="surf-chev">›</span></button>' : "") +
-      (t.contractOnlyEndpoints > 0 ? '<button class="surf-verdict" data-surf-go="endpoints" data-surf-facet="contract_only"><span>' + t.contractOnlyEndpoints + ' exist only in an OpenAPI file</span><span class="surf-chev">›</span></button>' : "") +
+      (t.contractOnlyEndpoints > 0 ? '<button class="surf-verdict" data-surf-go="endpoints" data-surf-facet="contract_only"><span>' + t.contractOnlyEndpoints + ' OpenAPI-only routes</span><span class="surf-chev">›</span></button>' : "") +
       "</div></div>";
 
     const dataCol =
       '<div class="surf-ov-col">' +
       '<button class="surf-ov-head" data-surf-go="entities">' +
-      '<div class="surf-ov-kicker">Data</div>' +
-      '<div class="surf-ov-num"><span class="tl-val">' + t.entities + '</span><span class="surf-ov-unit">' + esc(storeLabel || "entities") + "</span></div>" +
-      '<div class="surf-ov-sub">' + sm.entityDomains.length + " domains" + (t.foreignKeys > 0 ? " · " + t.foreignKeys + " foreign keys" : "") + "</div>" +
+      '<span class="chk-ico ' + (t.flaggedEntities > 0 ? "t-warn" : "t-info") + '">' + surfIconSvg("db") + "</span>" +
+      '<div><div class="surf-ov-kicker">Data</div><div class="surf-ov-num"><span class="tl-val">' + t.entities + '</span><span class="surf-ov-unit">' + esc(storeLabel || "entities") + '</span></div><div class="surf-ov-sub">' + sm.entityDomains.length + " domains" + (t.foreignKeys > 0 ? " · " + t.foreignKeys + " FKs" : "") + "</div></div>" +
       "</button>" +
       '<div class="surf-ov-ledger">' +
-      (topEnts.length === 0
-        ? '<div class="muted" style="font-size:12.5px">No entities indexed.</div>'
-        : topEnts.map((e) =>
-            '<button class="surf-led-row" data-surf-go="entities" data-surf-row="' + esc(e.id) + '">' +
-            '<span class="surf-led-lbl mono">' + esc(e.entity) + "</span>" +
-            renderSurfBar(e.totalRefs, e.noContract ? e.totalRefs : 0, maxEnt, 0) +
-            '<span class="surf-led-num mono">' + e.totalRefs + (e.domains.length > 0 ? '<span class="surf-led-sub"> ' + e.domains.length + "d</span>" : "") + "</span>" +
-            "</button>"
-          ).join("") +
-          (sm.entities.length > 5 ? '<div class="surf-ov-tail">' + (sm.entities.length - 5) + " more, " + smallEntCount + " with 3 refs or fewer</div>" : "")) +
+      topEnts.map((e) =>
+        '<button class="surf-led-row" data-surf-go="entities" data-surf-row="' + esc(e.id) + '"><span class="surf-led-lbl mono">' + esc(e.entity) + "</span>" + renderSurfBar(e.totalRefs, e.noContract ? e.totalRefs : 0, maxEnt, 0) + '<span class="surf-led-num mono">' + e.totalRefs + (e.domains.length > 0 ? '<span class="surf-led-sub"> ' + e.domains.length + "d</span>" : "") + "</span></button>"
+      ).join("") +
+      (sm.entities.length > 5 ? '<div class="surf-ov-tail">' + (sm.entities.length - 5) + " more · " + smallEntCount + " with ≤3 refs</div>" : "") +
       "</div>" +
       '<div class="surf-ov-verdicts">' +
-      (t.flaggedEntities > 0 ? '<button class="surf-verdict is-warn" data-surf-go="entities" data-surf-facet="no_contract"><span>' + t.flaggedEntities + ' shared by 3+ domains, no contract</span><span class="surf-chev">›</span></button>' : (t.noContractEntities > 0 ? '<button class="surf-verdict is-warn" data-surf-go="entities" data-surf-facet="no_contract"><span>' + t.noContractEntities + ' cross-domain with no contract</span><span class="surf-chev">›</span></button>' : "")) +
+      (t.flaggedEntities > 0 ? '<button class="surf-verdict is-warn" data-surf-go="entities" data-surf-facet="no_contract"><span>' + t.flaggedEntities + ' shared by 3+ domains, no contract</span><span class="surf-chev">›</span></button>' : (t.noContractEntities > 0 ? '<button class="surf-verdict is-warn" data-surf-go="entities" data-surf-facet="no_contract"><span>' + t.noContractEntities + ' cross-domain, no contract</span><span class="surf-chev">›</span></button>' : "")) +
       (t.noDomainEntities > 0 ? '<button class="surf-verdict" data-surf-go="entities" data-surf-facet="no_domain"><span>' + t.noDomainEntities + ' belong to no domain</span><span class="surf-chev">›</span></button>' : "") +
-      (t.multiWriterFieldCount > 0 ? '<button class="surf-verdict" data-jump-hub-tab="1"><span>' + t.multiWriterFieldCount + ' fields have several writers</span><span class="surf-chev">Flows ›</span></button>' : "") +
-      (t.cascadeFks > 0 ? '<button class="surf-verdict is-warn" data-surf-go="entities" data-surf-datamode="relations"><span>' + t.cascadeFks + ' cascading foreign-key deletes</span><span class="surf-chev">›</span></button>' : "") +
+      (t.multiWriterFieldCount > 0 ? '<button class="surf-verdict" data-jump-hub-tab="1"><span>' + t.multiWriterFieldCount + ' multi-writer fields</span><span class="surf-chev">Flows ›</span></button>' : "") +
       "</div></div>";
 
     const realServiceCount = svcRows.filter((g) => g.key !== "repo tooling & CI").length;
     const cfgCol =
       '<div class="surf-ov-col">' +
       '<button class="surf-ov-head" data-surf-go="env">' +
-      '<div class="surf-ov-kicker">Config</div>' +
-      '<div class="surf-ov-num"><span class="tl-val">' + t.envVars + '</span><span class="surf-ov-unit">variables, ' + t.secrets + " secrets</span></div>" +
-      '<div class="surf-ov-sub">' + realServiceCount + " service" + (realServiceCount === 1 ? "" : "s") + (svcRows.some((g) => g.key === "repo tooling & CI") ? " + repo tooling" : "") + "</div>" +
+      '<span class="chk-ico ' + (t.secretsDrift > 0 ? "t-warn" : "t-info") + '">' + surfIconSvg("key") + "</span>" +
+      '<div><div class="surf-ov-kicker">Config</div><div class="surf-ov-num"><span class="tl-val">' + t.envVars + '</span><span class="surf-ov-unit">' + t.secrets + ' secrets</span></div><div class="surf-ov-sub">' + realServiceCount + " services" + (svcRows.some((g) => g.key === "repo tooling & CI") ? " + tooling" : "") + "</div></div>" +
       "</button>" +
       '<div class="surf-ov-ledger">' +
-      (topSvc.length === 0
-        ? '<div class="muted" style="font-size:12.5px">No environment variables indexed.</div>'
-        : topSvc.map((g) =>
-            '<button class="surf-led-row" data-surf-go="env" data-surf-group="' + esc(g.key) + '">' +
-            '<span class="surf-led-lbl mono">' + esc(g.label) + "</span>" +
-            renderSurfBar(g.items.length, g.driftCount, maxSvc, 0) +
-            '<span class="surf-led-num mono">' + g.items.length + "</span>" +
-            "</button>"
-          ).join("") +
-          (extraSvcCount > 0 ? '<div class="surf-ov-tail">' + extraSvcCount + " more services · " + extraSvcVars + " vars</div>" : "")) +
+      topSvc.map((g) =>
+        '<button class="surf-led-row" data-surf-go="env" data-surf-group="' + esc(g.key) + '"><span class="surf-led-lbl mono">' + esc(g.label) + "</span>" + renderSurfBar(g.items.length, g.driftCount, maxSvc, 0) + '<span class="surf-led-num mono">' + g.items.length + "</span></button>"
+      ).join("") +
+      (extraSvcCount > 0 ? '<div class="surf-ov-tail">' + extraSvcCount + " more services · " + extraSvcVars + " vars</div>" : "") +
       "</div>" +
       '<div class="surf-ov-verdicts">' +
-      (t.secretsDrift > 0 ? '<button class="surf-verdict is-warn" data-surf-go="env" data-surf-facet="secrets_drift"><span>' + t.secretsDrift + ' secrets read in code, declared nowhere</span><span class="surf-chev">›</span></button>' : "") +
+      (t.secretsDrift > 0 ? '<button class="surf-verdict is-warn" data-surf-go="env" data-surf-facet="secrets_drift"><span>' + t.secretsDrift + ' secrets read, declared nowhere</span><span class="surf-chev">›</span></button>' : "") +
       (t.driftVars > 0 ? '<button class="surf-verdict is-warn" data-surf-go="env" data-surf-facet="drift"><span>' + t.driftVars + ' variables read, declared nowhere</span><span class="surf-chev">›</span></button>' : "") +
       (t.secrets > 0 ? '<button class="surf-verdict" data-surf-go="env" data-surf-facet="secrets"><span>' + t.secretsInIac + " of " + t.secrets + ' secrets bound in IaC</span><span class="surf-chev">›</span></button>' : "") +
       "</div></div>";
@@ -266,10 +262,7 @@ export function renderSurfacesClientScript(): string {
 
   function rerenderSurfacesBody() {
     const body = document.getElementById("surf-body");
-    if (!body) {
-      render();
-      return;
-    }
+    if (!body) { render(); return; }
     body.innerHTML = renderSurfacesBody(surfModel());
     syncHashFromState();
   }
@@ -279,14 +272,14 @@ export function renderSurfacesClientScript(): string {
     const t = sm.totals;
     const sub = state.dataSubtab || "overview";
     const navItems = [
-      { id: "overview", label: "Overview", count: null, show: true },
-      { id: "endpoints", label: "API", count: t.endpoints, show: t.endpoints > 0 },
-      { id: "entities", label: "Data", count: t.entities, show: t.entities > 0 || t.foreignKeys > 0 },
-      { id: "env", label: "Config", count: t.envVars, show: t.envVars > 0 },
+      { id: "overview", label: "Overview", icon: "box", count: null, show: true },
+      { id: "endpoints", label: "API", icon: "globe", count: t.endpoints, show: t.endpoints > 0 },
+      { id: "entities", label: "Data", icon: "db", count: t.entities, show: t.entities > 0 || t.foreignKeys > 0 },
+      { id: "env", label: "Config", icon: "key", count: t.envVars, show: t.envVars > 0 },
     ].filter((n) => n.show);
     const navHtml = navItems.map((n) =>
       '<button class="surf-nav-btn' + (sub === n.id || (sub === "fks" && n.id === "entities") ? " active" : "") + '" data-data-sub="' + n.id + '">' +
-      esc(n.label) + (n.count !== null ? ' <span class="surf-nav-n mono">' + n.count + "</span>" : "") +
+      surfIconSvg(n.icon) + " " + esc(n.label) + (n.count !== null ? ' <span class="surf-nav-n mono">' + n.count + "</span>" : "") +
       "</button>"
     ).join("");
     return (
@@ -307,106 +300,42 @@ export function renderSurfacesClientScript(): string {
   }
 
   function handleSurfacesClick(target) {
-    const clearF = target.closest("[data-surf-clear-filter]");
-    if (clearF) {
-      state.dataFilter = "";
-      render();
-      return true;
-    }
-    const hubTab = target.closest("[data-jump-hub-tab]");
-    if (hubTab) {
-      state.flowReturnFromMap = false;
-      state.tab = "flows";
-      state.flowsSubtab = "hubs";
-      ensureFileSourcesLoaded();
-      render();
-      return true;
-    }
+    if (target.closest("[data-surf-clear-filter]")) { state.dataFilter = ""; render(); return true; }
+    if (target.closest("[data-jump-hub-tab]")) { state.flowReturnFromMap = false; state.tab = "flows"; state.flowsSubtab = "hubs"; ensureFileSourcesLoaded(); render(); return true; }
     const jumpDomainMap = target.closest("[data-surf-map-domain]");
     if (jumpDomainMap) {
       const dom = jumpDomainMap.getAttribute("data-surf-map-domain") || "";
-      state.tab = "map";
-      state.activeLayerDiagId = null;
-      state.activeFolder = null;
-      state.activeFileGraph = null;
+      state.tab = "map"; state.activeLayerDiagId = null; state.activeFolder = null; state.activeFileGraph = null;
       state.mapMode = domainsDiag ? "domains" : "runtime";
       const dNode = (domainsDiag?.nodes || []).find((n) => n.label.toLowerCase() === dom.toLowerCase());
       state.selectedNodeId = dNode ? dNode.id : null;
-      render();
-      return true;
+      render(); return true;
     }
     const jumpConfigUnit = target.closest("[data-surf-config-unit]");
     if (jumpConfigUnit) {
-      state.tab = "data";
-      state.dataSubtab = "env";
-      state.surfGroup = jumpConfigUnit.getAttribute("data-surf-config-unit") || null;
-      state.surfFacet = "";
-      state.surfRow = null;
-      state.dataFilter = "";
-      render();
-      return true;
+      state.tab = "data"; state.dataSubtab = "env"; state.surfGroup = jumpConfigUnit.getAttribute("data-surf-config-unit") || null;
+      state.surfFacet = ""; state.surfRow = null; state.dataFilter = ""; render(); return true;
     }
     const goBtn = target.closest("[data-surf-go]");
     if (goBtn) {
-      const dest = goBtn.getAttribute("data-surf-go") || "overview";
-      state.tab = "data";
-      state.dataSubtab = dest;
+      state.tab = "data"; state.dataSubtab = goBtn.getAttribute("data-surf-go") || "overview";
       state.surfGroup = goBtn.getAttribute("data-surf-group") || null;
       state.surfFacet = goBtn.getAttribute("data-surf-facet") || "";
       state.surfRow = goBtn.getAttribute("data-surf-row") || null;
-      const dm = goBtn.getAttribute("data-surf-datamode");
-      state.surfDataMode = dm === "relations" ? "relations" : "footprint";
-      state.dataFilter = "";
-      render();
-      return true;
+      state.surfDataMode = goBtn.getAttribute("data-surf-datamode") === "relations" ? "relations" : "cards";
+      state.dataFilter = ""; render(); return true;
     }
     const subBtn = target.closest("[data-data-sub]");
-    if (subBtn) {
-      state.dataSubtab = subBtn.getAttribute("data-data-sub") || "overview";
-      state.surfFacet = "";
-      state.surfGroup = null;
-      state.surfRow = null;
-      state.surfTailOpen = false;
-      render();
-      return true;
-    }
+    if (subBtn) { state.dataSubtab = subBtn.getAttribute("data-data-sub") || "overview"; state.surfFacet = ""; state.surfGroup = null; state.surfRow = null; state.surfTailOpen = false; render(); return true; }
     const facetBtn = target.closest("[data-surf-facet-toggle]");
-    if (facetBtn) {
-      const f = facetBtn.getAttribute("data-surf-facet-toggle") || "";
-      state.surfFacet = state.surfFacet === f ? "" : f;
-      state.surfRow = null;
-      rerenderSurfacesBody();
-      return true;
-    }
+    if (facetBtn) { const f = facetBtn.getAttribute("data-surf-facet-toggle") || ""; state.surfFacet = state.surfFacet === f ? "" : f; state.surfRow = null; rerenderSurfacesBody(); return true; }
     const dmBtn = target.closest("[data-surf-datamode-set]");
-    if (dmBtn) {
-      state.surfDataMode = dmBtn.getAttribute("data-surf-datamode-set") || "footprint";
-      state.surfGroup = null;
-      state.surfRow = null;
-      rerenderSurfacesBody();
-      return true;
-    }
+    if (dmBtn) { state.surfDataMode = dmBtn.getAttribute("data-surf-datamode-set") || "cards"; state.surfGroup = null; state.surfRow = null; rerenderSurfacesBody(); return true; }
     const grpBtn = target.closest("[data-surf-select-group]");
-    if (grpBtn) {
-      state.surfGroup = grpBtn.getAttribute("data-surf-select-group") || null;
-      state.surfRow = null;
-      rerenderSurfacesBody();
-      return true;
-    }
+    if (grpBtn) { state.surfGroup = grpBtn.getAttribute("data-surf-select-group") || null; state.surfRow = null; rerenderSurfacesBody(); return true; }
     const rowBtn = target.closest("[data-surf-select-row]");
-    if (rowBtn) {
-      const rid = rowBtn.getAttribute("data-surf-select-row") || "";
-      const toggle = rowBtn.getAttribute("data-surf-row-toggle") === "1";
-      state.surfRow = toggle && state.surfRow === rid ? null : rid;
-      rerenderSurfacesBody();
-      return true;
-    }
-    const tailBtn = target.closest("[data-surf-toggle-tail]");
-    if (tailBtn) {
-      state.surfTailOpen = !state.surfTailOpen;
-      rerenderSurfacesBody();
-      return true;
-    }
+    if (rowBtn) { const rid = rowBtn.getAttribute("data-surf-select-row") || ""; const toggle = rowBtn.getAttribute("data-surf-row-toggle") === "1"; state.surfRow = toggle && state.surfRow === rid ? null : rid; rerenderSurfacesBody(); return true; }
+    if (target.closest("[data-surf-toggle-tail]")) { state.surfTailOpen = !state.surfTailOpen; rerenderSurfacesBody(); return true; }
     return false;
   }
 
@@ -414,48 +343,22 @@ export function renderSurfacesClientScript(): string {
     if (state.tab !== "data") return false;
     const activeTag = document.activeElement?.tagName;
     if (ev.key === "Escape") {
-      if (state.dataFilter) {
-        state.dataFilter = "";
-        render();
-        return true;
-      }
-      if (state.surfRow) {
-        state.surfRow = null;
-        rerenderSurfacesBody();
-        return true;
-      }
+      if (state.dataFilter) { state.dataFilter = ""; render(); return true; }
+      if (state.surfRow) { state.surfRow = null; rerenderSurfacesBody(); return true; }
       return false;
     }
     if (activeTag === "INPUT" || activeTag === "TEXTAREA") return false;
-    if (ev.key === "/" && !ev.metaKey && !ev.ctrlKey) {
-      ev.preventDefault();
-      const input = document.getElementById("data-filter");
-      if (input instanceof HTMLInputElement) input.focus();
-      return true;
-    }
+    if (ev.key === "/" && !ev.metaKey && !ev.ctrlKey) { ev.preventDefault(); const input = document.getElementById("data-filter"); if (input instanceof HTMLInputElement) input.focus(); return true; }
     const keyMap = { "1": "overview", "2": "endpoints", "3": "entities", "4": "env" };
-    if (keyMap[ev.key]) {
-      ev.preventDefault();
-      state.dataSubtab = keyMap[ev.key];
-      state.surfFacet = "";
-      state.surfGroup = null;
-      state.surfRow = null;
-      render();
-      return true;
-    }
+    if (keyMap[ev.key]) { ev.preventDefault(); state.dataSubtab = keyMap[ev.key]; state.surfFacet = ""; state.surfGroup = null; state.surfRow = null; render(); return true; }
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
-      const ledgers = Array.from(document.querySelectorAll("#surf-body [data-surf-select-group]"));
-      if (ledgers.length === 0) return false;
+      const tiles = Array.from(document.querySelectorAll("#surf-body [data-surf-select-group]"));
+      if (tiles.length === 0) return false;
       ev.preventDefault();
-      const curIdx = ledgers.findIndex((el) => el.getAttribute("aria-selected") === "true");
-      const nextIdx = ev.key === "ArrowDown"
-        ? (curIdx < 0 ? 0 : Math.min(ledgers.length - 1, curIdx + 1))
-        : (curIdx <= 0 ? 0 : curIdx - 1);
-      const next = ledgers[nextIdx];
-      if (next instanceof HTMLElement) {
-        next.click();
-        next.scrollIntoView({ block: "nearest" });
-      }
+      const curIdx = tiles.findIndex((el) => el.getAttribute("aria-selected") === "true");
+      const nextIdx = ev.key === "ArrowDown" ? (curIdx < 0 ? 0 : Math.min(tiles.length - 1, curIdx + 1)) : (curIdx <= 0 ? 0 : curIdx - 1);
+      const next = tiles[nextIdx];
+      if (next instanceof HTMLElement) { next.click(); next.scrollIntoView({ block: "nearest" }); }
       return true;
     }
     return false;

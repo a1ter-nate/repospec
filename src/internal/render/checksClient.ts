@@ -2,34 +2,51 @@ export function renderChecksCss(): string {
   return `
   .chk-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #0b0f19; overflow: hidden; }
   .chk-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-bottom: 1px solid #161e30; background: #0d121e; flex-shrink: 0; }
-  .chk-verdict { font-size: 14px; font-weight: 500; color: var(--text-1); padding: 9px 22px; border-bottom: 1px solid #161e30; background: #0b0f19; flex-shrink: 0; }
-  .chk-split { flex: 1; min-height: 0; display: grid; grid-template-columns: 390px minmax(0, 1fr); }
-  .chk-left { background: #0d121e; border-right: 1px solid #161e30; display: flex; flex-direction: column; min-height: 0; }
-  .chk-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
-  .chk-tier { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); padding: 10px 8px 4px; }
-  .chk-tier:first-child { padding-top: 2px; }
+  .chk-kpis { display: flex; align-items: center; gap: 8px; padding: 10px 22px; border-bottom: 1px solid #161e30; background: #0b0f19; flex-shrink: 0; flex-wrap: wrap; }
+  .chk-kpi { background: #0d121e; border: 1px solid #161e30; border-radius: 8px; padding: 7px 12px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-2); transition: border-color 0.12s ease, background 0.12s ease; }
+  .chk-kpi:hover { background: #121827; border-color: var(--rs-border-hi); color: var(--text-1); }
+  .chk-kpi.active { background: #151c2c; border-color: var(--accent); color: var(--text-1); }
+  .chk-kpi-n { font-size: 18px; font-weight: 700; line-height: 1; color: var(--text-1); font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; }
+  .chk-kpi.k-err .chk-kpi-n { color: var(--err); }
+  .chk-kpi.k-warn .chk-kpi-n { color: var(--warn); }
+  .chk-kpi.k-ok .chk-kpi-n { color: var(--ok); }
+  .chk-kpi-lbl { display: flex; flex-direction: column; text-align: left; gap: 1px; }
+  .chk-kpi-t { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); }
+  .chk-kpi-s { font-size: 11px; color: var(--text-4); font-family: var(--font-mono, monospace); }
+  .chk-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(420px, 500px) minmax(0, 1fr); }
+  .chk-left { background: #0b0f19; border-right: 1px solid #161e30; display: flex; flex-direction: column; min-height: 0; }
+  .chk-grid-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .chk-tier { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 6px; }
   .chk-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
   .chk-dot.d-err { background: var(--err); }
   .chk-dot.d-warn { background: var(--warn); }
   .chk-dot.d-hollow { border: 1.5px solid var(--text-4); background: transparent; }
   .chk-dot.d-ok { background: var(--ok); }
-  .chk-row { background: transparent; border: 0; border-radius: 5px; width: 100%; padding: 5px 8px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: var(--text-2); transition: background 0.12s ease; }
-  .chk-row.is-compact { padding: 4px 8px; min-height: 28px; justify-content: center; }
-  .chk-row:hover { background: rgba(255,255,255,0.04); color: var(--text-1); }
-  .chk-row[aria-selected="true"] { background: #151c2c; color: var(--text-1); box-shadow: inset 2px 0 0 var(--accent); }
-  .chk-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .chk-row-name { font-size: 13px; font-weight: 500; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chk-row-cnt { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
-  .chk-row-cnt.is-err { color: var(--err); font-weight: 600; }
-  .chk-row-where { font-size: 11.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chk-foot { border-top: 1px solid #161e30; padding: 8px 12px; background: #0b0f19; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .chk-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .chk-tile-grid.is-single { grid-template-columns: 1fr; }
+  .chk-tile { background: #0d121e; border: 1px solid #161e30; border-radius: 9px; padding: 10px 12px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); transition: border-color 0.12s ease, background 0.12s ease; position: relative; }
+  .chk-tile:hover { background: #121827; border-color: var(--rs-border-hi); }
+  .chk-tile[aria-selected="true"] { background: #151c2c; border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(124,200,255,0.28); }
+  .chk-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chk-ico { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-3); }
+  .chk-ico.t-err { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.28); color: var(--err); }
+  .chk-ico.t-warn { background: rgba(245,194,107,0.11); border-color: rgba(245,194,107,0.26); color: var(--warn); }
+  .chk-ico.t-info { background: rgba(124,200,255,0.09); border-color: rgba(124,200,255,0.22); color: var(--accent); }
+  .chk-tile-cnt { font-size: 16px; font-weight: 700; font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; color: var(--text-1); }
+  .chk-tile-cnt.is-err { color: var(--err); }
+  .chk-tile-title { font-size: 13px; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chk-tile-sub { font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chk-tile-dots { display: flex; align-items: center; gap: 4px; }
+  .chk-foot { border-top: 1px solid #161e30; padding: 8px 14px; background: #0d121e; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
   .chk-foot-det summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); user-select: none; }
   .chk-foot-det summary::-webkit-details-marker { display: none; }
   .chk-foot-det summary:hover { color: var(--text-1); }
   .chk-foot-det[open] summary .disc-chev { transform: rotate(90deg); }
   .chk-foot-body { margin-top: 6px; padding-left: 13px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-3); max-height: 150px; overflow-y: auto; }
   .chk-right { background: #0d121e; overflow-y: auto; padding: 20px 26px 28px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-  .chk-det-title { font-size: 16px; font-weight: 600; color: var(--text-1); line-height: 1.3; max-width: 72ch; }
+  .chk-det-head { display: flex; align-items: center; gap: 12px; }
+  .chk-det-title { font-size: 17px; font-weight: 600; color: var(--text-1); line-height: 1.25; }
+  .chk-det-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
   .chk-det-prose { font-size: 13px; color: var(--text-2); line-height: 1.55; max-width: 72ch; }
   .chk-sec { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #161e30; padding-top: 14px; }
   .chk-sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
@@ -57,7 +74,7 @@ export function renderChecksCss(): string {
   .chk-acts .tbtn:hover { background: #1d263b; border-color: var(--accent); }
   .chk-meta-foot { font-size: 11.5px; color: var(--text-4); font-family: var(--font-mono, monospace); padding-top: 8px; border-top: 1px solid #161e30; }
   .chk-shell button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  @media (max-width: 1080px) { .chk-split { grid-template-columns: 1fr; } .chk-left { max-height: 44vh; border-right: 0; border-bottom: 1px solid #161e30; } }`;
+  @media (max-width: 1100px) { .chk-split { grid-template-columns: 1fr; } .chk-left { max-height: 46vh; border-right: 0; border-bottom: 1px solid #161e30; } }`;
 }
 
 export function renderChecksClientScript(): string {
@@ -70,6 +87,22 @@ export function renderChecksClientScript(): string {
       places: [],
       defaultCheckId: null,
     };
+  }
+
+  function checkIconSvg(kind) {
+    const p = {
+      layers: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+      plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/>',
+      bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>',
+      cycle: '<path d="M21 12a9 9 0 0 0-15.5-6.3L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 15.5 6.3L21 16"/><path d="M21 21v-5h-5"/>',
+      db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+      key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9"/><path d="M16 7l2 2"/><path d="M19 4l2 2"/>',
+      shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+      doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+      state: '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M9 12h6"/>',
+    };
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (p[kind] || p.shield) + "</svg>";
   }
 
   function renderCheckExcerpt(filePath, focusLine) {
@@ -129,16 +162,17 @@ export function renderChecksClientScript(): string {
   }
 
   function renderCheckDetailPane(item) {
-    if (!item) return '<div class="surf-empty">Select a check on the left to inspect evidence and fix guidance.</div>';
+    if (!item) return '<div class="surf-empty">Select a visual tile on the left to inspect code and fix guidance.</div>';
     const inv = invById.get(item.id) || item;
     const rawEv = inv.evidence || [];
     const truncNote = item.violationCount > rawEv.length ? rawEv.length + " of " + item.violationCount + " loaded" : item.violationCount + " place" + (item.violationCount === 1 ? "" : "s");
     const whereMeta = [truncNote, item.unitSummary].filter(Boolean).join(" · ");
+    const icoTone = item.tier === "broken" ? "t-err" : item.tier === "fix_next" ? "t-warn" : "";
 
     let evHtml = "";
     if (item.isEnvDrift) {
       evHtml =
-        '<div class="chk-det-prose">Environment variables read in code without a matching declaration are tracked in Surfaces → Config with exact per-service drift columns (Code, Example, CI, IaC).</div>' +
+        '<div class="chk-det-prose">Environment variables read in code without a declaration are mapped in Surfaces → Config with per-service provenance columns (Code, Example, CI, IaC).</div>' +
         '<div class="chk-acts"><button class="tbtn tbtn-accent" data-chk-jump="surfaces_config">Open Config Drift →</button></div>';
     } else if (item.violationCount <= 6) {
       evHtml = rawEv.map((ev, idx) => renderCheckEvidenceRow(ev, item.id + "::" + idx, idx === 0, false)).join("");
@@ -179,7 +213,7 @@ export function renderChecksClientScript(): string {
     }
 
     return (
-      '<div class="chk-det-title">' + esc(item.name) + "</div>" +
+      '<div class="chk-det-head"><span class="chk-ico ' + icoTone + '">' + checkIconSvg(item.iconKind) + '</span><div><div class="chk-det-title">' + esc(item.shortTitle || item.name) + '</div><div class="chk-det-sub">' + esc(item.name) + "</div></div></div>" +
       '<div class="chk-det-prose">' + esc(item.why || item.statement) + "</div>" +
       '<div class="chk-sec"><div class="chk-sec-head"><span class="surf-sec-k">Where</span><span class="mono muted" style="font-size:12px">' + esc(whereMeta) + "</span></div>" + evHtml + "</div>" +
       (item.fix ? '<div class="chk-sec"><div class="surf-sec-k">Fix</div><div class="chk-det-prose">' + esc(item.fix) + "</div></div>" : "") +
@@ -195,7 +229,7 @@ export function renderChecksClientScript(): string {
     if (!place) return '<div class="surf-empty">No files currently trip multiple checks in loaded evidence.</div>';
     const firstLine = place.findings[0]?.line || 1;
     return (
-      '<div class="chk-det-title mono">' + esc(place.file) + "</div>" +
+      '<div class="chk-det-head"><span class="chk-ico ' + (place.hasBroken ? "t-err" : "t-warn") + '">' + checkIconSvg("doc") + '</span><div><div class="chk-det-title mono">' + esc(place.baseName) + '</div><div class="chk-det-sub mono">' + esc(place.file) + "</div></div></div>" +
       '<div class="chk-det-prose">' + place.checkCount + " distinct checks (" + place.hitCount + " findings from loaded evidence) in " + esc(place.unit) + ".</div>" +
       '<div class="chk-sec"><div class="surf-sec-k">Findings in line order</div>' +
       place.findings.map((f, idx) => renderCheckEvidenceRow({ file: place.file, line: f.line, subject: f.subject, detail: "[" + f.checkName + "] " + f.detail }, "place::" + place.file + "::" + idx, idx === 0, false)).join("") +
@@ -209,6 +243,7 @@ export function renderChecksClientScript(): string {
 
   function renderChecksTab() {
     const cm = checksModelData();
+    const c = cm.counts;
     const view = state.checksView === "places" ? "places" : "rules";
     const activeItems = cm.items.filter((i) => i.tier !== "holding");
     const holdingItems = cm.items.filter((i) => i.tier === "holding");
@@ -218,45 +253,59 @@ export function renderChecksClientScript(): string {
     const selItem = cm.items.find((i) => i.id === state.checkId) || cm.items.find((i) => i.id === cm.defaultCheckId) || cm.items[0] || null;
     const selPlace = cm.places.find((p) => p.file === state.checkPlace) || cm.places[0] || null;
 
-    let leftListHtml = "";
+    const kpiStrip =
+      '<div class="chk-kpis">' +
+      '<button class="chk-kpi k-err" data-chk-tier-jump="broken"><span class="chk-kpi-n">' + c.broken + '</span><span class="chk-kpi-lbl"><span class="chk-kpi-t">Broken</span><span class="chk-kpi-s">' + c.brokenHits + " hits</span></span></button>" +
+      '<button class="chk-kpi k-warn" data-chk-tier-jump="fix_next"><span class="chk-kpi-n">' + c.fixNext + '</span><span class="chk-kpi-lbl"><span class="chk-kpi-t">Fix Next</span><span class="chk-kpi-s">' + c.fixNextHits + " hits</span></span></button>" +
+      '<button class="chk-kpi" data-chk-tier-jump="patterns"><span class="chk-kpi-n">' + c.patterns + '</span><span class="chk-kpi-lbl"><span class="chk-kpi-t">Patterns</span><span class="chk-kpi-s">' + c.patternHits + " hits</span></span></button>" +
+      '<button class="chk-kpi" data-chk-tier-jump="housekeeping"><span class="chk-kpi-n">' + c.housekeeping + '</span><span class="chk-kpi-lbl"><span class="chk-kpi-t">Chores</span><span class="chk-kpi-s">' + c.housekeepingHits + " hits</span></span></button>" +
+      '<div class="chk-kpi k-ok" style="cursor:default"><span class="chk-kpi-n">' + c.passed + '</span><span class="chk-kpi-lbl"><span class="chk-kpi-t">Holding</span><span class="chk-kpi-s">guardrails</span></span></div>' +
+      "</div>";
+
+    let leftGridHtml = "";
     if (view === "places") {
-      leftListHtml = cm.places.length === 0
+      leftGridHtml = cm.places.length === 0
         ? '<div class="surf-empty">No files trip two or more checks in loaded evidence.</div>'
-        : cm.places.map((p) => {
+        : '<div class="chk-tile-grid">' + cm.places.map((p) => {
             const isSel = selPlace && selPlace.file === p.file;
+            const dots = Array.from({ length: Math.min(5, p.checkCount) }).map((_, di) =>
+              '<span class="chk-dot ' + (p.hasBroken && di === 0 ? "d-err" : "d-warn") + '"></span>'
+            ).join("");
             return (
-              '<button class="chk-row" data-chk-select-place="' + esc(p.file) + '" aria-selected="' + (isSel ? "true" : "false") + '">' +
-              '<div class="chk-row-top"><span class="chk-row-name mono">' + esc(p.baseName) + '</span><span class="chk-row-cnt mono' + (p.hasBroken ? " is-err" : "") + '">' + p.checkCount + " checks</span></div>" +
-              '<div class="chk-row-where mono">' + esc(p.unit + " · " + p.hitCount + " hits") + "</div>" +
+              '<button class="chk-tile" data-chk-select-place="' + esc(p.file) + '" aria-selected="' + (isSel ? "true" : "false") + '">' +
+              '<div class="chk-tile-top"><span class="chk-ico ' + (p.hasBroken ? "t-err" : "t-warn") + '">' + checkIconSvg("doc") + '</span><span class="chk-tile-cnt' + (p.hasBroken ? " is-err" : "") + '">' + p.checkCount + "</span></div>" +
+              '<div class="chk-tile-title mono">' + esc(p.baseName) + "</div>" +
+              '<div class="chk-tile-sub">' + esc(p.unit) + "</div>" +
+              '<div class="chk-tile-dots">' + dots + '<span class="muted mono" style="font-size:11px;margin-left:4px">' + p.hitCount + " hits</span></div>" +
               "</button>"
             );
-          }).join("");
+          }).join("") + "</div>";
     } else {
       const tiers = [
-        { key: "broken", label: "Broken", dot: "d-err", compact: false },
-        { key: "fix_next", label: "Fix next", dot: "d-warn", compact: false },
-        { key: "patterns", label: "Patterns", dot: "d-hollow", compact: true },
-        { key: "housekeeping", label: "Housekeeping", dot: "d-hollow", compact: true },
+        { key: "broken", label: "Broken", dot: "d-err", icoTone: "t-err" },
+        { key: "fix_next", label: "Fix Next", dot: "d-warn", icoTone: "t-warn" },
+        { key: "patterns", label: "Patterns", dot: "d-hollow", icoTone: "" },
+        { key: "housekeeping", label: "Housekeeping", dot: "d-hollow", icoTone: "" },
       ];
-      leftListHtml = tiers.map((t) => {
+      leftGridHtml = tiers.map((t) => {
         const list = activeItems.filter((i) => i.tier === t.key);
         if (list.length === 0) return "";
         return (
-          '<div class="chk-tier"><span class="chk-dot ' + t.dot + '"></span>' + esc(t.label) + "</div>" +
+          '<div><div class="chk-tier"><span class="chk-dot ' + t.dot + '"></span>' + esc(t.label) + '</div><div class="chk-tile-grid' + (list.length === 1 ? " is-single" : "") + '">' +
           list.map((it) => {
             const isSel = selItem && selItem.id === it.id;
+            const sub = it.wherePreview || it.unitSummary || (it.violationCount + " hits");
             return (
-              '<button class="chk-row' + (t.compact ? " is-compact" : "") + '" data-chk-select="' + esc(it.id) + '" aria-selected="' + (isSel ? "true" : "false") + '">' +
-              '<div class="chk-row-top"><span class="chk-row-name">' + esc(it.name) + '</span><span class="chk-row-cnt mono' + (t.key === "broken" ? " is-err" : "") + '">' + it.violationCount + "</span></div>" +
-              (!t.compact && it.wherePreview ? '<div class="chk-row-where mono">' + esc(it.wherePreview) + "</div>" : "") +
+              '<button class="chk-tile" data-chk-select="' + esc(it.id) + '" aria-selected="' + (isSel ? "true" : "false") + '" title="' + esc(it.name) + '">' +
+              '<div class="chk-tile-top"><span class="chk-ico ' + t.icoTone + '">' + checkIconSvg(it.iconKind) + '</span><span class="chk-tile-cnt' + (t.key === "broken" ? " is-err" : "") + '">' + it.violationCount + "</span></div>" +
+              '<div class="chk-tile-title">' + esc(it.shortTitle || it.name) + "</div>" +
+              '<div class="chk-tile-sub">' + esc(sub) + "</div>" +
               "</button>"
             );
-          }).join("")
+          }).join("") + "</div></div>"
         );
       }).join("");
-      if (!leftListHtml) {
-        leftListHtml = '<div class="surf-empty">0 broken rules and 0 active warnings.</div>';
-      }
+      if (!leftGridHtml) leftGridHtml = '<div class="surf-empty">0 broken rules and 0 active warnings.</div>';
     }
 
     const scopeLabel = DATA.verification && DATA.verification.coverageSource !== "static_reachability_1hop"
@@ -264,11 +313,10 @@ export function renderChecksClientScript(): string {
       : "static 1-hop reach";
     const scopeNote = (DATA.verification && DATA.verification.scopeNotes && DATA.verification.scopeNotes[0]) ||
       "Static structural graph & local invariant analysis only. Behavioral semantics, runtime auth enforcement, and cross-repo wire contracts require runtime E2E/contract proofs.";
-
     const holdingHtml =
-      '<details class="chk-foot-det"><summary><span class="disc-chev">▸</span><span class="chk-dot d-ok"></span>Holding ' + passedItems.length + (naItems.length > 0 ? " · " + naItems.length + " not applicable" : "") + '</summary><div class="chk-foot-body">' +
-      passedItems.map((p) => '<div>✓ ' + esc(p.name) + "</div>").join("") +
-      naItems.map((n) => '<div>— ' + esc(n.name) + (n.applicabilityReason ? " (" + esc(n.applicabilityReason) + ")" : "") + "</div>").join("") +
+      '<details class="chk-foot-det"><summary><span class="disc-chev">▸</span><span class="chk-dot d-ok"></span>Holding ' + passedItems.length + (naItems.length > 0 ? " · " + naItems.length + " N/A" : "") + '</summary><div class="chk-foot-body">' +
+      passedItems.map((p) => '<div>✓ ' + esc(p.shortTitle || p.name) + "</div>").join("") +
+      naItems.map((n) => '<div>— ' + esc(n.shortTitle || n.name) + (n.applicabilityReason ? " (" + esc(n.applicabilityReason) + ")" : "") + "</div>").join("") +
       "</div></details>";
     const scopeHtml =
       '<details class="chk-foot-det"><summary><span class="disc-chev">▸</span>Verification Scope · <span class="mono">' + esc(scopeLabel) + '</span></summary><div class="chk-foot-body">' + esc(scopeNote) + "</div></details>";
@@ -280,21 +328,31 @@ export function renderChecksClientScript(): string {
       '<span class="surf-det-title">Checks</span>' +
       '<span class="seg-group">' +
       '<button class="seg-btn' + (view === "rules" ? " active" : "") + '" data-chk-view="rules">Rules (' + activeItems.length + ")</button>" +
-      '<button class="seg-btn' + (view === "places" ? " active" : "") + '" data-chk-view="places">Places (' + cm.places.length + ")</button>" +
+      '<button class="seg-btn' + (view === "places" ? " active" : "") + '" data-chk-view="places">Hotspots (' + cm.places.length + ")</button>" +
       "</span>" +
       "</div>" +
       '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read Checks">?</button>' +
       "</div>" +
       renderInfoPopoverHtml() +
-      '<div class="chk-verdict">' + esc(cm.verdict) + "</div>" +
+      kpiStrip +
       '<div class="chk-split">' +
-      '<div class="chk-left"><div class="chk-list">' + leftListHtml + '</div><div class="chk-foot">' + holdingHtml + scopeHtml + "</div></div>" +
+      '<div class="chk-left"><div class="chk-grid-wrap">' + leftGridHtml + '</div><div class="chk-foot">' + holdingHtml + scopeHtml + "</div></div>" +
       '<div class="chk-right">' + (view === "places" ? renderPlaceDetailPane(selPlace) : renderCheckDetailPane(selItem)) + "</div>" +
       "</div></div>"
     );
   }
 
   function handleChecksClick(target) {
+    const tierJump = target.closest("[data-chk-tier-jump]");
+    if (tierJump) {
+      const tk = tierJump.getAttribute("data-chk-tier-jump");
+      state.checksView = "rules";
+      const first = checksModelData().items.find((i) => i.tier === tk);
+      if (first) state.checkId = first.id;
+      state.checkExpEv = null;
+      render();
+      return true;
+    }
     const viewBtn = target.closest("[data-chk-view]");
     if (viewBtn) {
       state.checksView = viewBtn.getAttribute("data-chk-view") || "rules";
@@ -404,40 +462,21 @@ export function renderChecksClientScript(): string {
     if (state.tab !== "checks") return false;
     const activeTag = document.activeElement?.tagName;
     if (activeTag === "INPUT" || activeTag === "TEXTAREA") return false;
-    if (ev.key === "1") {
-      ev.preventDefault();
-      state.checksView = "rules";
-      state.checkExpEv = null;
-      render();
-      return true;
-    }
-    if (ev.key === "2") {
-      ev.preventDefault();
-      state.checksView = "places";
-      state.checkExpEv = null;
-      render();
-      return true;
-    }
+    if (ev.key === "1") { ev.preventDefault(); state.checksView = "rules"; state.checkExpEv = null; render(); return true; }
+    if (ev.key === "2") { ev.preventDefault(); state.checksView = "places"; state.checkExpEv = null; render(); return true; }
     if (ev.key === "c" && !ev.metaKey && !ev.ctrlKey) {
       const btn = document.querySelector(".chk-right [data-copy-inv], .chk-right [data-chk-copy-place]");
-      if (btn instanceof HTMLElement) {
-        ev.preventDefault();
-        btn.click();
-        return true;
-      }
+      if (btn instanceof HTMLElement) { ev.preventDefault(); btn.click(); return true; }
     }
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp" || ev.key === "j" || ev.key === "k") {
-      const rows = Array.from(document.querySelectorAll(".chk-list .chk-row"));
-      if (rows.length === 0) return false;
+      const tiles = Array.from(document.querySelectorAll(".chk-grid-wrap .chk-tile"));
+      if (tiles.length === 0) return false;
       ev.preventDefault();
-      const cur = rows.findIndex((el) => el.getAttribute("aria-selected") === "true");
+      const cur = tiles.findIndex((el) => el.getAttribute("aria-selected") === "true");
       const down = ev.key === "ArrowDown" || ev.key === "j";
-      const next = down ? (cur < 0 ? 0 : Math.min(rows.length - 1, cur + 1)) : (cur <= 0 ? 0 : cur - 1);
-      const targetEl = rows[next];
-      if (targetEl instanceof HTMLElement) {
-        targetEl.click();
-        targetEl.scrollIntoView({ block: "nearest" });
-      }
+      const next = down ? (cur < 0 ? 0 : Math.min(tiles.length - 1, cur + 1)) : (cur <= 0 ? 0 : cur - 1);
+      const el = tiles[next];
+      if (el instanceof HTMLElement) { el.click(); el.scrollIntoView({ block: "nearest" }); }
       return true;
     }
     return false;

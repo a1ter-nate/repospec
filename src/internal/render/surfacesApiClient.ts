@@ -4,16 +4,18 @@ export function renderSurfacesApiClientScript(): string {
     const raw = new Map();
     for (const ep of endpoints) {
       const k = ep.prefix || "(root)";
-      const cur = raw.get(k) || { key: k, label: k, items: [], unknownCount: 0, publicCount: 0, subMap: new Map() };
+      const cur = raw.get(k) || { key: k, label: k, items: [], unknownCount: 0, publicCount: 0, writeCount: 0, subMap: new Map() };
       cur.items.push(ep);
       if (ep.guardClass === "unknown") cur.unknownCount += 1;
       else if (ep.guardClass === "public") cur.publicCount += 1;
+      if (ep.isWrite) cur.writeCount += 1;
       if (k !== "(root)" && ep.subPrefix) {
         const sk = k + "/" + ep.subPrefix;
-        const sub = cur.subMap.get(sk) || { key: sk, label: ep.subPrefix, items: [], unknownCount: 0, publicCount: 0 };
+        const sub = cur.subMap.get(sk) || { key: sk, label: ep.subPrefix, items: [], unknownCount: 0, publicCount: 0, writeCount: 0 };
         sub.items.push(ep);
         if (ep.guardClass === "unknown") sub.unknownCount += 1;
         else if (ep.guardClass === "public") sub.publicCount += 1;
+        if (ep.isWrite) sub.writeCount += 1;
         cur.subMap.set(sk, sub);
       }
       raw.set(k, cur);
@@ -24,12 +26,14 @@ export function renderSurfacesApiClientScript(): string {
     let smallPrefixCount = 0;
     let smallUnknown = 0;
     let smallPublic = 0;
+    let smallWrite = 0;
     for (const g of sorted) {
       if (g.key !== "(root)" && g.items.length < 3 && sorted.length > 6) {
         smallPrefixCount += 1;
         smallItems.push(...g.items);
         smallUnknown += g.unknownCount;
         smallPublic += g.publicCount;
+        smallWrite += g.writeCount;
       } else {
         const subAll = Array.from(g.subMap.values()).sort((a, b) => b.items.length - a.items.length || a.label.localeCompare(b.label));
         const subMajor = [];
@@ -48,28 +52,13 @@ export function renderSurfacesApiClientScript(): string {
           }
         }
         if (subTail.length > 0) {
-          subMajor.push({
-            key: g.key + "/__small__",
-            label: subTailCount + " small",
-            items: subTail,
-            unknownCount: subTailUnk,
-            publicCount: subTailPub,
-            isSmall: true,
-          });
+          subMajor.push({ key: g.key + "/__small__", label: subTailCount + " small", items: subTail, unknownCount: subTailUnk, publicCount: subTailPub, isSmall: true });
         }
         major.push({ ...g, children: g.items.length >= 20 ? subMajor : [] });
       }
     }
     if (smallItems.length > 0) {
-      major.push({
-        key: "__small__",
-        label: smallPrefixCount + " small prefixes",
-        items: smallItems,
-        unknownCount: smallUnknown,
-        publicCount: smallPublic,
-        children: [],
-        isSmall: true,
-      });
+      major.push({ key: "__small__", label: smallPrefixCount + " small prefixes", items: smallItems, unknownCount: smallUnknown, publicCount: smallPublic, writeCount: smallWrite, children: [], isSmall: true });
     }
     return major;
   }
@@ -83,7 +72,7 @@ export function renderSurfacesApiClientScript(): string {
     }
     let guardHtml = "";
     if (ep.guardClass === "unknown") {
-      guardHtml = '<span class="surf-warn-txt" title="Static analysis saw no route-level guard; may sit behind app.use middleware">no guard seen</span>';
+      guardHtml = '<span class="surf-warn-txt" title="No route-level guard seen statically; may sit behind app.use middleware">' + surfIconSvg("unlock") + "</span>";
     } else if (ep.guardClass === "public") {
       guardHtml = '<span class="surf-pub-pill">public</span>';
     } else if (ep.guardName && ep.guardName !== dominantGuard) {
@@ -95,7 +84,7 @@ export function renderSurfacesApiClientScript(): string {
         '<div class="surf-exp-meta">' +
         '<span><span class="muted">service</span> <span class="mono">' + esc(shortPkg(ep.unit)) + "</span></span>" +
         '<span><span class="muted">source</span> <span class="mono">' + esc(ep.file + (ep.line > 1 ? ":" + ep.line : "")) + "</span></span>" +
-        (ep.guardClass === "guarded" ? '<span><span class="muted">guard</span> <span class="mono">' + esc(ep.guardExpr || ep.guardName) + "</span></span>" : "") +
+        (ep.guardClass === "guarded" ? '<span><span class="muted">guard</span> <span class="mono">' + esc(ep.guardExpr || ep.guardName) + "</span></span>" : (ep.guardClass === "unknown" ? '<span class="surf-warn-txt">no guard seen statically</span>' : "")) +
         "</div>" +
         '<div class="surf-exp-acts">' +
         (ep.hasSource ? '<button class="tbtn" data-open-file="' + esc(ep.file) + '" data-open-file-line="' + ep.line + '">Open code →</button>' : "") +
@@ -133,7 +122,6 @@ export function renderSurfacesApiClientScript(): string {
 
     const groups = buildApiPrefixGroups(allEps);
     const maxCount = groups.reduce((m, g) => Math.max(m, g.items.length), 1);
-
     const flatLookup = new Map();
     for (const g of groups) {
       flatLookup.set(g.key, g);
@@ -145,47 +133,60 @@ export function renderSurfacesApiClientScript(): string {
       const worst = [...groups].sort((a, b) => b.unknownCount - a.unknownCount || b.items.length - a.items.length)[0];
       selKey = worst ? worst.key : null;
     }
+    const selParent = selKey && selKey.includes("/") ? selKey.split("/")[0] : selKey;
+    const activeParentGrp = groups.find((g) => g.key === selParent) || null;
 
     const verdicts = [
-      { id: "no_guard", label: "no guard seen", count: t.noGuardEndpoints, warn: true },
-      { id: "public", label: "public", count: t.publicEndpoints, warn: false },
-      { id: "writes", label: "writes", count: t.writeEndpoints, warn: false },
-      { id: "has_handler", label: "has handler", count: t.sourceEndpoints, warn: false },
+      { id: "no_guard", icon: "unlock", label: "No guard seen", count: t.noGuardEndpoints, warn: true },
+      { id: "public", icon: "globe", label: "Public", count: t.publicEndpoints, warn: false },
+      { id: "writes", icon: "shield", label: "Writes", count: t.writeEndpoints, warn: false },
+      { id: "has_handler", icon: "box", label: "Has source", count: t.sourceEndpoints, warn: false },
     ].filter((v) => v.count > 0);
-    const verdictHtml = '<div class="surf-verdict-bar">' + verdicts.map((v) =>
-      '<button class="surf-facet' + (v.warn ? " is-warn" : "") + (facet === v.id ? " active" : "") + '" data-surf-facet-toggle="' + v.id + '">' +
-      esc(v.label) + ' <span class="mono">' + v.count + "</span></button>"
-    ).join("") + "</div>";
+    const verdictHtml =
+      '<div class="surf-verdict-bar"><div class="surf-facets">' +
+      verdicts.map((v) =>
+        '<button class="surf-facet' + (v.warn ? " is-warn" : "") + (facet === v.id ? " active" : "") + '" data-surf-facet-toggle="' + v.id + '">' +
+        surfIconSvg(v.icon) + " " + esc(v.label) + ' <span class="mono">' + v.count + "</span></button>"
+      ).join("") +
+      '</div><div class="surf-posture" title="Auth posture across all ' + t.endpoints + ' routes">' +
+      renderSurfBar(t.endpoints, t.noGuardEndpoints, Math.max(1, t.endpoints), t.publicEndpoints) +
+      '<span class="muted mono" style="font-size:11.5px;white-space:nowrap">' + Math.round(((t.endpoints - t.noGuardEndpoints) / Math.max(1, t.endpoints)) * 100) + "% guarded</span>" +
+      "</div></div>";
 
-    const selParent = selKey && selKey.includes("/") ? selKey.split("/")[0] : selKey;
-    const ledgerHtml = groups.map((g) => {
-      const gMatched = g.items.filter((ep) => matchesFacet(ep) && matchesQ(ep));
-      const dimmed = (q || facet) && gMatched.length === 0;
-      const isSel = selKey === g.key;
-      const showKids = (g.children || []).length > 0 && (selParent === g.key);
-      const kidsHtml = showKids
-        ? '<div class="surf-led-kids">' + g.children.map((c) => {
-            const cMatched = c.items.filter((ep) => matchesFacet(ep) && matchesQ(ep));
-            const cDim = (q || facet) && cMatched.length === 0;
-            const cSel = selKey === c.key;
-            return (
-              '<button class="surf-led-row is-child' + (cDim ? " is-dim" : "") + '" data-surf-select-group="' + esc(c.key) + '" aria-selected="' + (cSel ? "true" : "false") + '">' +
-              '<span class="surf-led-lbl mono">' + esc(c.label) + "</span>" +
-              renderSurfBar(c.items.length, c.unknownCount, maxCount, c.publicCount) +
-              '<span class="surf-led-num mono">' + ((q || facet) ? cMatched.length : c.items.length) + "</span>" +
-              "</button>"
-            );
-          }).join("") + "</div>"
-        : "";
-      return (
-        '<button class="surf-led-row' + (dimmed ? " is-dim" : "") + '" data-surf-select-group="' + esc(g.key) + '" aria-selected="' + (isSel ? "true" : "false") + '">' +
-        '<span class="surf-led-lbl mono">' + esc(g.label) + "</span>" +
-        renderSurfBar(g.items.length, g.unknownCount, maxCount, g.publicCount) +
-        '<span class="surf-led-num mono">' + ((q || facet) ? gMatched.length : g.items.length) + "</span>" +
-        "</button>" +
-        kidsHtml
-      );
-    }).join("");
+    const tileGridHtml =
+      '<div class="surf-tile-grid">' +
+      groups.map((g) => {
+        const gMatched = g.items.filter((ep) => matchesFacet(ep) && matchesQ(ep));
+        const dimmed = (q || facet) && gMatched.length === 0;
+        const isSel = selParent === g.key;
+        const icoKind = g.unknownCount > 0 ? "unlock" : g.publicCount === g.items.length ? "globe" : "shield";
+        const icoTone = g.unknownCount > 0 ? "t-warn" : "";
+        const subText = g.unknownCount > 0
+          ? g.unknownCount + " no guard · " + g.writeCount + " writes"
+          : g.writeCount + " writes · " + (g.items.length - g.writeCount) + " reads";
+        return (
+          '<button class="surf-tile' + (dimmed ? " is-dim" : "") + '" data-surf-select-group="' + esc(g.key) + '" aria-selected="' + (isSel ? "true" : "false") + '">' +
+          '<div class="surf-tile-top"><span class="chk-ico ' + icoTone + '">' + surfIconSvg(icoKind) + '</span><span class="surf-tile-num">' + ((q || facet) ? gMatched.length : g.items.length) + "</span></div>" +
+          '<div class="surf-tile-title mono">' + esc(g.key === "(root)" || g.isSmall ? g.label : "/" + g.label) + "</div>" +
+          renderSurfBar(g.items.length, g.unknownCount, maxCount, g.publicCount) +
+          '<div class="surf-tile-sub">' + esc(subText) + "</div>" +
+          "</button>"
+        );
+      }).join("") +
+      "</div>";
+
+    const subAreaHtml = activeParentGrp && (activeParentGrp.children || []).length > 0
+      ? '<div class="surf-sub-sec"><div class="surf-sec-k">Areas inside /' + esc(activeParentGrp.label) + '</div><div class="surf-sub-grid">' +
+        activeParentGrp.children.map((c) => {
+          const cSel = selKey === c.key;
+          return (
+            '<button class="surf-sub-chip" data-surf-select-group="' + esc(c.key) + '" aria-selected="' + (cSel ? "true" : "false") + '">' +
+            '<span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.label) + "</span>" +
+            '<span class="mono muted">' + c.items.length + "</span></button>"
+          );
+        }).join("") +
+        "</div></div>"
+      : "";
 
     let detailHead = "";
     let detailRowsHtml = "";
@@ -232,17 +233,17 @@ export function renderSurfacesApiClientScript(): string {
         items.length + " routes",
         unkCnt > 0 ? unkCnt + " no guard seen" : "",
         pubCnt > 0 ? pubCnt + " public" : "",
-        dominantGuard ? "default guard: " + dominantGuard : "",
+        dominantGuard ? "guard: " + dominantGuard : "",
       ].filter(Boolean).join(" · ");
-      detailHead = '<div class="surf-det-head"><span class="surf-det-title mono">' + esc(grp ? (selKey && selKey.includes("/") && !selKey.includes("__small__") ? "/" + selKey : grp.label) : "Routes") + '</span><span class="muted mono">' + esc(metaBits) + "</span></div>";
+      detailHead = '<div class="surf-det-head"><span class="surf-det-title mono">' + esc(grp ? (selKey && selKey.includes("/") && !selKey.includes("__small__") ? "/" + selKey : (selKey === "(root)" || grp.isSmall ? grp.label : "/" + grp.label)) : "Routes") + '</span><span class="muted mono">' + esc(metaBits) + "</span></div>";
       detailRowsHtml = items.length === 0
-        ? '<div class="surf-empty">Select a prefix on the left to inspect its routes.</div>'
+        ? '<div class="surf-empty">Select an API area tile on the left.</div>'
         : items.map((ep) => renderApiRowHtml(ep, prefixDim, dominantGuard, state.surfRow)).join("");
     }
 
     return verdictHtml +
       '<div class="surf-split-api">' +
-      '<div class="surf-ledger">' + ledgerHtml + "</div>" +
+      '<div class="surf-tile-pane">' + tileGridHtml + subAreaHtml + "</div>" +
       '<div class="surf-detail">' + detailHead + '<div class="surf-det-list">' + detailRowsHtml + "</div></div>" +
       "</div>";
   }

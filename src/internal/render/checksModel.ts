@@ -26,9 +26,23 @@ export interface CheckUnitGroup {
   files: CheckFileGroup[];
 }
 
+export type CheckIconKind =
+  | "layers"
+  | "plug"
+  | "bolt"
+  | "clock"
+  | "cycle"
+  | "db"
+  | "key"
+  | "shield"
+  | "doc"
+  | "state";
+
 export interface CheckItemModel {
   id: string;
   name: string;
+  shortTitle: string;
+  iconKind: CheckIconKind;
   status: "fail" | "warn" | "pass" | "na";
   severity: "error" | "warn" | "info";
   rung: string;
@@ -100,6 +114,43 @@ export function classifyCheckTier(inv: {
   if (inv.status === "pass" || inv.status === "na") return "holding";
   if (inv.severity === "info") return "housekeeping";
   return inv.violationCount <= FIX_NEXT_HIT_LIMIT ? "fix_next" : "patterns";
+}
+
+const SHORT_CHECK_META: ReadonlyArray<{
+  match: string;
+  title: string;
+  icon: CheckIconKind;
+}> = [
+  { match: "layer-inversion", title: "Layer inversion", icon: "layers" },
+  { match: "layer-bypass-datastore", title: "Datastore bypass", icon: "db" },
+  { match: "vendor-leak", title: "Vendor SDK leak", icon: "plug" },
+  { match: "notify-before-commit", title: "Notify before commit", icon: "bolt" },
+  { match: "invalidate-before-write", title: "Cache before write", icon: "bolt" },
+  { match: "write-on-poll", title: "Write on poll", icon: "db" },
+  { match: "blocking-noncritical-io", title: "Blocking I/O", icon: "clock" },
+  { match: "serial-independent-awaits", title: "Serial awaits", icon: "clock" },
+  { match: "multi-writer", title: "Multi-writer fields", icon: "db" },
+  { match: "multi-domain-entity", title: "Shared entity leak", icon: "db" },
+  { match: "bidirectional-domain", title: "Domain cycles", icon: "cycle" },
+  { match: "module-tangle", title: "Module tangles", icon: "cycle" },
+  { match: "workspace-cycles", title: "Workspace cycles", icon: "cycle" },
+  { match: "untested-high-fanin", title: "Untested hubs", icon: "shield" },
+  { match: "duplicate-state-enums", title: "Duplicate enums", icon: "state" },
+  { match: "env-contract-drift", title: "Undeclared env vars", icon: "key" },
+  { match: "doc-path-drift", title: "Stale doc paths", icon: "doc" },
+  { match: "runtime-imports-ops", title: "Ops script import", icon: "plug" },
+  { match: "iac-unlinked", title: "Unlinked IaC", icon: "plug" },
+  { match: "unwired-quality-gates", title: "Unwired CI gates", icon: "shield" },
+];
+
+function resolveShortCheckMeta(id: string, name: string): { shortTitle: string; iconKind: CheckIconKind } {
+  const lower = id.toLowerCase();
+  for (const entry of SHORT_CHECK_META) {
+    if (lower.includes(entry.match)) return { shortTitle: entry.title, iconKind: entry.icon };
+  }
+  const trimmed = name.length <= 26 ? name : name.split(" ").slice(0, 3).join(" ");
+  const iconKind: CheckIconKind = lower.includes("ddia") ? "bolt" : lower.includes("env") ? "key" : lower.includes("cycle") ? "cycle" : "shield";
+  return { shortTitle: trimmed, iconKind };
 }
 
 function unitFromFile(file: string): string {
@@ -256,9 +307,12 @@ export function buildChecksModel(
           ? "all in " + unitGroups[0]?.unit
           : unitGroups.length + " units (" + unitGroups.slice(0, 2).map((u) => u.unit).join(", ") + ")";
 
+    const meta = resolveShortCheckMeta(inv.id, inv.name);
     return {
       id: inv.id,
       name: inv.name,
+      shortTitle: meta.shortTitle,
+      iconKind: meta.iconKind,
       status: inv.status,
       severity: inv.severity,
       rung: inv.rung,
