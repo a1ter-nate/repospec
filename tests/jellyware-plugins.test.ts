@@ -273,11 +273,12 @@ describe("RepoSpec workspace packages, custom extractors, and jellyware UI/show-
     expect(parseEjectTarget("all")).toBe("all");
     expect(parseEjectTarget("nope")).toBeNull();
     const ej = ejectJellywareTarget(ejectDir, "all");
-    expect(ej.written.length).toBe(7);
+    expect(ej.written.length).toBe(8);
     expect(fs.existsSync(path.join(ejectDir, ".repospec", "show-me.ts"))).toBe(true);
     expect(fs.existsSync(path.join(ejectDir, ".repospec", "report.ts"))).toBe(true);
     expect(fs.existsSync(path.join(ejectDir, ".repospec", "facts.yaml"))).toBe(true);
     expect(fs.existsSync(path.join(ejectDir, ".repospec", "flows.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(ejectDir, ".repospec", "languages", "custom-language.ts"))).toBe(true);
     expect(fs.existsSync(path.join(ejectDir, ".repospec", "extractors", "custom.ts"))).toBe(true);
     expect(fs.readFileSync(path.join(ejectDir, ".repospec", "show-me.ts"), "utf8")).toContain('from "repospec/show-me"');
     expect(fs.readFileSync(path.join(ejectDir, ".repospec", "report.ts"), "utf8")).toContain('from "repospec/report"');

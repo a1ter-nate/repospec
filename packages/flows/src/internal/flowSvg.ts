@@ -7,6 +7,7 @@ import type {
   FlowStep,
   WorkFlowRecord,
 } from "./types.ts";
+import { buildFlowsHtmlDocument } from "./flowsHtml.ts";
 
 function esc(s: string): string {
   return s
@@ -53,10 +54,98 @@ function opColors(op: FlowStep["op"]): { fill: string; stroke: string; text: str
   return { fill: "rgba(148,163,184,0.16)", stroke: "#94a3b8", text: "#cbd5e1", prefix: "" };
 }
 
-export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
-  const visibleSteps = flow.steps.filter((s) => s.op !== "span").slice(0, 12);
+export function buildOptimizedFlowPreview(flow: WorkFlowRecord): WorkFlowRecord {
+  const offloadIndexes = new Set<number>();
+  const postCommitIndexes = new Set<number>();
+  const serialGroups = new Map<number, number>();
+  let nextParGroup = 100;
+
+  for (const h of flow.hazards) {
+    if (h.kind === "blocking_noncritical_io" || h.kind === "write_on_poll") {
+      if (h.stepIndexes[0] !== undefined) offloadIndexes.add(h.stepIndexes[0]);
+    } else if (h.kind === "notify_before_commit" || h.kind === "invalidate_before_write") {
+      if (h.stepIndexes[0] !== undefined) postCommitIndexes.add(h.stepIndexes[0]);
+    } else if (h.kind === "serial_independent_awaits" && h.stepIndexes.length >= 2) {
+      nextParGroup += 1;
+      for (const idx of h.stepIndexes) serialGroups.set(idx, nextParGroup);
+    }
+  }
+
+  const baseSteps = flow.steps.map((s) => {
+    const pg = serialGroups.get(s.index);
+    return pg !== undefined ? { ...s, parallelGroup: pg } : { ...s };
+  });
+
+  const beforeRes: FlowStep[] = [];
+  const afterCommitReordered: FlowStep[] = [];
+  const afterResOffloaded: FlowStep[] = [];
+  let responseStep: FlowStep | null = null;
+
+  for (const st of baseSteps) {
+    if (st.op === "response_send") {
+      responseStep = st;
+    } else if (offloadIndexes.has(st.index)) {
+      afterResOffloaded.push({ ...st, afterResponse: true });
+    } else if (postCommitIndexes.has(st.index)) {
+      afterCommitReordered.push(st);
+    } else {
+      beforeRes.push(st);
+    }
+  }
+
+  const reordered: FlowStep[] = [];
+  for (const st of beforeRes) {
+    reordered.push(st);
+    if (flow.commitStepIndex !== null && st.index === flow.commitStepIndex) {
+      for (const pc of afterCommitReordered) reordered.push(pc);
+    }
+  }
+  if (flow.commitStepIndex === null) {
+    for (const pc of afterCommitReordered) reordered.push(pc);
+  }
+  if (responseStep) reordered.push(responseStep);
+  for (const off of afterResOffloaded) reordered.push(off);
+
+  const newResIdx = responseStep ? reordered.findIndex((s) => s.op === "response_send") : null;
+  const newCommitIdx = flow.commitStepIndex !== null
+    ? reordered.findIndex((s) => s.index === flow.commitStepIndex)
+    : null;
+
+  const seenGroups = new Set<number>();
+  let critHops = 0;
+  for (let i = 0; i < reordered.length; i += 1) {
+    const st = reordered[i];
+    if (!st || st.op === "span" || st.op === "response_send") continue;
+    if (newResIdx !== null && i >= newResIdx) continue;
+    if (st.parallelGroup !== undefined) {
+      if (!seenGroups.has(st.parallelGroup)) {
+        seenGroups.add(st.parallelGroup);
+        critHops += 1;
+      }
+    } else {
+      critHops += 1;
+    }
+  }
+
+  return {
+    ...flow,
+    steps: reordered,
+    responseStepIndex: newResIdx,
+    commitStepIndex: newCommitIdx,
+    serialAwaitCount: critHops,
+    hazards: [],
+  };
+}
+
+export function renderWorkFlowSwimlaneSvg(
+  flow: WorkFlowRecord,
+  options?: { mode?: "current" | "optimized" },
+): string {
+  const mode = options?.mode ?? "current";
+  const activeFlow = mode === "optimized" ? buildOptimizedFlowPreview(flow) : flow;
+  const visibleSteps = activeFlow.steps.filter((s) => s.op !== "span").slice(0, 14);
   const usedLanes = new Set<FlowLane>(["handler"]);
-  if (flow.triggerKind === "http" || flow.responseStepIndex !== null) usedLanes.add("client");
+  if (activeFlow.triggerKind === "http" || activeFlow.responseStepIndex !== null) usedLanes.add("client");
   for (const s of visibleSteps) usedLanes.add(s.lane);
   const lanes = LANE_ORDER.filter((l) => usedLanes.has(l));
 
@@ -75,29 +164,34 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
   }
 
   const leftPad = 114;
-  const colW = 86;
+  const colW = 88;
   const colGap = 12;
-  const laneH = 62;
+  const laneH = 66;
   const topPad = 36;
-  const width = Math.max(680, leftPad + Math.max(cols.length, 4) * (colW + colGap) + 84);
-  const height = topPad + lanes.length * laneH + 26;
+  const width = Math.max(680, leftPad + Math.max(cols.length, 4) * (colW + colGap) + 90);
+  const height = topPad + lanes.length * laneH + 24;
   const laneY = new Map<FlowLane, number>();
   lanes.forEach((l, idx) => laneY.set(l, topPad + idx * laneH));
 
   const parts: string[] = [
     `<svg class="rs-flow-svg" viewBox="0 0 ${width} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg">`,
-    `<defs><marker id="rs-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#94a3b8"/></marker><marker id="rs-arr-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#ef4444"/></marker></defs>`,
+    `<defs><marker id="rs-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#94a3b8"/></marker><marker id="rs-arr-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#ef4444"/></marker><marker id="rs-arr-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#22c55e"/></marker></defs>`,
   ];
 
   const colX = (ci: number): number => leftPad + ci * (colW + colGap);
   const resColIdx = cols.findIndex((c) => c.steps.some((s) => s.op === "response_send"));
-  const commitColIdx = cols.findIndex((c) => c.steps.some((s) => s.index === flow.commitStepIndex));
+  const commitColIdx =
+    activeFlow.commitStepIndex !== null
+      ? cols.findIndex((c) => c.steps.some((s) => s.index === activeFlow.steps[activeFlow.commitStepIndex ?? -1]?.index))
+      : -1;
 
-  const hasOrderRace = flow.hazards.some(
-    (h) => h.kind === "notify_before_commit" || h.kind === "invalidate_before_write",
-  );
+  const hasOrderRace =
+    mode === "current" &&
+    activeFlow.hazards.some(
+      (h) => h.kind === "notify_before_commit" || h.kind === "invalidate_before_write",
+    );
   if (hasOrderRace && commitColIdx > 0) {
-    const firstRaceStep = flow.hazards.find(
+    const firstRaceStep = activeFlow.hazards.find(
       (h) => h.kind === "notify_before_commit" || h.kind === "invalidate_before_write",
     )?.stepIndexes[0];
     const startCol = Math.max(
@@ -112,11 +206,22 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
     );
   } else if (resColIdx >= 0) {
     const wallX = colX(resColIdx) + colW / 2;
+    const leftBg = mode === "optimized" ? "rgba(34,197,94,0.06)" : "rgba(245,158,11,0.05)";
+    const leftTitleColor = mode === "optimized" ? "#4ade80" : "#fbbf24";
+    const leftTitle =
+      mode === "optimized"
+        ? `OPTIMIZED CRITICAL PATH (${activeFlow.serialAwaitCount} hops)`
+        : `BLOCKING CRITICAL PATH (${activeFlow.serialAwaitCount} serial awaits)`;
     parts.push(
-      `<rect x="${leftPad - 6}" y="${topPad - 8}" width="${Math.max(40, wallX - leftPad + 4)}" height="${lanes.length * laneH + 6}" rx="6" fill="rgba(245,158,11,0.05)"/>`,
-      `<rect x="${wallX + 6}" y="${topPad - 8}" width="${Math.max(58, width - wallX - 14)}" height="${lanes.length * laneH + 6}" rx="6" fill="rgba(34,197,94,0.06)" stroke="#334155" stroke-dasharray="3 3"/>`,
-      `<text x="${leftPad}" y="${topPad - 15}" fill="#fbbf24" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">BLOCKING CRITICAL PATH (${flow.serialAwaitCount} serial awaits)</text>`,
-      `<text x="${Math.min(width - 42, wallX + 36)}" y="${topPad - 15}" fill="#4ade80" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">ASYNC</text>`,
+      `<rect x="${leftPad - 6}" y="${topPad - 8}" width="${Math.max(40, wallX - leftPad + 4)}" height="${lanes.length * laneH + 6}" rx="6" fill="${leftBg}"/>`,
+      `<rect x="${wallX + 6}" y="${topPad - 8}" width="${Math.max(58, width - wallX - 14)}" height="${lanes.length * laneH + 6}" rx="6" fill="rgba(56,189,248,0.05)" stroke="#334155" stroke-dasharray="3 3"/>`,
+      `<text x="${leftPad}" y="${topPad - 15}" fill="${leftTitleColor}" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(leftTitle)}</text>`,
+      `<text x="${Math.min(width - 42, wallX + 36)}" y="${topPad - 15}" fill="#7dd3fc" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">ASYNC</text>`,
+    );
+  } else if (mode === "optimized") {
+    parts.push(
+      `<rect x="${leftPad - 6}" y="${topPad - 8}" width="${width - leftPad - 8}" height="${lanes.length * laneH + 6}" rx="6" fill="rgba(34,197,94,0.05)" stroke="#22c55e" stroke-dasharray="4 3"/>`,
+      `<text x="${leftPad}" y="${topPad - 15}" fill="#4ade80" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">OPTIMIZED ORDERING (${activeFlow.serialAwaitCount} critical hops · 0 races)</text>`,
     );
   }
 
@@ -125,12 +230,12 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
     const meta = LANE_META[lane];
     parts.push(
       `<line x1="0" y1="${y + laneH}" x2="${width}" y2="${y + laneH}" stroke="rgba(148,163,184,0.18)" stroke-width="1"/>`,
-      `<text x="6" y="${y + 27}" fill="#cbd5e1" font-size="10.5" font-weight="700" font-family="ui-monospace,monospace">${esc(meta.label)}</text>`,
-      `<text x="6" y="${y + 40}" fill="#64748b" font-size="9" font-family="ui-monospace,monospace">${esc(meta.sub)}</text>`,
+      `<text x="6" y="${y + 28}" fill="#cbd5e1" font-size="10.5" font-weight="700" font-family="ui-monospace,monospace">${esc(meta.label)}</text>`,
+      `<text x="6" y="${y + 42}" fill="#64748b" font-size="9" font-family="ui-monospace,monospace">${esc(meta.sub)}</text>`,
     );
   }
 
-  const handlerY = (laneY.get("handler") ?? topPad) + 28;
+  const handlerY = (laneY.get("handler") ?? topPad) + 30;
   const spineEnd = cols.length > 0 ? colX(cols.length - 1) + colW : leftPad + 120;
   parts.push(
     `<rect x="${leftPad}" y="${handlerY - 5}" width="${Math.max(60, spineEnd - leftPad)}" height="10" rx="3" fill="rgba(148,163,184,0.14)" stroke="rgba(148,163,184,0.3)"/>`,
@@ -149,24 +254,25 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
     );
   }
 
-  const hazardStepSet = new Set<number>(flow.hazards.flatMap((h) => h.stepIndexes));
+  const hazardStepSet = new Set<number>(mode === "current" ? activeFlow.hazards.flatMap((h) => h.stepIndexes) : []);
 
   cols.forEach((col, ci) => {
     const x = colX(ci);
     const midX = x + colW / 2;
     if (col.parallel && col.steps.length > 1) {
       const ys = col.steps.map((s) => laneY.get(s.lane) ?? topPad);
-      const minY = Math.min(...ys) + 8;
-      const maxY = Math.max(...ys) + laneH - 8;
+      const minY = Math.min(...ys) + 4;
+      const maxY = Math.max(...ys) + laneH - 4;
       parts.push(
-        `<rect x="${x - 4}" y="${minY}" width="${colW + 8}" height="${Math.max(36, maxY - minY)}" rx="6" fill="none" stroke="#22c55e" stroke-dasharray="3 2"/>`,
+        `<rect x="${x - 4}" y="${minY}" width="${colW + 8}" height="${Math.max(46, maxY - minY)}" rx="6" fill="none" stroke="#22c55e" stroke-dasharray="3 2"/>`,
+        `<text x="${midX}" y="${minY - 3}" text-anchor="middle" fill="#4ade80" font-size="8" font-weight="700" font-family="ui-monospace,monospace">Promise.all</text>`,
       );
     }
 
     col.steps.forEach((st, si) => {
       const ly = laneY.get(st.lane) ?? topPad;
-      const barY = ly + (col.steps.length > 1 ? 8 + si * 24 : 15);
-      const barH = col.steps.length > 1 ? 22 : 30;
+      const barY = ly + (col.steps.length > 1 ? 8 + si * 24 : 16);
+      const barH = col.steps.length > 1 ? 22 : 32;
       const colors = opColors(st.op);
       const isHazard = hazardStepSet.has(st.index);
       const stroke = isHazard ? "#ef4444" : colors.stroke;
@@ -177,18 +283,19 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
       if (st.lane !== "handler") {
         const y1 = barY > handlerY ? handlerY + 5 : handlerY - 5;
         const y2 = barY > handlerY ? barY - 2 : barY + barH + 2;
+        const arrId = isHazard ? "rs-arr-r" : st.op === "response_send" ? "rs-arr-g" : "rs-arr";
         parts.push(
-          `<line x1="${midX}" y1="${y1}" x2="${midX}" y2="${y2}" stroke="${isHazard ? "#ef4444" : "#64748b"}" stroke-width="1.3"${st.afterResponse ? ' stroke-dasharray="3 2"' : ""} marker-end="url(#${isHazard ? "rs-arr-r" : "rs-arr"})"/>`,
+          `<line x1="${midX}" y1="${y1}" x2="${midX}" y2="${y2}" stroke="${isHazard ? "#ef4444" : st.op === "response_send" ? "#22c55e" : "#64748b"}" stroke-width="1.3"${st.afterResponse ? ' stroke-dasharray="3 2"' : ""} marker-end="url(#${arrId})"/>`,
         );
       }
 
       parts.push(
-        `<g class="rs-step-node" data-open-file="${esc(st.file)}" data-open-file-line="${st.line}" style="cursor:pointer">`,
-        `<title>${esc(`${st.fn} (${st.file}:${st.line}) [${st.op}]`)}</title>`,
-        `<rect x="${x}" y="${barY}" width="${colW}" height="${barH}" rx="5" fill="${colors.fill}" stroke="${stroke}" stroke-width="${isHazard ? "1.8" : "1.2"}"/>`,
+        `<g class="rs-step-node" data-flow-step="${st.index}" data-flow-id="${esc(flow.id)}" style="cursor:pointer">`,
+        `<title>${esc(`${st.fn} (${st.file}:${st.line}) [${st.op}] — click to inspect code & callers`)}</title>`,
+        `<rect x="${x}" y="${barY}" width="${colW}" height="${barH}" rx="5" fill="${colors.fill}" stroke="${stroke}" stroke-width="${isHazard ? "1.8" : "1.2"}"${st.afterResponse ? ' stroke-dasharray="3 2"' : ""}/>`,
         `<text x="${midX}" y="${barY + (barH > 24 ? 13 : 14)}" text-anchor="middle" fill="${colors.text}" font-size="9" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(label, 13))}</text>`,
         barH > 24
-          ? `<text x="${midX}" y="${barY + 24}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(latTxt)}</text>`
+          ? `<text x="${midX}" y="${barY + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(latTxt)}</text>`
           : "",
         `</g>`,
       );
@@ -200,7 +307,7 @@ export function renderWorkFlowSwimlaneSvg(flow: WorkFlowRecord): string {
 }
 
 export function renderDataHubSvg(entityName: string, fields: readonly EntityFieldLifecycle[]): string {
-  const shown = fields.slice(0, 6);
+  const shown = fields.slice(0, 8);
   const rowH = 44;
   const width = 696;
   const height = Math.max(180, 44 + shown.length * rowH + 20);
@@ -228,21 +335,21 @@ export function renderDataHubSvg(entityName: string, fields: readonly EntityFiel
       f.readers.length === 0
         ? "direct doc reads"
         : trunc(f.readers.map((r) => r.fn).slice(0, 2).join(", "), 22);
-    const firstW = f.writers[0];
-    const firstR = f.readers[0];
+    const fieldKey = `${entityName}::${f.field}`;
+    const firstFile = f.writers[0]?.file ?? f.readers[0]?.file ?? ".";
+    const firstLine = f.writers[0]?.line ?? f.readers[0]?.line ?? 1;
 
     parts.push(
-      `<g data-open-file="${esc(firstW?.file ?? ".")}" data-open-file-line="${firstW?.line ?? 1}" style="cursor:pointer">`,
+      `<g class="rs-hub-row" data-hub-field="${esc(fieldKey)}" data-first-file="${esc(firstFile)}" data-first-line="${firstLine}" style="cursor:pointer">`,
+      `<title>${esc(`${entityName}.${f.field} — ${f.writers.length} writer(s), ${f.readers.length} reader(s) — click to inspect every file & line`)}</title>`,
       `<rect x="10" y="${y}" width="170" height="34" rx="5" fill="${fill}" stroke="${stroke}"/>`,
       `<text x="95" y="${y + 15}" text-anchor="middle" fill="#e2e8f0" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(writerLabel)}</text>`,
       `<text x="95" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${f.multiWriterRisk ? "multi-writer risk" : "writer"}</text>`,
-      `</g>`,
       `<path d="M180,${y + 17} C214,${y + 17} 222,${y + 17} 256,${y + 17}" fill="none" stroke="${stroke}" stroke-width="${f.multiWriterRisk ? "2" : "1.4"}" marker-end="url(#${f.multiWriterRisk ? "dh-err" : "dh-arr"})"/>`,
       `<rect x="258" y="${y}" width="180" height="34" rx="5" fill="${fill}" stroke="${stroke}"${f.derivedOnRead ? ' stroke-dasharray="3 2"' : ""}/>`,
       `<text x="348" y="${y + 15}" text-anchor="middle" fill="#f8fafc" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(f.field, 24))}</text>`,
       `<text x="348" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${f.derivedOnRead ? "read-time derived" : `${f.writers.length}W · ${f.readers.length}R`}</text>`,
       `<path d="M438,${y + 17} C472,${y + 17} 480,${y + 17} 514,${y + 17}" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#dh-arr)"/>`,
-      `<g data-open-file="${esc(firstR?.file ?? firstW?.file ?? ".")}" data-open-file-line="${firstR?.line ?? 1}" style="cursor:pointer">`,
       `<rect x="516" y="${y}" width="170" height="34" rx="5" fill="rgba(148,163,184,0.1)" stroke="#475569"/>`,
       `<text x="601" y="${y + 15}" text-anchor="middle" fill="#cbd5e1" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(readerLabel)}</text>`,
       `<text x="601" y="${y + 27}" text-anchor="middle" fill="#94a3b8" font-size="8.2" font-family="ui-monospace,monospace">${f.derivedOnRead ? "pure projection" : "consumer"}</text>`,
@@ -315,7 +422,8 @@ export function renderStateMachineSvg(machine: ExtractedStateMachine): string {
     const stroke = isTerminal ? "#ef4444" : "#38bdf8";
     const fill = isTerminal ? "rgba(239,68,68,0.14)" : "rgba(56,189,248,0.12)";
     parts.push(
-      `<g data-open-file="${esc(machine.file)}" data-open-file-line="${machine.line}" style="cursor:pointer">`,
+      `<g class="rs-sm-node" data-sm-state="${esc(`${machine.id}::${st}`)}" style="cursor:pointer">`,
+      `<title>${esc(`${machine.name}: ${st} — click to inspect incoming/outgoing transitions & guards`)}</title>`,
       `<rect x="${p.x}" y="${p.y}" width="${boxW}" height="30" rx="6" fill="${fill}" stroke="${stroke}"/>`,
       `<text x="${p.x + boxW / 2}" y="${p.y + 19}" text-anchor="middle" fill="#f8fafc" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(st, 13))}</text>`,
       `</g>`,
@@ -327,7 +435,7 @@ export function renderStateMachineSvg(machine: ExtractedStateMachine): string {
 }
 
 export function renderAsyncHandoffsSvg(handoffs: readonly AsyncHandoff[]): string {
-  const shown = handoffs.slice(0, 8);
+  const shown = handoffs.slice(0, 12);
   const rowH = 44;
   const width = 696;
   const height = Math.max(130, 36 + shown.length * rowH + 14);
@@ -343,17 +451,16 @@ export function renderAsyncHandoffsSvg(handoffs: readonly AsyncHandoff[]): strin
     const y = 30 + idx * rowH;
     const color = h.delivery === "best-effort" ? "#f59e0b" : "#38bdf8";
     parts.push(
-      `<g data-open-file="${esc(h.producer.file)}" data-open-file-line="${h.producer.line}" style="cursor:pointer">`,
+      `<g class="rs-async-row" data-async-idx="${idx}" style="cursor:pointer">`,
+      `<title>${esc(`${h.producer.fn} -> ${h.channel} -> ${h.consumer?.fn ?? "unmatched"} — click to inspect code`)}</title>`,
       `<rect x="10" y="${y}" width="196" height="32" rx="5" fill="rgba(56,189,248,0.12)" stroke="#38bdf8"/>`,
       `<text x="108" y="${y + 14}" text-anchor="middle" fill="#e2e8f0" font-size="9.2" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.producer.fn, 26))}</text>`,
       `<text x="108" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(h.producer.language)} :${h.producer.line}</text>`,
-      `</g>`,
       `<line x1="206" y1="${y + 16}" x2="256" y2="${y + 16}" stroke="#f472b6" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ah-arr)"/>`,
       `<rect x="258" y="${y}" width="180" height="32" rx="16" fill="rgba(244,114,182,0.12)" stroke="${color}"/>`,
       `<text x="348" y="${y + 14}" text-anchor="middle" fill="#f9a8d4" font-size="9" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.channel, 24))}</text>`,
       `<text x="348" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${esc(h.transport)} · ${esc(h.delivery)}</text>`,
       `<line x1="438" y1="${y + 16}" x2="488" y2="${y + 16}" stroke="#f472b6" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ah-arr)"/>`,
-      `<g data-open-file="${esc(h.consumer?.file ?? h.producer.file)}" data-open-file-line="${h.consumer?.line ?? 1}" style="cursor:pointer">`,
       `<rect x="490" y="${y}" width="196" height="32" rx="5" fill="${h.consumer ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.08)"}" stroke="${h.consumer ? "#22c55e" : "#475569"}"${h.consumer ? "" : ' stroke-dasharray="3 2"'}/>`,
       `<text x="588" y="${y + 14}" text-anchor="middle" fill="${h.consumer ? "#86efac" : "#94a3b8"}" font-size="9.2" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(h.consumer ? h.consumer.fn : "external / unmatched", 26))}</text>`,
       `<text x="588" y="${y + 25}" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="ui-monospace,monospace">${h.consumer ? `${esc(h.consumer.language)} :${h.consumer.line}` : "cross-repo or mobile"}</text>`,
@@ -365,39 +472,23 @@ export function renderAsyncHandoffsSvg(handoffs: readonly AsyncHandoff[]): strin
   return parts.join("");
 }
 
-export function renderFlowsHtmlReport(bundle: FlowAnalysisBundle, title: string): string {
-  const topFlows = bundle.workFlows.slice(0, 12);
-  const byEntity = new Map<string, EntityFieldLifecycle[]>();
-  for (const lf of bundle.entityLifecycles) {
-    const arr = byEntity.get(lf.entity) ?? [];
-    arr.push(lf);
-    byEntity.set(lf.entity, arr);
-  }
-  const entities = Array.from(byEntity.entries()).slice(0, 6);
-
-  const flowCards = topFlows
-    .map(
-      (wf) =>
-        `<section class="card"><div class="head"><strong>${esc(wf.name)}</strong><span class="mono">${esc(wf.file)}:${wf.line} · ${wf.serialAwaitCount} serial awaits · ${wf.hazards.length} DDIA flags</span></div>${renderWorkFlowSwimlaneSvg(wf)}</section>`,
-    )
-    .join("");
-  const hubCards = entities
-    .map(
-      ([ent, flds]) =>
-        `<section class="card"><div class="head"><strong>${esc(ent)}</strong><span class="mono">${flds.length} tracked fields</span></div>${renderDataHubSvg(ent, flds)}</section>`,
-    )
-    .join("");
-  const smCards = bundle.stateMachines
-    .slice(0, 8)
-    .map(
-      (sm) =>
-        `<section class="card"><div class="head"><strong>${esc(sm.name)}</strong><span class="mono">${esc(sm.file)}:${sm.line} · ${sm.states.length} states · ${sm.transitions.length} transitions</span></div>${renderStateMachineSvg(sm)}</section>`,
-    )
-    .join("");
-  const asyncHtml =
-    bundle.asyncHandoffs.length > 0
-      ? `<section class="card"><div class="head"><strong>Cross-Boundary Async Handoffs</strong><span class="mono">${bundle.asyncHandoffs.length} channels</span></div>${renderAsyncHandoffsSvg(bundle.asyncHandoffs)}</section>`
-      : `<section class="card"><p class="mono">No async handoffs extracted.</p></section>`;
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${esc(title)}</title><style>body{margin:0;padding:16px;background:#0b1220;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;font-size:13px}.card{background:#111a2c;border:1px solid #1e293b;border-radius:10px;padding:14px 16px;margin-bottom:14px}.head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.mono{font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8}h2{font-size:14px;margin:18px 0 8px;color:#cbd5e1}</style></head><body><h2>Work Flows (${bundle.workFlows.length})</h2>${flowCards}<h2>Data Lifecycle Hubs (${entities.length})</h2>${hubCards}<h2>State Machines (${bundle.stateMachines.length})</h2>${smCards}<h2>Async Handoffs (${bundle.asyncHandoffs.length})</h2>${asyncHtml}</body></html>`;
+export function renderFlowsHtmlReport(
+  bundle: FlowAnalysisBundle,
+  title: string,
+  options?: { repoDir?: string },
+): string {
+  const bounded: FlowAnalysisBundle = {
+    workFlows: Array.from(bundle.workFlows).slice(0, 24),
+    entityLifecycles: Array.from(bundle.entityLifecycles).slice(0, 60),
+    stateMachines: Array.from(bundle.stateMachines).slice(0, 12),
+    asyncHandoffs: bundle.asyncHandoffs.length > 0 ? Array.from(bundle.asyncHandoffs).slice(0, 12) : [],
+    hazards: [...bundle.hazards],
+  };
+  return buildFlowsHtmlDocument(bounded, title, {
+    repoDir: options?.repoDir,
+    renderSwimlane: renderWorkFlowSwimlaneSvg,
+    renderDataHub: renderDataHubSvg,
+    renderStateMachine: renderStateMachineSvg,
+    renderAsync: renderAsyncHandoffsSvg,
+  });
 }

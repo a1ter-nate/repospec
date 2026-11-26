@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import ts from "typescript";
 import type {
   ExtractorPlugin,
   FactEdgeRecord,
@@ -17,13 +16,9 @@ import {
   loadDeclarativeFlowAnchors,
   loadTelemetryOverlay,
 } from "./asyncStitcher.ts";
-import {
-  buildEntityLifecycles,
-  extractFieldEventsFromSource,
-  extractStateMachinesFromSource,
-  type RawFieldEvent,
-} from "./dataLifecycle.ts";
-import { extractWorkFlowsFromSource } from "./effectTracer.ts";
+import { buildEntityLifecycles } from "./dataLifecycle.ts";
+import { BUILTIN_FLOW_LANGUAGES, loadRepoFlowLanguages } from "./languageRegistry.ts";
+import type { FlowLanguagePlugin, RawAsyncEndpoint, RawFieldEvent } from "./languageTypes.ts";
 import type {
   AsyncHandoff,
   EntityFieldLifecycle,
@@ -78,19 +73,42 @@ function walkRepoFiles(repoDir: string): string[] {
   return out.sort();
 }
 
+function languageForStateMachineFile(relFile: string): string {
+  if (relFile.endsWith(".rs")) return "rust";
+  if (relFile.endsWith(".cs")) return "csharp";
+  if (relFile.endsWith(".py")) return "python";
+  if (relFile.endsWith(".go")) return "go";
+  return "typescript";
+}
+
 export function extractFlowBundle(
   repoDir: string,
   relFiles: readonly string[],
   units: readonly UnitDescriptor[],
   telemetryPath?: string,
+  extraLanguages: readonly FlowLanguagePlugin[] = [],
 ): FlowAnalysisBundle {
   const anchors = loadDeclarativeFlowAnchors(repoDir);
+  const allPlugins: readonly FlowLanguagePlugin[] = [...BUILTIN_FLOW_LANGUAGES, ...extraLanguages];
+  const pluginsByExt = new Map<string, FlowLanguagePlugin[]>();
+  for (const pl of allPlugins) {
+    for (const ext of pl.extensions) {
+      const norm = ext.toLowerCase();
+      const arr = pluginsByExt.get(norm) ?? [];
+      arr.push(pl);
+      pluginsByExt.set(norm, arr);
+    }
+  }
+
   const workFlows: WorkFlowRecord[] = [];
   const rawFieldEvents: RawFieldEvent[] = [];
   const stateMachines: ExtractedStateMachine[] = [];
+  const extraAsyncEndpoints: RawAsyncEndpoint[] = [];
 
   for (const rel of relFiles) {
-    if (!/\.(?:ts|tsx|mts|js|mjs)$/.test(rel) || rel.endsWith(".d.ts")) continue;
+    const ext = path.extname(rel).toLowerCase();
+    const matchedPlugins = pluginsByExt.get(ext);
+    if (!matchedPlugins || matchedPlugins.length === 0) continue;
     const abs = path.join(repoDir, rel);
     if (!fs.existsSync(abs)) continue;
     let text = "";
@@ -102,11 +120,13 @@ export function extractFlowBundle(
       continue;
     }
     const unitSlug = unitSlugForFile(rel, units);
-    const kind = rel.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, kind);
-    workFlows.push(...extractWorkFlowsFromSource(sf, rel, unitSlug, anchors));
-    rawFieldEvents.push(...extractFieldEventsFromSource(sf, rel));
-    stateMachines.push(...extractStateMachinesFromSource(sf, rel, unitSlug));
+    const fileCtx = { repoDir, relFile: rel, unitSlug, text, anchors };
+    for (const pl of matchedPlugins) {
+      if (pl.extractFlows) workFlows.push(...pl.extractFlows(fileCtx));
+      if (pl.extractFieldEvents) rawFieldEvents.push(...pl.extractFieldEvents(fileCtx));
+      if (pl.extractStateMachines) stateMachines.push(...pl.extractStateMachines(fileCtx));
+      if (pl.extractAsyncEndpoints) extraAsyncEndpoints.push(...pl.extractAsyncEndpoints(fileCtx));
+    }
   }
 
   workFlows.sort(
@@ -123,7 +143,7 @@ export function extractFlowBundle(
     : cappedFlows;
 
   const { lifecycles, hazards: dataHazards } = buildEntityLifecycles(rawFieldEvents);
-  const asyncHandoffs = extractAsyncHandoffs(repoDir, relFiles);
+  const asyncHandoffs = extractAsyncHandoffs(repoDir, relFiles, extraAsyncEndpoints);
   const allHazards: FlowHazard[] = [
     ...finalFlows.flatMap((f) => f.hazards),
     ...dataHazards,
@@ -140,11 +160,22 @@ export function extractFlowBundle(
 
 export function analyzeRepoFlows(
   repoDir: string,
-  options?: { telemetryPath?: string },
+  options?: { telemetryPath?: string; extraLanguages?: readonly FlowLanguagePlugin[] },
 ): FlowAnalysisBundle {
   const absRoot = path.resolve(repoDir);
   const files = walkRepoFiles(absRoot);
-  return extractFlowBundle(absRoot, files, [], options?.telemetryPath);
+  return extractFlowBundle(absRoot, files, [], options?.telemetryPath, options?.extraLanguages ?? []);
+}
+
+export async function analyzeRepoFlowsWithPlugins(
+  repoDir: string,
+  options?: { telemetryPath?: string; extraLanguages?: readonly FlowLanguagePlugin[] },
+): Promise<FlowAnalysisBundle> {
+  const absRoot = path.resolve(repoDir);
+  const files = walkRepoFiles(absRoot);
+  const repoLangs = await loadRepoFlowLanguages(absRoot);
+  const merged = [...repoLangs, ...(options?.extraLanguages ?? [])];
+  return extractFlowBundle(absRoot, files, [], options?.telemetryPath, merged);
 }
 
 export function buildFlowAnalysisFromFacts(
@@ -228,7 +259,8 @@ export const flowExtractorPlugin: ExtractorPlugin = {
   id: EXTRACTOR_ID,
   domain: "arch",
   async extract(ctx: RepoContext): Promise<GraphFragment> {
-    const bundle = extractFlowBundle(ctx.rootDir, ctx.allFiles, ctx.units);
+    const repoLangs = await loadRepoFlowLanguages(ctx.rootDir);
+    const bundle = extractFlowBundle(ctx.rootDir, ctx.allFiles, ctx.units, undefined, repoLangs);
     const facts: FactRecord[] = [];
     const factEdges: FactEdgeRecord[] = [];
     const metrics: MetricRecord[] = [];
@@ -310,7 +342,7 @@ export const flowExtractorPlugin: ExtractorPlugin = {
       stateMachines.push({
         id: sm.id,
         name: sm.name,
-        language: "typescript",
+        language: languageForStateMachineFile(sm.file),
         unit: sm.unit,
         evidence: "declared",
         states: sm.states,

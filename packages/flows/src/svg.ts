@@ -1,4 +1,5 @@
 export {
+  buildOptimizedFlowPreview,
   renderAsyncHandoffsSvg,
   renderDataHubSvg,
   renderFlowsHtmlReport,

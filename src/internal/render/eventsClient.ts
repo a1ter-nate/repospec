@@ -28,6 +28,14 @@ export function renderEventsClientScript(): string {
         df.focus();
         df.setSelectionRange(df.value.length, df.value.length);
       }
+    } else if (target.id === "flow-search-input") {
+      state.flowSearch = target.value;
+      render();
+      const fi = document.getElementById("flow-search-input");
+      if (fi instanceof HTMLInputElement) {
+        fi.focus();
+        fi.setSelectionRange(fi.value.length, fi.value.length);
+      }
     }
   });
 

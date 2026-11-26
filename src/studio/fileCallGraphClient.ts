@@ -20,7 +20,7 @@ export function renderFileCallGraphClientScript(): string {
       const stream = new Response(bytes).body.pipeThrough(ds);
       const text = await new Response(stream).text();
       FILE_SOURCES = JSON.parse(text);
-      if (state.activeFileGraph || state.selectedNodeId) render();
+      if (state.activeFileGraph || state.selectedNodeId || state.tab === "flows") render();
       return FILE_SOURCES;
     })().catch(() => {
       FILE_SOURCES = [];

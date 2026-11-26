@@ -1,7 +1,7 @@
 export {
   analyzeRepoFlows,
+  analyzeRepoFlowsWithPlugins,
   buildFlowAnalysisFromFacts,
-  extractFlowBundle,
   flowExtractorPlugin,
 } from "./internal/flowExtractor.ts";
 export { applyTelemetryOverlay, loadTelemetryOverlay } from "./internal/asyncStitcher.ts";

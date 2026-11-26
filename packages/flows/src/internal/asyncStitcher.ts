@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
+import type { RawAsyncEndpoint } from "./languageTypes.ts";
 import type {
-  AsyncEndpointRef,
   AsyncHandoff,
   DeclarativeFlowAnchor,
   TelemetryOverlayRecord,
@@ -10,14 +10,6 @@ import type {
 } from "./types.ts";
 
 const TEST_FILE_RE = /(?:__tests__|\.test\.|\.spec\.|\/tests?\/|fixtures\/)/i;
-
-interface RawAsyncEndpoint {
-  role: "producer" | "consumer";
-  channel: string;
-  transport: AsyncHandoff["transport"];
-  delivery: AsyncHandoff["delivery"];
-  ref: AsyncEndpointRef;
-}
 
 function lineAtOffset(text: string, offset: number): number {
   let line = 1;
@@ -146,8 +138,9 @@ function scanFileForAsyncEndpoints(relFile: string, text: string): RawAsyncEndpo
 export function extractAsyncHandoffs(
   repoDir: string,
   relFiles: readonly string[],
+  extraEndpoints: readonly RawAsyncEndpoint[] = [],
 ): AsyncHandoff[] {
-  const endpoints: RawAsyncEndpoint[] = [];
+  const endpoints: RawAsyncEndpoint[] = [...extraEndpoints];
   for (const rel of relFiles) {
     if (!/\.(?:ts|tsx|js|mjs|kt|swift|py|tf)$/.test(rel)) continue;
     if (TEST_FILE_RE.test(rel)) continue;

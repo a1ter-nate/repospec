@@ -135,6 +135,7 @@ export function renderClickClientScript(): string {
 
     if (handleExplainClick(target)) return;
     if (handleFeatureClick(target)) return;
+    if (handleFlowClick(target)) return;
 
     const copyCodeBtn = target.closest("[data-copy-code]");
     if (copyCodeBtn) {
@@ -397,20 +398,6 @@ export function renderClickClientScript(): string {
     if (selNodeEl) {
       state.selectedNodeId = selNodeEl.getAttribute("data-select-node");
       state.selectedEdgeId = null;
-      render();
-      return;
-    }
-
-    const flowSubBtn = target.closest("[data-flows-sub]");
-    if (flowSubBtn) {
-      state.flowsSubtab = flowSubBtn.getAttribute("data-flows-sub") || "workflows";
-      render();
-      return;
-    }
-
-    const selFlowBtn = target.closest("[data-select-flow]");
-    if (selFlowBtn) {
-      state.activeFlowId = selFlowBtn.getAttribute("data-select-flow");
       render();
       return;
     }

@@ -195,7 +195,7 @@ function collectFunctionSteps(
   return ws.steps;
 }
 
-function detectFlowHazards(
+export function detectFlowHazards(
   flowName: string,
   relFile: string,
   steps: FlowStep[],

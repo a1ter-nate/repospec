@@ -132,7 +132,7 @@ RepoSpec separates its deterministic **scanning + SQLite storage kernel** from *
 | **`@repospec/report`** | `repospec/report` | Default interactive Visual Studio HTML renderer + `defineReport` UI customization (CSS theme variables, `customCss`, `customHeadHtml`, `customHeaderHtml`, `customBriefingHtml`, `extraTabs`, `customClientScript`, `transformPayload`, full `renderHtml` escape hatch) |
 | **`@repospec/show-me`** | `repospec/show-me`, `repospec/show-me/svg` | Gate-based PR triage (`Scrutinize` / `Look` / `Skim`), chromeless light/dark SVG/PNG renderer, IaC delta cards, and `defineShowMe` overrides (`triage`, `selectShots`, `renderCard`, `formatComment`, `ctx.factDiff()`) |
 | **`@repospec/ci`** | `repospec/ci` | `defineCi` programmatic CI gates (wired automatically into `repospec check`), custom formatters, and GitHub Actions workflow templates |
-| **`@repospec/flows`** | `repospec/flows`, `repospec/flows/svg` | Ordered entrypoint effect-tracer, entity/field data-lifecycle hubs, state machine extraction, cross-boundary async stitching, `.repospec/flows.yaml` journeys, OTel telemetry overlay, 6 DDIA SQL invariants, and spatial SVG swimlane/race/hub/statechart visuals |
+| **`@repospec/flows`** | `repospec/flows`, `repospec/flows/svg`, `repospec/flows/languages` | Ordered entrypoint effect-tracer (TypeScript, Rust, C#, plus custom `.repospec/languages/*.ts` plugins — see [Language Plugin Spec](docs/language-plugin-spec.md)), entity/field data-lifecycle hubs, statecharts, cross-boundary async stitching, `.repospec/flows.yaml` journeys, OTel telemetry overlay, 6 DDIA SQL invariants, and interactive spatial SVG workbenches |
 
 ### Pull Custom Domain Facts Out of Your Code
 

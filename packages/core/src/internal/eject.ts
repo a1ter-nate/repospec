@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type EjectTarget = "show-me" | "report" | "ci" | "extractor" | "facts" | "flows" | "rule" | "all";
+export type EjectTarget = "show-me" | "report" | "ci" | "extractor" | "facts" | "flows" | "language" | "rule" | "all";
 
 export interface EjectResult {
   readonly target: EjectTarget;
@@ -130,6 +130,54 @@ export default defineExtractor({
     tags: ["critical-path", "ddia"]
 `,
   },
+  language: {
+    relPath: ".repospec/languages/custom-language.ts",
+    content: `import { defineFlowLanguage, detectFlowHazards } from "repospec/flows/languages";
+
+export default defineFlowLanguage({
+  id: "custom-lang",
+  label: "Custom Language",
+  extensions: [".go"],
+  extractFlows(ctx) {
+    const steps = [];
+    const lines = ctx.text.split("\\n");
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i] ?? "";
+      if (/\\.ExecContext\\(/.test(line)) {
+        steps.push({
+          index: steps.length,
+          fn: "db.ExecContext",
+          op: "tx_commit" as const,
+          lane: "datastore" as const,
+          file: ctx.relFile,
+          line: i + 1,
+          afterResponse: false,
+          bestEffort: false,
+        });
+      }
+    }
+    if (steps.length < 2) return [];
+    const hazards = detectFlowHazards("handler", ctx.relFile, steps, null, steps.length - 1);
+    return [
+      {
+        id: \`flow:\${ctx.unitSlug}:\${ctx.relFile}:handler\`,
+        name: "handler",
+        entryFn: "handler",
+        triggerKind: "http" as const,
+        file: ctx.relFile,
+        line: 1,
+        unit: ctx.unitSlug,
+        steps,
+        responseStepIndex: null,
+        commitStepIndex: steps.length - 1,
+        serialAwaitCount: steps.length,
+        hazards,
+      },
+    ];
+  },
+});
+`,
+  },
   rule: {
     relPath: ".repospec/rules/01-custom-fact-check.sql",
     content: `-- @id: custom:error-facts
@@ -159,6 +207,7 @@ export function parseEjectTarget(raw: string): EjectTarget | null {
     raw === "extractor" ||
     raw === "facts" ||
     raw === "flows" ||
+    raw === "language" ||
     raw === "rule" ||
     raw === "all"
   ) {
@@ -174,7 +223,7 @@ export function ejectJellywareTarget(
 ): EjectResult {
   const absRepo = path.resolve(repoDir);
   const keys: Array<Exclude<EjectTarget, "all">> =
-    target === "all" ? ["show-me", "report", "ci", "extractor", "facts", "flows", "rule"] : [target];
+    target === "all" ? ["show-me", "report", "ci", "extractor", "facts", "flows", "language", "rule"] : [target];
 
   const written: string[] = [];
   const skipped: string[] = [];

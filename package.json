@@ -40,7 +40,8 @@
     "./show-me/svg": "./packages/show-me/src/svg.ts",
     "./ci": "./packages/ci/src/index.ts",
     "./flows": "./packages/flows/src/index.ts",
-    "./flows/svg": "./packages/flows/src/svg.ts"
+    "./flows/svg": "./packages/flows/src/svg.ts",
+    "./flows/languages": "./packages/flows/src/languages.ts"
   },
   "files": [
     "src/",
@@ -48,6 +49,7 @@
     "rules/",
     "config/",
     "skills/",
+    "docs/language-plugin-spec.md",
     "LICENSE",
     "README.md"
   ],

@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanRepo } from "@repospec/core";
-import { analyzeRepoFlows, applyTelemetryOverlay, loadTelemetryOverlay } from "@repospec/flows";
+import { analyzeRepoFlows, analyzeRepoFlowsWithPlugins, applyTelemetryOverlay, loadTelemetryOverlay } from "@repospec/flows";
+import { defineFlowLanguage } from "@repospec/flows/languages";
 import {
   renderAsyncHandoffsSvg,
   renderDataHubSvg,
@@ -211,11 +212,25 @@ describe("@repospec/flows — Work Flows, Data Lifecycles, State Machines, Async
       throw new Error("Expected extracted flow artifacts to be present");
     }
     expect(renderWorkFlowSwimlaneSvg(pollOverlaid)).toContain("BLOCKING CRITICAL PATH");
+    expect(renderWorkFlowSwimlaneSvg(pollOverlaid)).toContain("data-flow-step=");
+    expect(renderWorkFlowSwimlaneSvg(pollOverlaid, { mode: "optimized" })).toContain("OPTIMIZED CRITICAL PATH");
     expect(renderWorkFlowSwimlaneSvg(statusFlow)).toContain("RACE WINDOW BEFORE COMMIT");
-    expect(renderDataHubSvg(hiddenField.entity, [hiddenField])).toContain("multi-writer risk");
-    expect(renderStateMachineSvg(lcSm)).toContain("uuid+serialNumber");
-    expect(renderAsyncHandoffsSvg(bundle.asyncHandoffs)).toContain("DeviceStatusChangeListenerImpl");
-    expect(renderFlowsHtmlReport(bundle, "Sample Flows")).toContain("<svg");
+    expect(renderWorkFlowSwimlaneSvg(statusFlow, { mode: "optimized" })).not.toContain("RACE WINDOW BEFORE COMMIT");
+    expect(renderDataHubSvg(hiddenField.entity, [hiddenField])).toContain("data-hub-field=");
+    expect(renderStateMachineSvg(lcSm)).toContain("data-sm-state=");
+    expect(renderAsyncHandoffsSvg(bundle.asyncHandoffs)).toContain("data-async-idx=");
+    const standaloneHtml = renderFlowsHtmlReport(bundle, "Sample Flows", { repoDir });
+    const dataMatch = standaloneHtml.match(/<script id="flow-data" type="application\/json">([\s\S]*?)<\/script>/);
+    const standaloneData = JSON.parse(dataMatch?.[1] ?? "{}") as {
+      workFlows: Array<{ svg: string; optimizedSvg: string }>;
+      sources: Record<string, string[]>;
+    };
+    expect(standaloneData.workFlows[0]?.svg).toContain("<svg");
+    expect(standaloneData.workFlows[0]?.optimizedSvg).toContain("OPTIMIZED CRITICAL PATH");
+    expect(JSON.stringify(standaloneData.sources)).toContain("getDeviceByUUID");
+    const standaloneScripts = [...standaloneHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    const standaloneApp = standaloneScripts[standaloneScripts.length - 1]?.[1] ?? "";
+    expect(() => new Function(standaloneApp)).not.toThrow();
   });
 
   test("wires flow extractor, DDIA SQL invariants, and Studio Flows tab end-to-end", async () => {
@@ -238,5 +253,128 @@ describe("@repospec/flows — Work Flows, Data Lifecycles, State Machines, Async
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     const appScript = scripts[scripts.length - 1]?.[1] ?? "";
     expect(() => new Function(appScript)).not.toThrow();
+  });
+
+  test("extracts Rust, C#, and custom language-plugin flows, data lifecycles, statecharts, and cross-language async handoffs", async () => {
+    const polyDir = path.join(tmpRoot, "polyglot-flows");
+    fs.mkdirSync(polyDir, { recursive: true });
+    const put = (rel: string, body: string): void => {
+      const abs = path.join(polyDir, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, body, "utf8");
+    };
+
+    put(
+      "services/rust-iot/src/handler.rs",
+      `pub enum DeviceState {
+  Pending,
+  Active,
+  Retired,
+}
+
+pub fn advance(s: DeviceState, verified: bool) -> DeviceState {
+  match s {
+    DeviceState::Pending if verified => DeviceState::Active,
+    DeviceState::Active => DeviceState::Retired,
+    _ => DeviceState::Retired,
+  }
+}
+
+pub async fn update_device_status(id: &str) -> Result<Json<()>, ()> {
+  let _dev = get_device(id).await?;
+  send_status_notification(id).await?;
+  cache.del(id).await?;
+  sqlx::query("UPDATE devices SET status = $1, synced_at = $2 WHERE id = $3").execute(pool).await?;
+  tx.commit().await?;
+  publish("device-sync").await?;
+  Ok(Json(()))
+}
+`,
+    );
+
+    put(
+      "services/dotnet-api/Controllers/DeviceController.cs",
+      `public enum OrderState {
+  Draft,
+  Paid,
+  Shipped,
+  Cancelled,
+}
+
+public class OrderMachine {
+  public OrderState Next(OrderState s, bool hasStock) => s switch {
+    OrderState.Draft when hasStock => OrderState.Paid,
+    OrderState.Paid => OrderState.Shipped,
+    _ => OrderState.Cancelled,
+  };
+}
+
+public class DeviceSyncConsumer : IConsumer<DeviceSync> {}
+
+public class DeviceController {
+  public async Task<IActionResult> SaveDeviceAsync(string id) {
+    var device = await _repo.GetDeviceAsync(id);
+    await _notifier.SendStatusNotificationAsync(id);
+    await _cache.RemoveAsync(id);
+    device.Status = "ready";
+    await _db.SaveChangesAsync();
+    await _bus.Publish<DeviceSync>(new DeviceSync());
+    return Ok(device);
+  }
+}
+`,
+    );
+
+    put("services/go-worker/handler.go", `func Sync(w http.ResponseWriter) { db.Query(); db.Exec(); }`);
+
+    const customGoPlugin = defineFlowLanguage({
+      id: "go-test",
+      label: "Go Test",
+      extensions: [".go"],
+      extractFlows(ctx) {
+        return [
+          {
+            id: `flow:go:${ctx.relFile}:Sync`,
+            name: "Sync",
+            entryFn: "Sync",
+            triggerKind: "http",
+            file: ctx.relFile,
+            line: 1,
+            unit: ctx.unitSlug,
+            steps: [
+              { index: 0, fn: "db.Query", op: "db_read", lane: "datastore", file: ctx.relFile, line: 1, afterResponse: false, bestEffort: false },
+              { index: 1, fn: "db.Exec", op: "tx_commit", lane: "datastore", file: ctx.relFile, line: 1, afterResponse: false, bestEffort: false },
+            ],
+            responseStepIndex: null,
+            commitStepIndex: 1,
+            serialAwaitCount: 2,
+            hazards: [],
+          },
+        ];
+      },
+    });
+
+    const bundle = await analyzeRepoFlowsWithPlugins(polyDir, { extraLanguages: [customGoPlugin] });
+
+    const rustFlow = bundle.workFlows.find((f) => f.name === "update_device_status");
+    expect(rustFlow).toBeDefined();
+    expect(rustFlow?.hazards.some((h) => h.kind === "notify_before_commit")).toBe(true);
+    expect(rustFlow?.hazards.some((h) => h.kind === "invalidate_before_write")).toBe(true);
+
+    const csFlow = bundle.workFlows.find((f) => f.name === "SaveDeviceAsync");
+    expect(csFlow).toBeDefined();
+    expect(csFlow?.hazards.some((h) => h.kind === "notify_before_commit")).toBe(true);
+    expect(csFlow?.hazards.some((h) => h.kind === "invalidate_before_write")).toBe(true);
+
+    expect(bundle.workFlows.some((f) => f.name === "Sync" && f.file.endsWith(".go"))).toBe(true);
+
+    const smNames = bundle.stateMachines.map((m) => m.name);
+    expect(smNames).toContain("DeviceState");
+    expect(smNames).toContain("OrderState");
+    expect(bundle.stateMachines.find((m) => m.name === "DeviceState")?.transitions.some((t) => t.guard === "verified")).toBe(true);
+    expect(bundle.stateMachines.find((m) => m.name === "OrderState")?.transitions.some((t) => t.guard === "hasStock")).toBe(true);
+
+    expect(bundle.asyncHandoffs.some((a) => a.producer.language === "csharp" && a.consumer?.fn === "DeviceSyncConsumer")).toBe(true);
+    expect(bundle.asyncHandoffs.some((a) => a.producer.language === "rust" && a.channel === "queue:device-sync")).toBe(true);
   });
 });

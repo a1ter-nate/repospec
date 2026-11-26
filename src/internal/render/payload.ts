@@ -39,33 +39,41 @@ export function buildCompactRenderPayload(
     byEntity.set(lf.entity, arr);
   }
   const flowPayload = {
-    workFlows: flowBundle.workFlows.slice(0, inline ? 8 : 20).map((wf) => ({
+    workFlows: flowBundle.workFlows.slice(0, inline ? 8 : 24).map((wf) => ({
       id: wf.id,
       name: wf.name,
+      entryFn: wf.entryFn ?? wf.name,
+      triggerKind: wf.triggerKind,
       file: wf.file,
       line: wf.line,
       serialAwaitCount: wf.serialAwaitCount,
       hazardCount: wf.hazards.length,
-      hazards: wf.hazards.slice(0, 6),
-      svg: renderWorkFlowSwimlaneSvg(wf),
+      steps: wf.steps.slice(0, 20),
+      hazards: wf.hazards.slice(0, 8),
+      svg: renderWorkFlowSwimlaneSvg(wf, { mode: "current" }),
+      optimizedSvg: renderWorkFlowSwimlaneSvg(wf, { mode: "optimized" }),
     })),
     dataHubs: Array.from(byEntity.entries())
-      .slice(0, inline ? 4 : 10)
+      .slice(0, inline ? 4 : 12)
       .map(([entity, fields]) => ({
         entity,
         fieldCount: fields.length,
+        fields: fields.slice(0, 8),
         svg: renderDataHubSvg(entity, fields),
       })),
-    stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 10).map((sm) => ({
+    stateMachines: flowBundle.stateMachines.slice(0, inline ? 4 : 12).map((sm) => ({
       id: sm.id,
       name: sm.name,
       file: sm.file,
       line: sm.line,
       stateCount: sm.states.length,
       transitionCount: sm.transitions.length,
+      states: sm.states,
+      transitions: sm.transitions,
       svg: renderStateMachineSvg(sm),
     })),
     asyncCount: flowBundle.asyncHandoffs.length,
+    asyncHandoffs: flowBundle.asyncHandoffs.slice(0, 12),
     asyncHandoffsSvg:
       flowBundle.asyncHandoffs.length > 0 ? renderAsyncHandoffsSvg(flowBundle.asyncHandoffs) : "",
     hazards: flowBundle.hazards.slice(0, inline ? 20 : 80),

@@ -3,7 +3,7 @@ import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 import { diffFactSets, queryFactsFromDb } from "../../packages/core/src/facts.ts";
 import { ejectJellywareTarget, parseEjectTarget } from "../../packages/core/src/eject.ts";
-import { analyzeRepoFlows } from "../../packages/flows/src/index.ts";
+import { analyzeRepoFlowsWithPlugins } from "../../packages/flows/src/index.ts";
 import { renderFlowsHtmlReport } from "../../packages/flows/src/svg.ts";
 import { serializeSpec } from "../canonicalize.ts";
 import { runCommitDiffWorktrees } from "../studio/diffRunner.ts";
@@ -138,7 +138,14 @@ export const flowsCmd = Command.make(
       const repoFs = yield* RepoFs;
       const absRepo = path.resolve(cfg.repoDir);
       const tracesPath = Option.getOrUndefined(cfg.traces);
-      const bundle = analyzeRepoFlows(absRepo, tracesPath ? { telemetryPath: path.resolve(tracesPath) } : undefined);
+      const bundle = yield* Effect.tryPromise({
+        try: () =>
+          analyzeRepoFlowsWithPlugins(
+            absRepo,
+            tracesPath ? { telemetryPath: path.resolve(tracesPath) } : undefined,
+          ),
+        catch: (err) => new CliUsageError({ message: err instanceof Error ? err.message : String(err) }),
+      });
       const outDirOpt = Option.getOrUndefined(cfg.out);
       let htmlOut: string | null = null;
       let jsonOut: string | null = null;
@@ -148,7 +155,10 @@ export const flowsCmd = Command.make(
         htmlOut = path.join(outDir, "flows.html");
         jsonOut = path.join(outDir, "flows.json");
         yield* repoFs.writeText(jsonOut, JSON.stringify(bundle, null, 2));
-        yield* repoFs.writeText(htmlOut, renderFlowsHtmlReport(bundle, `RepoSpec Flows · ${path.basename(absRepo)}`));
+        yield* repoFs.writeText(
+          htmlOut,
+          renderFlowsHtmlReport(bundle, `RepoSpec Flows · ${path.basename(absRepo)}`, { repoDir: absRepo }),
+        );
       }
       yield* printJson({
         repo: path.basename(absRepo),

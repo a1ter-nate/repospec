@@ -6,7 +6,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./svg": "./src/svg.ts"
+    "./svg": "./src/svg.ts",
+    "./languages": "./src/languages.ts"
   },
   "dependencies": {
     "@repospec/core": "workspace:*"
