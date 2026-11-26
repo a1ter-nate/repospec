@@ -24,15 +24,69 @@ export function renderGuidesClientScript(): string {
         why: "Line-by-line code diffs hide architecture drift. This view proves in seconds whether a PR makes the system cleaner or introduces new coupling.",
       };
     }
+    if (state.tab === "flows") {
+      const sub = state.flowsSubtab || "workflows";
+      if (sub === "hubs") {
+        return {
+          title: "Data Hubs — Who Owns & Mutates Each Field?",
+          what: "Flips the codebase inside-out around one database entity (like Device or Company). Each row shows: Who writes the field (left) → The stored field (middle) → Who reads or derives from it (right).",
+          principles: "Single Source of Truth: a field is safest when one owner mutates it. When multiple unrelated files write the same field (amber 'multi-writer risk'), they can overwrite each other or drift out of sync when one path forgets a side-effect. Dashed 'read-time derived' boxes show the cleanest alternative: computing the value on read instead of storing a copy that goes stale.",
+          how: [
+            "Blue row = single clear writer (easy to reason about and safely refactor).",
+            "Amber row = multi-writer risk (2+ files independently mutate this field — check for split-brain bugs or race conditions).",
+            "Dashed row = read-time derived (computed on read from source data instead of persisted).",
+            "Click any row to open every writer & reader file on the right with exact line numbers and source code.",
+          ],
+          why: "Most subtle production bugs aren't inside one function — they happen when three different endpoints silently mutate the same database field under different assumptions.",
+        };
+      }
+      if (sub === "machines") {
+        return {
+          title: "Statecharts — Valid Lifecycles & Transition Guards",
+          what: "Maps the declared states of an entity (left-to-right from START) along with the exact rules (guards) required to move between them.",
+          principles: "Explicit State Machines prevent impossible states (like shipping a device that never passed QC). Guards make business invariants visible instead of hiding them inside scattered if-statements.",
+          how: [
+            "Green card = starting state. Solid blue/amber arrows = forward progression; amber pills above arrows show required guard fields.",
+            "Dashed arcs = rollback or retry paths. The crimson bottom bus ('any active state → terminal') summarizes universal exit states without spaghetti lines.",
+            "Click any state box to inspect all incoming/outgoing transitions, guard conditions, callers, and source code.",
+          ],
+          why: "Lets you verify in seconds which transitions are legal, which ones are guarded, and which states are terminal.",
+        };
+      }
+      if (sub === "async") {
+        return {
+          title: "Cross-Boundary Async Handoffs",
+          what: "Stitches together producers and consumers separated by queues, Pub/Sub topics, webhooks, database triggers, or cron schedules — links that static import graphs cannot see.",
+          principles: "Loose coupling via messaging hides control flow. Knowing the delivery guarantee (at-least-once vs. best-effort) tells you whether consumers must be idempotent or if events can be silently dropped.",
+          how: [
+            "Each row connects Producer (left) → Transport & Delivery Semantics (center) → Consumer (right).",
+            "Click any row to jump straight to the producer and consumer source code in the right drawer.",
+          ],
+          why: "Prevents 'where does this event actually get handled?' blind spots across services and background workers.",
+        };
+      }
+      return {
+        title: "Work Flows — Swimlane Waterfalls",
+        what: "Traces what happens step-by-step inside one entrypoint (HTTP route, job, or handler) across Client, Handler, Datastore, Cache, and External/Async lanes.",
+        principles: "Latency & Consistency (DDIA): every serial await left of the green HTTP 200 wall makes the caller wait. Sending notifications or clearing caches BEFORE the database commits creates a red RACE WINDOW where readers see stale data or get notified of a failed write.",
+        how: [
+          "Toggle Current ⇄ What-If (Optimized) to see how parallelizing independent awaits and moving non-critical side effects past the response wall shrinks latency and closes race windows.",
+          "Click any step bar to see what triggers this flow, resolved callee modules, DDIA hazards, and syntax-highlighted code.",
+          "Use Hazards only to focus directly on flows with race windows, write-on-poll, or serial await bottlenecks.",
+        ],
+        why: "Shows runtime behavior and hidden latency/consistency traps at a glance without reading hundreds of lines of async code.",
+      };
+    }
     if (state.tab === "data") {
       return {
-        title: "Data, APIs & Runtime Surfaces",
-        what: "Inventories every database entity/collection, HTTP endpoint, and environment variable extracted statically from code and schemas.",
+        title: "Surfaces — HTTP APIs, Entities & Environment",
+        what: "Searchable catalog of the system's external contracts: HTTP Endpoints, Database Entities, Environment Variables / Secrets, and Foreign Keys.",
+        principles: "Boundary Contracts: most security issues, breaking client changes, and misconfigurations live right at the edges where code meets HTTP, databases, or environment secrets.",
         how: [
-          "Use Issues only to jump straight to entities violating ownership rules or endpoints missing auth guards.",
-          "Click any tab (Entities, HTTP Endpoints, Env & Secrets) and filter by keyword.",
+          "Switch between HTTP Endpoints, Entities, and Env & Secrets, and filter by keyword.",
+          "Click any Entity with a Hub badge to jump straight to its Data Hub writers, or click Trace E2E on an endpoint.",
         ],
-        why: "Surfaces are where security bugs, data leaks, and breaking API changes happen.",
+        why: "Gives you one fast lookup index for every route, table/collection, and config secret across the entire repo.",
       };
     }
     if (state.tab === "checks") {
@@ -102,14 +156,27 @@ export function renderGuidesClientScript(): string {
         why: "Lets any engineer understand how execution flows through a service without reading hundreds of files.",
       };
     }
+    if (state.tab === "map" && state.mapMode === "delivery") {
+      return {
+        title: "Delivery — CI Workflows, Builds & Infrastructure",
+        what: "Maps how code ships: GitHub Actions / CI workflows, container image builds, and Terraform / IaC resources linked to the services they deploy.",
+        principles: "Deployment Topology: knowing which pipeline builds which service and which cloud resources it touches prevents surprise production blast radius.",
+        how: [
+          "Click any workflow, build, or IaC card to inspect its file and linked services.",
+          "Switch back to Runtime, Packages, or Domains anytime in the top-left Map bar.",
+        ],
+        why: "Connects source code directly to the pipelines and cloud infrastructure running it.",
+      };
+    }
     return {
       title: "System Runtime Map",
       what: "Bird's-eye map of every app, service, library, database, and external API in this repository, flowing left-to-right from Clients to State.",
+      principles: "Structure at a Glance: start wide at services and boundaries, then double-click to zoom progressively into Modules → Folders → Symbol Callstack & Code.",
       how: [
-        "Hover any card to trace its incoming (green) and outgoing (blue) connections. Cards with a stacked edge & › can be double-clicked to drill inside.",
-        "Red/amber top stripes and corner badges mark units with active architectural findings — click ● fail/warn in the top bar to triage them.",
+        "Hover any card to trace incoming (green) and outgoing (blue) connections. Double-click cards with › to drill inside.",
+        "Click any service or folder to see its connections plus a collapsed 'Flows From This Location' launcher.",
       ],
-      why: "Gives both technical and non-technical stakeholders one shared, live picture of how the entire system fits together.",
+      why: "Gives engineers and stakeholders one shared, live picture of how the entire system fits together.",
     };
   }
 
@@ -120,6 +187,7 @@ export function renderGuidesClientScript(): string {
       '<div class="info-popover" id="info-popover">' +
       '<div class="info-pop-head"><div><div class="info-pop-kicker">How to read this screen</div><div>' + esc(g.title) + '</div></div><button class="tbtn" data-toggle-guide="1" title="Close guide">✕</button></div>' +
       "<div><strong>What it shows:</strong> " + esc(g.what) + "</div>" +
+      (g.principles ? '<div class="why-note"><strong>Principle &amp; what can go wrong:</strong> ' + esc(g.principles) + "</div>" : "") +
       '<ul class="info-pop-list">' + g.how.map((h) => "<li>" + esc(h) + "</li>").join("") + "</ul>" +
       '<div class="fix-note"><strong>Why it matters:</strong> ' + esc(g.why) + "</div>" +
       "</div>"

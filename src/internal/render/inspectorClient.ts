@@ -55,6 +55,7 @@ export function renderInspectorClientScript(): string {
       }
       if (state.mapMode === "packages" && packagesDiag) return packagesDiag;
       if (state.mapMode === "domains" && domainsDiag) return domainsDiag;
+      if (state.mapMode === "delivery" && deliveryDiag) return deliveryDiag;
       return runtimeDiag;
     }
     return null;
@@ -231,11 +232,20 @@ export function renderInspectorClientScript(): string {
 
     const findingsScopeLabel = scopedUnitSlug && unitInvs.length > 0 ? " in " + scopedUnitSlug : "";
     const findingsHtml =
-      '<div class="sec"><div class="sec-title"><span>Needs Attention' + esc(findingsScopeLabel) + " (" + displayInvs.length + ')</span><span class="muted">sorted by severity</span></div>' +
+      '<div class="sec"><div class="sec-title"><span>Health &amp; Checks' + esc(findingsScopeLabel) + '</span><button class="tbtn" data-jump-checks="1">Open Checks (' + displayInvs.length + ") →</button></div>" +
       (displayInvs.length === 0
-        ? '<div class="muted" style="font-size:12px">All applicable SQL invariants pass.</div>'
-        : (fails.length > 0 ? '<div class="sev-group-hdr fail"><span>Blockers (' + fails.length + ' FAIL)</span><span>act first</span></div>' + fails.slice(0, 6).map((inv, i) => renderFindingDisclosure(inv, { open: i === 0 })).join("") : "") +
-          (warns.length > 0 ? '<div class="sev-group-hdr warn"><span>Warnings (' + warns.length + " WARN)</span></div>" + warns.slice(0, 6).map((inv) => renderFindingDisclosure(inv, { open: false })).join("") : "")) +
+        ? '<div class="muted" style="font-size:12px">All applicable architectural checks pass.</div>'
+        : renderDisclosure({
+            title: (fails.length > 0 ? fails.length + " blocker" + (fails.length === 1 ? "" : "s") + " · " : "") + warns.length + " warning" + (warns.length === 1 ? "" : "s"),
+            meta: "expand to inspect or click Open Checks",
+            badge: displayInvs.length,
+            badgeClass: fails.length > 0 ? "b-fail" : "b-warn",
+            tone: fails.length > 0 ? "fail" : "warn",
+            open: false,
+            bodyHtml:
+              (fails.length > 0 ? fails.slice(0, 4).map((inv) => renderFindingDisclosure(inv, { open: false })).join("") : "") +
+              (warns.length > 0 ? warns.slice(0, 4).map((inv) => renderFindingDisclosure(inv, { open: false })).join("") : ""),
+          })) +
       "</div>";
 
     const scopedTraces = scopedUnitSlug ? DATA.traces.filter((t) => t.diagramId === curDiag?.id) : DATA.traces;
@@ -271,14 +281,17 @@ export function renderInspectorClientScript(): string {
       '<div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">Structural graph + coverage only; cross-repo wire contracts &amp; behavioral semantics (stubs, swallowed errors) require runtime E2E/contract proofs.</div>' +
       "</div>";
 
+    const topFlowsPreview = !scopedUnitSlug && typeof ALL_FLOWS !== "undefined" && ALL_FLOWS.length > 0
+      ? '<div class="sec"><div class="sec-title"><span>Key Work Flows (' + ALL_FLOWS.length + ')</span><button class="tbtn" data-tab="flows">All Flows →</button></div>' +
+        ALL_FLOWS.slice(0, 5).map((wf) =>
+          '<div class="row"><span class="row-link mono" data-jump-flow="' + esc(wf.id) + '">▶ ' + esc(wf.name) + '</span><span class="mono muted">' + wf.serialAwaitCount + " awaits" + (wf.hazardCount > 0 ? " · " + wf.hazardCount + "!" : "") + "</span></div>"
+        ).join("") + "</div>"
+      : "";
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
       (DATA.customUi?.briefingHtml ? '<div class="sec">' + DATA.customUi.briefingHtml + "</div>" : "") +
       (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
-      tangleBanner +
-      scopeBoxHtml +
-      findingsHtml +
-      traceHtml +
       (!scopedUnitSlug
         ? '<div class="sec"><div class="sec-title">System Makeup</div>' +
           (apps.length > 0 ? '<div class="row"><span class="muted">Entry / Apps</span><span class="mono">' + esc(apps.slice(0, 4).map((a) => shortPkg(a.label)).join(", ")) + (apps.length > 4 ? " +" + (apps.length - 4) : "") + "</span></div>" : "") +
@@ -287,7 +300,21 @@ export function renderInspectorClientScript(): string {
           (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span class="mono">' + esc(exts.slice(0, 5).map((x) => x.label).join(", ")) + (exts.length > 5 ? " +" + (exts.length - 5) : "") + "</span></div>" : "") +
           (DATA.summary.govRules > 0 ? '<div class="row"><span class="muted">Gov Rules</span><span class="mono">' + DATA.summary.govRules + " scoped rules</span></div>" : "") +
           "</div>"
-        : "")
+        : "") +
+      topFlowsPreview +
+      tangleBanner +
+      findingsHtml +
+      traceHtml +
+      '<div class="sec">' + renderDisclosure({
+        title: "Coverage & Scope Details",
+        badge: hasRealCov ? ver.realLineCoveragePct + "%" : ver.directTestCoveragePct + "% 1-hop",
+        badgeClass: "b-na",
+        open: false,
+        bodyHtml: covMetricRow +
+          '<div class="row"><span class="muted">Invariants</span><span class="mono">' + ver.invariantsPassed + " pass · " + ver.invariantsWarned + " warn · " + ver.invariantsFailed + " fail · " + ver.invariantsNa + " N/A</span></div>" +
+          (tierKindLabel ? '<div class="row"><span class="muted">Lane Basis</span><span class="mono">' + esc(tierKindLabel) + "</span></div>" : "") +
+          '<div class="muted" style="font-size:11px;line-height:1.4">Static graph + coverage only; cross-repo wire contracts &amp; behavioral semantics require runtime E2E/contract proofs.</div>',
+      }) + "</div>"
     );
   }
 

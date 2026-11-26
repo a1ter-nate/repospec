@@ -182,10 +182,10 @@ export function renderTablesClientScript(): string {
     const subBtns =
       '<div class="sub-toggles" style="margin-bottom:10px;justify-content:space-between">' +
       '<div class="sub-toggles">' +
-      '<button class="pill-btn' + (state.dataSubtab === "entities" ? " active" : "") + '" data-data-sub="entities" title="Database tables and document collections accessed by code">Entities (' + DATA.entities.length + ")</button>" +
-      (DATA.surfaces.foreignKeys.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "fks" ? " active" : "") + '" data-data-sub="fks">Foreign Keys (' + DATA.summary.foreignKeys + ")</button>" : "") +
       (DATA.surfaces.endpoints.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "endpoints" ? " active" : "") + '" data-data-sub="endpoints" title="All statically indexed HTTP routes and auth guards">HTTP Endpoints (' + DATA.summary.httpEndpoints + ")</button>" : "") +
+      '<button class="pill-btn' + (state.dataSubtab === "entities" ? " active" : "") + '" data-data-sub="entities" title="Database tables and document collections accessed by code">Entities (' + DATA.entities.length + ")</button>" +
       (DATA.surfaces.envBindings.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "env" ? " active" : "") + '" data-data-sub="env" title="Environment variables and secret bindings across units">Env & Secrets (' + DATA.summary.envBindings + ")</button>" : "") +
+      (DATA.surfaces.foreignKeys.length > 0 ? '<button class="pill-btn' + (state.dataSubtab === "fks" ? " active" : "") + '" data-data-sub="fks">Foreign Keys (' + DATA.summary.foreignKeys + ")</button>" : "") +
       (issuesBtnLabel ? '<button class="pill-btn' + (state.dataIssuesOnly ? " active" : "") + '" data-data-issues="1">' + esc(issuesBtnLabel) + "</button>" : "") +
       '<input class="search" style="width:220px" id="data-filter" placeholder="Filter table..." value="' + esc(state.dataFilter) + '" />' +
       '</div><button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="What am I looking at?">?</button></div>';
@@ -232,10 +232,15 @@ export function renderTablesClientScript(): string {
         const bi = flaggedEntities.has(b.entity) || flaggedEntities.has(b.datastore + ":" + b.entity) ? 0 : 1;
         return ai - bi || b.totalRefs - a.totalRefs;
       });
+    const hubByEntity = new Map((DATA.flows?.dataHubs || []).map((h) => [h.entity.toLowerCase(), h]));
     return '<div class="table-wrap" style="position:relative">' + subBtns + renderInfoPopoverHtml() +
-      '<table class="data-tbl"><thead><tr><th>Entity</th><th>Store</th><th>Refs</th>' + (showFkCol ? "<th>FKs</th>" : "") + (showTenCol ? "<th>Tenancy</th>" : "") + "<th>Domains</th><th>Layers</th></tr></thead><tbody>" +
+      '<table class="data-tbl"><thead><tr><th>Entity</th><th>Store</th><th>Refs</th>' + (showFkCol ? "<th>FKs</th>" : "") + (showTenCol ? "<th>Tenancy</th>" : "") + "<th>Domains</th><th>Layers</th><th>Lifecycle</th></tr></thead><tbody>" +
       rows.slice(0, 150).map((e) => {
         const hasIss = flaggedEntities.has(e.entity) || flaggedEntities.has(e.datastore + ":" + e.entity);
+        const hubMatch = hubByEntity.get(e.entity.toLowerCase());
+        const hubCell = hubMatch
+          ? '<button class="tbtn" data-jump-hub="' + esc(hubMatch.entity + "::" + (hubMatch.fields?.[0]?.field || "")) + '">Data Hub (' + hubMatch.fieldCount + ") ↗</button>"
+          : '<span class="muted">—</span>';
         return '<tr><td class="mono"><strong>' + esc(e.entity) + "</strong>" +
           (hasIss ? ' <span class="badge b-warn" title="Flagged by multi-domain ownership invariant">issue</span>' : "") +
           (e.authorizedShared ? ' <span class="badge b-info" title="Explicitly declared as shared across domains">shared</span>' : "") +
@@ -244,7 +249,8 @@ export function renderTablesClientScript(): string {
           (showFkCol ? '</td><td class="mono">' + e.fkCount : "") +
           (showTenCol ? "</td><td>" + (e.hasTenancyKey ? '<span class="badge b-pass">tenant</span>' : '<span class="muted">—</span>') : "") +
           '</td><td class="mono">' + esc(e.domains.join(", ") || "—") +
-          '</td><td class="mono muted">' + esc(e.layers.join(", ") || "—") + "</td></tr>";
+          '</td><td class="mono muted">' + esc(e.layers.join(", ") || "—") +
+          "</td><td>" + hubCell + "</td></tr>";
       }).join("") +
       "</tbody></table></div>";
   }
@@ -267,6 +273,7 @@ export function renderTablesClientScript(): string {
       '<div class="table-wrap" style="position:relative">' +
       '<div class="sub-toggles" style="margin-bottom:10px;justify-content:space-between">' +
       '<div class="sub-toggles">' +
+      '<button class="pill-btn" data-tab="map">← Back to Map</button>' +
       '<button class="pill-btn' + (state.checksFilter === "active" ? " active" : "") + '" data-checks-filter="active">Active (' + (failCount + warnCount) + ")</button>" +
       '<button class="pill-btn' + (state.checksFilter === "fail" ? " active" : "") + '" data-checks-filter="fail">Failures (' + failCount + ")</button>" +
       '<button class="pill-btn' + (state.checksFilter === "warn" ? " active" : "") + '" data-checks-filter="warn">Warnings (' + warnCount + ")</button>" +

@@ -227,7 +227,8 @@ export function renderClickClientScript(): string {
           if (d) {
             state.viewMode = "flow";
             if (d.category === "layers" || d.category === "modules" || d.category === "subsystem") { state.tab = "map"; state.activeLayerDiagId = d.id; }
-            else if (d.category === "behavior") { state.tab = "behavior"; state.activeBehaviorId = d.id; }
+            else if (d.category === "behavior") { state.tab = "flows"; state.flowsSubtab = "machines"; }
+            else if (d.category === "delivery") { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "delivery"; }
             else { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "runtime"; }
           }
         }
@@ -248,7 +249,7 @@ export function renderClickClientScript(): string {
           state.activeTraceId = null;
           if (d.category === "layers") { state.tab = "map"; state.activeLayerDiagId = d.id; }
           else if (d.category === "domains") { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "domains"; }
-          else if (d.category === "delivery") { state.tab = "delivery"; }
+          else if (d.category === "delivery") { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "delivery"; }
           else { state.tab = "map"; state.activeLayerDiagId = null; state.mapMode = "runtime"; }
           state.selectedEdgeId = anchor.edgeIds[0] || null;
           state.selectedNodeId = state.selectedEdgeId ? null : (anchor.nodeIds[0] || null);

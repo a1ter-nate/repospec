@@ -92,12 +92,17 @@ export function renderFlowsClientScript(): string {
           '<div style="margin-top:12px"><div class="sec-title">Code Reference</div>' + renderFlowCodeSnippet(focusFile, focusLine) + "</div></div>";
       }
     } else if (sub === "hubs") {
+      const hubBanner =
+        '<div class="story-box" style="margin-bottom:12px;font-size:12.5px">' +
+        '<strong>How to read Data Hubs:</strong> Each row tracks one stored database field — <strong>Who writes it (left)</strong> → <strong>Stored field (center)</strong> → <strong>Who reads/derives it (right)</strong>. ' +
+        '<span style="color:#fcd34d">Amber</span> = multiple unrelated files mutate the same field (split-brain / lost-update risk). Dashed = computed on read instead of stored. Click <strong>?</strong> for details.' +
+        "</div>";
       content = fl.dataHubs.length === 0
         ? '<div class="muted" style="padding:16px">No multi-site entity field lifecycles extracted.</div>'
-        : fl.dataHubs
+        : hubBanner + (fl.dataHubs
             .filter((h) => !q || h.entity.toLowerCase().includes(q))
             .map((h) => '<div class="card" style="padding:14px;margin-bottom:12px"><div style="margin-bottom:8px"><strong>Entity Hub: ' + esc(h.entity) + '</strong> <span class="mono muted">' + h.fieldCount + " tracked fields · click any row to inspect writers &amp; code</span></div>" + h.svg + "</div>")
-            .join("") || '<div class="muted" style="padding:16px">No matching entity hubs.</div>';
+            .join("") || '<div class="muted" style="padding:16px">No matching entity hubs.</div>');
       const hubs = fl.dataHubs.filter((h) => !q || h.entity.toLowerCase().includes(q));
 
       const allFields = hubs.flatMap((h) => (h.fields || []).map((f) => ({ key: h.entity + "::" + f.field, entity: h.entity, field: f })));
@@ -179,11 +184,12 @@ export function renderFlowsClientScript(): string {
       '<div class="sub-toggles">' +
       '<input id="flow-search-input" class="search" style="width:180px;padding:4px 9px;font-size:12px" placeholder="Filter flows / files…" value="' + esc(state.flowSearch || "") + '" />' +
       '<button class="pill-btn' + (hzOnly ? " active" : "") + '" data-flow-hazards-only="1">Hazards only</button>' +
+      '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="What am I looking at?">?</button>' +
       "</div></div>";
 
     return (
       '<div class="workspace code-open">' +
-      '<div class="canvas-panel" style="overflow:auto;padding:14px 16px">' + filterBar + content + "</div>" +
+      '<div class="canvas-panel" style="position:relative;overflow:auto;padding:14px 16px">' + filterBar + renderInfoPopoverHtml() + content + "</div>" +
       '<aside class="drawer">' + drawerHtml + "</aside>" +
       "</div>"
     );

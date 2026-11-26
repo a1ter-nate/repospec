@@ -26,19 +26,18 @@ export function renderStageClientScript(): string {
       '<span title="' + (hasRealCov ? "Execution line coverage ingested from " + esc(v.coverageReportFile || v.coverageSource || "coverage report") : "Static 1-hop test import reachability — not execution line/branch coverage") + '">' + DATA.summary.indexedSourceFiles + " files · " + covHeaderLabel + "</span>" +
       (DATA.repo.commitSha ? "<span>@" + esc(DATA.repo.commitSha.slice(0, 7)) + "</span>" : "");
 
-    const customFacts = DATA.extensions?.facts || [];
+    const BUILTIN_FACT_KINDS = new Set(["work_flow", "data_lifecycle", "ddia_hazard", "async_handoff", "state_machine"]);
+    const customFacts = (DATA.extensions?.facts || []).filter((f) => !BUILTIN_FACT_KINDS.has(f.kind));
     const customTabs = DATA.customUi?.extraTabs || [];
     const flowCount = (DATA.flows?.workFlows?.length || 0) + (DATA.flows?.stateMachines?.length || 0) + (DATA.flows?.dataHubs?.length || 0);
+    const hasSurfaces = DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0;
     const tabs = [
       { id: "diff", label: "Diff (" + (DATA.commitDiff?.baseSha || "") + "→" + (DATA.commitDiff?.headSha || "") + ")", show: Boolean(DATA.commitDiff) },
       { id: "map", label: "Map", show: Boolean(runtimeDiag) },
       { id: "flows", label: "Flows (" + (DATA.flows?.workFlows?.length || 0) + ")", show: flowCount > 0 },
-      { id: "behavior", label: "Behavior (" + behaviorDiags.length + ")", show: behaviorDiags.length > 0 },
-      { id: "data", label: "Data (" + DATA.entities.length + ")", show: DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0 },
-      { id: "facts", label: "Facts (" + customFacts.length + ")", show: customFacts.length > 0 },
-      { id: "delivery", label: "Delivery", show: Boolean(deliveryDiag) },
+      { id: "data", label: "Surfaces", show: hasSurfaces },
+      { id: "facts", label: "Custom Facts (" + customFacts.length + ")", show: customFacts.length > 0 },
       { id: "timeline", label: "Timeline (" + (DATA.timeline?.commits?.length || 0) + ")", show: Boolean(DATA.timeline?.commits?.length) },
-      { id: "checks", label: "Checks (" + (v.invariantsFailed + v.invariantsWarned) + ")", show: true },
       ...customTabs.map((ct) => ({ id: "custom:" + ct.id, label: ct.label, show: true })),
     ].filter((t) => t.show);
 
@@ -119,6 +118,7 @@ export function renderStageClientScript(): string {
           '<button class="pill-btn' + (state.mapMode === "runtime" ? " active" : "") + '" data-map-mode="runtime" title="Apps, services, datastores, and external APIs flowing left-to-right">Runtime</button>' +
           (packagesDiag ? '<button class="pill-btn' + (state.mapMode === "packages" ? " active" : "") + '" data-map-mode="packages" title="Internal workspace package dependency graph">Packages</button>' : "") +
           (domainsDiag ? '<button class="pill-btn' + (state.mapMode === "domains" ? " active" : "") + '" data-map-mode="domains" title="Business domain coupling graph — red arrows show bidirectional coupling">Domains</button>' : "") +
+          (deliveryDiag ? '<button class="pill-btn' + (state.mapMode === "delivery" ? " active" : "") + '" data-map-mode="delivery" title="CI workflows, builds, and IaC deployment resources">Delivery</button>' : "") +
           "</div>";
       }
     } else if (state.tab === "behavior" && behaviorDiags.length > 1) {

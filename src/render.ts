@@ -185,7 +185,7 @@ export function renderVisualHtml(
     DATA.nodes.filter((n) => n.kind === "app").length <= 1;
 
   const state = {
-    tab: DATA.commitDiff ? "diff" : isLibraryDefault ? "behavior" : "map",
+    tab: DATA.commitDiff ? "diff" : isLibraryDefault && (DATA.flows?.stateMachines?.length || 0) > 0 ? "flows" : "map",
     mapMode: "runtime",
     viewMode: "flow",
     showAllEdges: false,
@@ -210,8 +210,8 @@ export function renderVisualHtml(
     focusMode: false,
     activeTraceId: null,
     dataFilter: "",
-    dataSubtab: "entities",
-    flowsSubtab: "workflows",
+    dataSubtab: (DATA.surfaces?.endpoints?.length || 0) > 0 ? "endpoints" : "entities",
+    flowsSubtab: isLibraryDefault && (DATA.flows?.workFlows?.length || 0) === 0 && (DATA.flows?.stateMachines?.length || 0) > 0 ? "machines" : "workflows",
     activeFlowId: null,
     flowMode: "current",
     flowSelectedStepIdx: null,
