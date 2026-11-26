@@ -231,6 +231,8 @@ export function renderVisualHtml(
     flowSelectedAsyncIdx: null,
     flowFilterChip: "all",
     flowRailHidden: false,
+    flowInspectorOpen: false,
+    flowZoom: null,
     flowRailClosed: {},
     flowSearch: "",
     flowCodeFile: null,

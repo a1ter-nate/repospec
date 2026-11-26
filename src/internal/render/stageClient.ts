@@ -316,6 +316,7 @@ export function renderStageClientScript(): string {
       "</div>" +
       bodyHtml;
     applyTransform();
+    if (state.tab === "flows" && typeof applyFlowDiagramScale === "function") applyFlowDiagramScale();
     syncHashFromState();
     const focusEl = document.querySelector("#code-viewer-box .focus-line");
     if (focusEl && typeof focusEl.scrollIntoView === "function") {

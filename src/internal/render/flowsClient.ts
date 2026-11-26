@@ -21,6 +21,15 @@ export function renderFlowsClientScript(): string {
       '<button class="seg-btn" data-flow-step-nav="-1" title="Previous (k)">‹</button>' +
       '<button class="seg-btn" data-flow-step-nav="1" title="Next (j)">›</button>' +
       "</span>";
+    const zoomBtns =
+      '<span class="seg-group">' +
+      '<button class="seg-btn" data-flow-zoom="out" title="Zoom diagram out">−</button>' +
+      '<button class="seg-btn" id="fx-zoom-pct" data-flow-zoom="fit" title="Toggle Fit / 100%">100%</button>' +
+      '<button class="seg-btn" data-flow-zoom="in" title="Zoom diagram in">+</button>' +
+      "</span>";
+    const inspToggleBtn =
+      '<button class="tbtn' + (state.flowInspectorOpen ? " active" : "") + '" data-toggle-flow-inspector="1" title="Open or close Flow Inspector & Code (])">' +
+      (state.flowInspectorOpen ? "Hide Code" : "Code & Details") + "</button>";
     const guideBtn = '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="How to read this view">?</button>';
 
     let stageHead = "";
@@ -56,7 +65,7 @@ export function renderFlowsClientScript(): string {
           flowPipsHtml(wf.serialAwaitCount) +
           (wf.hazardCount > 0 ? '<span class="fr-hz' + (wf.hasError ? " is-err" : "") + '" title="' + wf.hazardCount + ' DDIA flags">' + wf.hazardCount + "</span>" : "") +
           "</div>" +
-          '<div class="fx-head-r">' + modeBtns + navStepBtns + guideBtn + "</div>" +
+          '<div class="fx-head-r">' + modeBtns + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
           "</div>";
         stageBody = mode === "optimized" && wf.optimizedSvg ? wf.optimizedSvg : wf.svg;
 
@@ -125,7 +134,7 @@ export function renderFlowsClientScript(): string {
         '<span class="crumb-cur">' + esc(hub ? hub.entity : "None") + "</span>" +
         (hub ? '<span class="mono muted" style="font-size:12px">' + hub.fieldCount + " fields" + (hub.writerCount ? " · " + hub.writerCount + " writers" : "") + "</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       legendStrip =
         '<div class="fx-legend-strip">' +
@@ -167,7 +176,7 @@ export function renderFlowsClientScript(): string {
         '<span class="crumb-cur">' + esc(sm ? sm.name : "None") + "</span>" +
         (sm ? '<span class="mono muted" style="font-size:12px">' + sm.stateCount + " states · " + sm.transitionCount + " transitions</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       stageBody = sm ? sm.svg : '<div class="fx-empty">No declared state machines extracted.</div>';
 
@@ -204,7 +213,7 @@ export function renderFlowsClientScript(): string {
         '<span class="crumb-cur">' + esc(ah ? ah.channel : (fl.asyncCount + " channels")) + "</span>" +
         (ah ? '<span class="badge b-purple">' + esc(ah.transport) + "</span>" : "") +
         "</div>" +
-        '<div class="fx-head-r">' + navStepBtns + guideBtn + "</div>" +
+        '<div class="fx-head-r">' + zoomBtns + inspToggleBtn + navStepBtns + guideBtn + "</div>" +
         "</div>";
       stageBody = fl.asyncHandoffsSvg || '<div class="fx-empty">No cross-boundary async handoffs extracted.</div>';
       if (!ah) {
@@ -225,24 +234,20 @@ export function renderFlowsClientScript(): string {
       }
     }
 
-    const wsStyle = !INLINE && state.drawerWidth && !state.drawerCollapsed ? ' style="--drawer-w:' + state.drawerWidth + 'px"' : "";
-    const drawerTopbar = !INLINE
-      ? '<div class="drawer-topbar"><span class="drawer-kicker">Flow Inspector</span><button class="tbtn" data-toggle-drawer="1" title="Collapse panel (])">⇥</button></div>'
-      : "";
-    const reopenBtn = !INLINE && state.drawerCollapsed
-      ? '<button class="drawer-reopen-btn" data-toggle-drawer="1" title="Open panel (])">⇤ Inspector</button>'
-      : "";
-    const resizerHtml = !INLINE
-      ? '<div class="drawer-resizer" id="drawer-resizer" title="Drag to resize · Double-click to reset"></div>'
+    const drawerTopbar =
+      '<div class="drawer-topbar"><span class="drawer-kicker">Flow Inspector</span><button class="tbtn" data-toggle-flow-inspector="1" title="Close inspector (Esc)">✕</button></div>';
+    const inspectorOverlay = state.flowInspectorOpen
+      ? '<aside class="fx-inspector" id="drawer">' + drawerTopbar + drawerHtml + "</aside>"
       : "";
     return (
-      '<div class="workspace flows-open' + (state.drawerCollapsed ? " drawer-collapsed" : "") + '" id="workspace"' + wsStyle + ">" +
+      '<div class="workspace flows-full" id="workspace">' +
       '<div class="canvas-panel fx' + (state.flowRailHidden ? " rail-off" : "") + '">' +
       renderFlowRail(fl, sub) +
-      '<section class="fx-stage">' + reopenBtn + stageHead + legendStrip + renderInfoPopoverHtml() + '<div class="fx-stage-body" id="fx-stage-body">' + stageBody + "</div></section>" +
+      '<section class="fx-stage">' + stageHead + legendStrip + renderInfoPopoverHtml() +
+      '<div class="fx-stage-body" id="fx-stage-body"><div class="fx-svg-wrap" id="fx-svg-wrap">' + stageBody + "</div></div>" +
+      inspectorOverlay +
+      "</section>" +
       "</div>" +
-      resizerHtml +
-      '<aside class="drawer" id="drawer">' + drawerTopbar + drawerHtml + "</aside>" +
       "</div>"
     );
   }
@@ -323,6 +328,22 @@ export function renderFlowsClientScript(): string {
       render();
       return true;
     }
+    if (target.closest("[data-toggle-flow-inspector]")) {
+      state.flowInspectorOpen = !state.flowInspectorOpen;
+      if (state.flowInspectorOpen) ensureFileSourcesLoaded();
+      render();
+      return true;
+    }
+    const fzBtn = target.closest("[data-flow-zoom]");
+    if (fzBtn) {
+      const dir = fzBtn.getAttribute("data-flow-zoom");
+      const cur = typeof state.flowZoom === "number" ? state.flowZoom : 1.05;
+      if (dir === "in") state.flowZoom = Math.min(2.4, Number((cur + 0.2).toFixed(2)));
+      else if (dir === "out") state.flowZoom = Math.max(0.65, Number((cur - 0.2).toFixed(2)));
+      else state.flowZoom = state.flowZoom === "fit" ? 1.05 : "fit";
+      applyFlowDiagramScale();
+      return true;
+    }
     const grpBtn = target.closest("[data-flow-group]");
     if (grpBtn) {
       const k = grpBtn.getAttribute("data-flow-group") || "";
@@ -380,6 +401,7 @@ export function renderFlowsClientScript(): string {
     if (stepEl) {
       state.flowSelectedStepIdx = Number(stepEl.getAttribute("data-flow-step"));
       state.flowCodeFile = null;
+      state.flowInspectorOpen = true;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -390,6 +412,7 @@ export function renderFlowsClientScript(): string {
       state.flowSelectedHubField = key;
       if (key.includes("::")) state.activeHubEntity = key.split("::")[0];
       state.flowCodeFile = null;
+      state.flowInspectorOpen = true;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -400,6 +423,7 @@ export function renderFlowsClientScript(): string {
       state.flowSelectedSmState = key;
       if (key.includes("::")) state.activeSmId = key.split("::")[0];
       state.flowCodeFile = null;
+      state.flowInspectorOpen = true;
       ensureFileSourcesLoaded();
       render();
       return true;
@@ -408,6 +432,7 @@ export function renderFlowsClientScript(): string {
     if (asyncEl) {
       state.flowSelectedAsyncIdx = Number(asyncEl.getAttribute("data-async-idx"));
       state.flowCodeFile = null;
+      state.flowInspectorOpen = true;
       ensureFileSourcesLoaded();
       render();
       const row = document.querySelector('#fx-stage-body [data-async-idx="' + state.flowSelectedAsyncIdx + '"]');
@@ -421,6 +446,7 @@ export function renderFlowsClientScript(): string {
     if (jumpEl) {
       state.flowCodeFile = jumpEl.getAttribute("data-flow-jump-file");
       state.flowCodeLine = Number(jumpEl.getAttribute("data-flow-jump-line")) || 1;
+      state.flowInspectorOpen = true;
       ensureFileSourcesLoaded();
       render();
       return true;
