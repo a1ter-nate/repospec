@@ -41,7 +41,7 @@ jobs:
             --rank risk \
             --format both \
             --focus auto \
-            --theme dark
+            --theme auto
 
       - name: Upload Show-Me screenshots & manifest artifact
         uses: actions/upload-artifact@v4

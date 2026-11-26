@@ -1,18 +1,22 @@
 import type { CommitArchDiff } from "../../studio/commitDiff.ts";
-import type { ImportanceBreakdown, PriorityTier, RankedChangedFile, RankPreset } from "./ranking.ts";
+import type { ImportanceBreakdown, RankedChangedFile, RankPreset } from "./ranking.ts";
+import type { ReviewLevel, TriageResult } from "./triage.ts";
 
 export interface ShowMeShotRecord {
   rank: number;
-  kind: "diagram" | "top_file";
+  placement: "hero" | "detail";
+  kind: "diagram" | "symbol" | "iac";
   id: string;
   title: string;
-  priority: PriorityTier;
+  altText: string;
   score: number;
   focused: boolean;
   hiddenNodes: number;
   reasons: string[];
   svgFile?: string;
   pngFile?: string;
+  lightSvgFile?: string;
+  lightPngFile?: string;
   breakdown?: ImportanceBreakdown;
 }
 
@@ -22,78 +26,110 @@ function joinImageUrl(baseUrl: string | undefined, fileName: string): string {
   return `${clean}/${fileName}`;
 }
 
-function buildSpecialNotes(commitDiff: CommitArchDiff, topFiles: RankedChangedFile[]): string[] {
-  const notes: string[] = [];
-  if (commitDiff.findings.introduced.length > 0) {
-    const sample = commitDiff.findings.introduced
-      .slice(0, 2)
-      .map((f) => `${f.invariantName} (\`${f.file}\`)`)
-      .join(", ");
-    notes.push(`Introduces **${commitDiff.findings.introduced.length}** new architectural finding(s): ${sample}.`);
+function levelBadge(level: ReviewLevel): string {
+  if (level === "scrutinize") return "🔴 Scrutinize";
+  if (level === "look") return "🟡 Look";
+  return "🟢 Skim";
+}
+
+function renderPictureBlock(shot: ShowMeShotRecord, imageBaseUrl?: string): string {
+  const darkFile = shot.pngFile ?? shot.svgFile;
+  const lightFile = shot.lightPngFile ?? shot.lightSvgFile;
+  const alt = shot.altText.replaceAll('"', "'");
+
+  if (darkFile && lightFile) {
+    return [
+      "<picture>",
+      `  <source media="(prefers-color-scheme: dark)" srcset="${joinImageUrl(imageBaseUrl, darkFile)}">`,
+      `  <source media="(prefers-color-scheme: light)" srcset="${joinImageUrl(imageBaseUrl, lightFile)}">`,
+      `  <img alt="${alt}" src="${joinImageUrl(imageBaseUrl, lightFile)}" width="840">`,
+      "</picture>",
+    ].join("\n");
   }
-  if (commitDiff.kpis.coveragePct.delta <= -0.5) {
-    notes.push(
-      `Test reachability shifted **${commitDiff.kpis.coveragePct.before}% → ${commitDiff.kpis.coveragePct.after}%** (${commitDiff.kpis.coveragePct.delta}%).`,
-    );
+  const single = darkFile ?? lightFile;
+  if (!single) return "";
+  return `<img alt="${alt}" src="${joinImageUrl(imageBaseUrl, single)}" width="840">`;
+}
+
+function statusIcon(status: RankedChangedFile["file"]["status"]): string {
+  if (status === "added") return "🟢";
+  if (status === "deleted") return "🔴";
+  return "🟡";
+}
+
+function formatDeltaCell(ins: number, del: number): string {
+  if (ins > 0 && del > 0) return `+${ins} −${del}`;
+  if (ins > 0) return `+${ins}`;
+  if (del > 0) return `−${del}`;
+  return "0";
+}
+
+function formatUsedByCell(tf: RankedChangedFile): string {
+  if (tf.fileClass !== "source") return "—";
+  if (tf.preexistingDependents > 0) {
+    return `${tf.preexistingDependents} existing`;
   }
-  if (commitDiff.surfaces.externalAdded.length > 0) {
-    notes.push(`Adds new external dependency: ${commitDiff.surfaces.externalAdded.map((e) => `\`${e}\``).join(", ")}.`);
+  if (tf.newWiring > 0) {
+    return `${tf.newWiring} (new)`;
   }
-  const fragileTop = topFiles.find((f) => f.file.blastRadius >= 3 && f.coveragePct < 50);
-  if (fragileTop && notes.length < 3) {
-    notes.push(
-      `High-blast-radius edit in \`${fragileTop.file.path}\` (**${fragileTop.file.blastRadius} callers**, ${Math.round(fragileTop.coveragePct)}% coverage, churn ${fragileTop.churn}).`,
-    );
+  return "0";
+}
+
+function formatTestCell(tf: RankedChangedFile): string {
+  if (tf.fileClass !== "source" && tf.fileClass !== "iac") return "—";
+  if (tf.testedInPr) return "✓ in PR";
+  if (tf.coverageKnown && tf.coveragePct !== undefined) return `${Math.round(tf.coveragePct)}% line`;
+  if (tf.noDirectTest) return "no direct test";
+  return "—";
+}
+
+function buildFilesSummaryLabel(topFiles: RankedChangedFile[], commitDiff: CommitArchDiff): string {
+  const counts = new Map<string, number>();
+  for (const f of topFiles) {
+    counts.set(f.fileClass, (counts.get(f.fileClass) ?? 0) + 1);
   }
-  if (commitDiff.findings.resolved.length > 0 && notes.length < 3) {
-    notes.push(`Resolves **${commitDiff.findings.resolved.length}** existing finding(s).`);
+  const parts: string[] = [];
+  for (const cls of ["source", "iac", "contract", "fixture", "test", "script", "doc", "config"]) {
+    const n = counts.get(cls) ?? 0;
+    if (n > 0) parts.push(`${n} ${cls}${n === 1 || cls === "iac" || cls === "source" ? "" : "s"}`);
   }
-  return notes.slice(0, 3);
+  const delta = `+${commitDiff.kpis.files.insertions} −${commitDiff.kpis.files.deletions}`;
+  return parts.length > 0 ? `Changed files · ${parts.join(" · ")} (${delta})` : `Changed files (${delta})`;
 }
 
 export function buildShowMePrComment(params: {
   repoName: string;
   commitDiff: CommitArchDiff;
   preset: RankPreset;
+  triage: TriageResult;
   shots: ShowMeShotRecord[];
   topFiles: RankedChangedFile[];
   imageBaseUrl?: string;
 }): string {
-  const { repoName, commitDiff, preset, shots, topFiles, imageBaseUrl } = params;
-  const notes = buildSpecialNotes(commitDiff, topFiles);
-  const verdictEmoji = commitDiff.verdict === "risk" ? "🔴" : commitDiff.verdict === "caution" ? "🟡" : "🟢";
+  const { commitDiff, triage, shots, topFiles, imageBaseUrl } = params;
+  const heroShots = shots.filter((s) => s.placement === "hero");
+  const detailShots = shots.filter((s) => s.placement === "detail");
+
   const out: string[] = [
     "<!-- repospec-show-me -->",
-    `# ${verdictEmoji} Architectural Show-Me · \`${repoName}\` (\`${commitDiff.baseSha}..${commitDiff.headSha}\`)`,
-    "",
-    "## Why the change",
-    "",
-    `${commitDiff.commitSubject} — ${commitDiff.verdictSummary}`,
-    "",
-    "## Special things to note",
-    "",
-    ...(notes.length > 0 ? notes.map((n) => `- ${n}`) : ["- None."]),
+    `### ${levelBadge(triage.level)} · ${triage.headline}`,
+    triage.shapeLine,
     "",
   ];
 
-  if (shots.length > 0) {
-    out.push(`## Architectural Diffs (ranked by \`--rank ${preset}\`)`, "");
-    for (const shot of shots) {
-      const imgFile = shot.pngFile ?? shot.svgFile;
-      const reasonLine = shot.reasons.length > 0 ? shot.reasons.join(" · ") : "structural diff";
-      const focusTag =
-        shot.focused && shot.hiddenNodes > 0 ? ` · focused 1-hop (${shot.hiddenNodes} unchanged hidden)` : "";
-      out.push(`### ${shot.rank}. [${shot.priority} · score ${shot.score}] ${shot.title}`);
-      out.push(`> ${reasonLine}${focusTag}`);
-      out.push("");
-      if (imgFile) {
-        out.push(`![${shot.title}](${joinImageUrl(imageBaseUrl, imgFile)})`);
-        out.push("");
-      }
+  if (triage.attentionItems.length > 0) {
+    const alertKind = triage.level === "scrutinize" ? "[!CAUTION]" : "[!WARNING]";
+    out.push(`> ${alertKind}`);
+    for (const item of triage.attentionItems.slice(0, 2)) {
+      out.push(`> **${item.title}:** ${item.detail}`);
     }
+    out.push("");
   }
 
-  out.push("## Change outline", "");
+  for (const shot of heroShots) {
+    const pic = renderPictureBlock(shot, imageBaseUrl);
+    if (pic) out.push(pic, "");
+  }
 
   const hasSurfaces =
     commitDiff.surfaces.endpointsAdded.length +
@@ -106,49 +142,55 @@ export function buildShowMePrComment(params: {
       commitDiff.surfaces.envRemoved.length >
     0;
 
-  if (hasSurfaces) {
-    out.push("Contract & runtime surface changes:", "```diff");
-    for (const ep of commitDiff.surfaces.endpointsAdded.slice(0, 8)) out.push(`+ endpoint ${ep}`);
-    for (const ep of commitDiff.surfaces.endpointsRemoved.slice(0, 8)) out.push(`- endpoint ${ep}`);
+  if (hasSurfaces && heroShots.length === 0) {
+    out.push("```diff");
+    for (const ep of commitDiff.surfaces.endpointsAdded.slice(0, 6)) out.push(`+ endpoint ${ep}`);
+    for (const ep of commitDiff.surfaces.endpointsRemoved.slice(0, 6)) out.push(`- endpoint ${ep}`);
     for (const en of commitDiff.surfaces.entitiesAdded.slice(0, 6)) out.push(`+ entity   ${en}`);
     for (const en of commitDiff.surfaces.entitiesRemoved.slice(0, 6)) out.push(`- entity   ${en}`);
-    for (const ex of commitDiff.surfaces.externalAdded.slice(0, 6)) out.push(`+ external ${ex}`);
-    for (const ex of commitDiff.surfaces.externalRemoved.slice(0, 6)) out.push(`- external ${ex}`);
-    for (const ev of commitDiff.surfaces.envAdded.slice(0, 6)) out.push(`+ env      ${ev}`);
-    for (const ev of commitDiff.surfaces.envRemoved.slice(0, 6)) out.push(`- env      ${ev}`);
-    out.push("```", "");
-  }
-
-  if (commitDiff.edgeChanges.added.length + commitDiff.edgeChanges.removed.length > 0) {
-    out.push("Dependency & structural wire changes:", "```diff");
-    for (const e of commitDiff.edgeChanges.added.slice(0, 10)) out.push(`+ ${e.from} -> ${e.to} (${e.kind})`);
-    for (const e of commitDiff.edgeChanges.removed.slice(0, 10)) out.push(`- ${e.from} -> ${e.to} (${e.kind})`);
+    for (const ex of commitDiff.surfaces.externalAdded.slice(0, 4)) out.push(`+ external ${ex}`);
+    for (const ev of commitDiff.surfaces.envAdded.slice(0, 4)) out.push(`+ env      ${ev}`);
     out.push("```", "");
   }
 
   if (topFiles.length > 0) {
-    out.push(
-      `Highest-priority changed files (+${commitDiff.kpis.files.insertions}/-${commitDiff.kpis.files.deletions}):`,
-      "```diff",
+    const primaryRows = topFiles.filter(
+      (f) => f.fileClass === "source" || f.fileClass === "iac" || f.fileClass === "contract" || f.fileClass === "fixture",
     );
-    for (const tf of topFiles.slice(0, 12)) {
-      const sig = tf.file.status === "added" ? "+" : tf.file.status === "deleted" ? "-" : "~";
-      const meta = [
-        tf.priority,
-        `+${tf.file.insertions}/-${tf.file.deletions}`,
-        tf.file.blastRadius > 0 ? `${tf.file.blastRadius} callers` : "",
-        `${Math.round(tf.coveragePct)}% cov`,
-        tf.churn > 0 ? `churn ${tf.churn}` : "",
-      ]
-        .filter(Boolean)
-        .join(", ");
-      out.push(`${sig} ${tf.file.path} (${meta})`);
+    const secondaryRows = topFiles.filter(
+      (f) => f.fileClass === "test" || f.fileClass === "doc" || f.fileClass === "script" || f.fileClass === "config",
+    );
+
+    out.push(`<details><summary>${buildFilesSummaryLabel(topFiles, commitDiff)}</summary>`, "");
+    if (primaryRows.length > 0) {
+      out.push("| | File | Δ | Used by | Tests |");
+      out.push("| :--- | :--- | :---: | :---: | :---: |");
+      for (const tf of primaryRows.slice(0, 15)) {
+        out.push(
+          `| ${statusIcon(tf.file.status)} | \`${tf.file.path}\` | ${formatDeltaCell(tf.file.insertions, tf.file.deletions)} | ${formatUsedByCell(tf)} | ${formatTestCell(tf)} |`,
+        );
+      }
+      out.push("");
     }
-    out.push("```", "");
+    if (secondaryRows.length > 0) {
+      const secIns = secondaryRows.reduce((s, f) => s + f.file.insertions, 0);
+      const secDel = secondaryRows.reduce((s, f) => s + f.file.deletions, 0);
+      const list = secondaryRows
+        .slice(0, 6)
+        .map((f) => `\`${f.file.path}\` (${formatDeltaCell(f.file.insertions, f.file.deletions)})`)
+        .join(", ");
+      const extra = secondaryRows.length > 6 ? ` +${secondaryRows.length - 6} more` : "";
+      out.push(`**Tests / docs / support (${formatDeltaCell(secIns, secDel)}):** ${list}${extra}`, "");
+    }
+    out.push("</details>");
   }
 
-  out.push(
-    "_Generated deterministically by RepoSpec (`repospec show-me`). Structural graph + coverage only; cross-repo wire contracts & behavioral semantics require runtime E2E/contract proofs._",
-  );
+  for (const shot of detailShots) {
+    const pic = renderPictureBlock(shot, imageBaseUrl);
+    if (!pic) continue;
+    out.push(`<details><summary>${shot.title}</summary>`, "", pic, "", "</details>");
+  }
+
+  out.push("", `<sub>RepoSpec · static structure only · ${commitDiff.baseSha}..${commitDiff.headSha}</sub>`);
   return out.join("\n");
 }

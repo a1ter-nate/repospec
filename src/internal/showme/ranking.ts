@@ -1,11 +1,12 @@
 import type { RepoSpecV4 } from "../../schema.ts";
 import type { ChangedFileEntry, CommitArchDiff } from "../../studio/commitDiff.ts";
-import type { DiffDiagramBundle, DiffDiagramEdge, DiffDiagramNode } from "../../studio/diffOverlay.ts";
+import type { DiffDiagramBundle } from "../../studio/diffOverlay.ts";
 import type { DrilldownFile, DrilldownIndex } from "../../studio/drilldown.ts";
+import { classifyFile, detectTestedInPr, type FileClass } from "./fileClass.ts";
+import { buildCompactDeltaGraph } from "./layoutFit.ts";
 
 export type RankPreset = "risk" | "hotspot" | "contract" | "blast";
 export type FocusMode = "auto" | "always" | "off";
-export type PriorityTier = "P0" | "P1" | "P2" | "P3";
 export type RankingSpecSlice = Pick<RepoSpecV4, "verification" | "modules">;
 
 export interface ImportanceBreakdown {
@@ -14,39 +15,40 @@ export interface ImportanceBreakdown {
   findingsWarn: number;
   tangleCount: number;
   blastRadius: number;
-  coveragePct: number;
-  coverageGapPct: number;
+  coveragePct?: number;
+  coverageKnown: boolean;
   churn: number;
   locDelta: number;
   contractDelta: number;
   ioRisk: number;
   changedNodes: number;
   changedEdges: number;
+  addedEdges: number;
+  removedEdges: number;
   reasons: string[];
-}
-
-export interface CroppedOverlayResult {
-  overlay: DiffDiagramBundle["overlay"];
-  focused: boolean;
-  hiddenNodes: number;
 }
 
 export interface RankedDiagram {
   bundle: DiffDiagramBundle;
   score: number;
-  priority: PriorityTier;
   breakdown: ImportanceBreakdown;
   focused: boolean;
   hiddenNodes: number;
+  foldedByLane: Record<string, number>;
   overlay: DiffDiagramBundle["overlay"];
 }
 
 export interface RankedChangedFile {
   file: ChangedFileEntry;
+  fileClass: FileClass;
   score: number;
-  priority: PriorityTier;
   churn: number;
-  coveragePct: number;
+  coveragePct?: number;
+  coverageKnown: boolean;
+  noDirectTest: boolean;
+  testedInPr: boolean;
+  preexistingDependents: number;
+  newWiring: number;
   capabilities: string[];
   findingsCount: number;
   reasons: string[];
@@ -57,13 +59,16 @@ interface ScoreSignals {
   findingsWarn: number;
   tangleCount: number;
   blastRadius: number;
-  coveragePct: number;
+  coveragePct?: number;
+  coverageKnown: boolean;
   churn: number;
   locDelta: number;
   contractDelta: number;
   ioRisk: number;
   changedNodes: number;
   changedEdges: number;
+  addedEdges: number;
+  removedEdges: number;
 }
 
 const STATEFUL_CAPS = new Set(["DB", "HTTP", "PROC", "NET", "WS"]);
@@ -73,19 +78,13 @@ export function parseRankPreset(raw?: string): RankPreset {
   return "risk";
 }
 
-export function priorityTierForScore(score: number): PriorityTier {
-  if (score >= 80) return "P0";
-  if (score >= 45) return "P1";
-  if (score >= 20) return "P2";
-  return "P3";
-}
-
 function clampPct(value: number): number {
+  if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value * 10) / 10));
 }
 
 function computePresetScore(preset: RankPreset, s: ScoreSignals): number {
-  const covGap = Math.max(0, 1 - s.coveragePct / 100);
+  const covGap = s.coverageKnown && s.coveragePct !== undefined ? Math.max(0, 1 - s.coveragePct / 100) : 0.25;
   const logChurn = Math.log2(1 + Math.max(0, s.churn));
   const logLoc = Math.log2(1 + Math.max(0, s.locDelta));
 
@@ -134,131 +133,24 @@ function computePresetScore(preset: RankPreset, s: ScoreSignals): number {
 
 function buildReasons(s: ScoreSignals): string[] {
   const reasons: string[] = [];
-  if (s.findingsError > 0) reasons.push(`${s.findingsError} new error${s.findingsError === 1 ? "" : "s"}`);
-  if (s.findingsWarn > 0) reasons.push(`${s.findingsWarn} new warn${s.findingsWarn === 1 ? "" : "s"}`);
-  if (s.tangleCount > 0) reasons.push(`${s.tangleCount} tangle${s.tangleCount === 1 ? "" : "s"}`);
-  if (s.contractDelta > 0) reasons.push(`${s.contractDelta} contract/surface delta`);
-  if (s.blastRadius > 0) reasons.push(`${s.blastRadius} caller${s.blastRadius === 1 ? "" : "s"}`);
-  if (s.coveragePct < 50 && (s.blastRadius > 0 || s.locDelta > 10)) reasons.push(`${Math.round(s.coveragePct)}% cov`);
-  if (s.churn >= 3) reasons.push(`churn ${s.churn}`);
+  if (s.findingsError > 0) reasons.push(`${s.findingsError} new violation${s.findingsError === 1 ? "" : "s"}`);
+  if (s.findingsWarn > 0) reasons.push(`${s.findingsWarn} new warning${s.findingsWarn === 1 ? "" : "s"}`);
+  if (s.tangleCount > 0) reasons.push(`${s.tangleCount} cycle${s.tangleCount === 1 ? "" : "s"}`);
+  if (s.contractDelta > 0) reasons.push(`${s.contractDelta} contract change${s.contractDelta === 1 ? "" : "s"}`);
+  if (s.addedEdges > 0) reasons.push(`${s.addedEdges} new dep${s.addedEdges === 1 ? "" : "s"}`);
+  if (s.removedEdges > 0) reasons.push(`${s.removedEdges} removed dep${s.removedEdges === 1 ? "" : "s"}`);
+  if (s.blastRadius > 0) reasons.push(`${s.blastRadius} dependent${s.blastRadius === 1 ? "" : "s"}`);
+  if (s.coverageKnown && s.coveragePct !== undefined && s.coveragePct < 50 && s.blastRadius > 0) {
+    reasons.push(`${Math.round(s.coveragePct)}% line cov`);
+  }
   if (s.ioRisk > 0) reasons.push("stateful IO");
-  if (s.changedEdges > 0) reasons.push(`${s.changedEdges} wire delta`);
-  if (reasons.length === 0 && s.locDelta > 0) reasons.push(`${s.locDelta} LOC delta`);
-  return reasons.slice(0, 4);
+  return reasons.slice(0, 3);
 }
 
-function resolveFileCoveragePct(df: DrilldownFile | undefined, fallbackPct: number): number {
-  if (!df) return clampPct(fallbackPct);
+function resolveMeasuredCoverage(df: DrilldownFile | undefined, fileClass: FileClass): number | undefined {
+  if (fileClass !== "source" || !df) return undefined;
   if (typeof df.fc === "number") return clampPct(df.fc);
-  if (df.tc === 1) return 100;
-  if (df.tc === 0) return 0;
-  return clampPct(fallbackPct);
-}
-
-export function cropFocusedSubgraph(
-  overlay: DiffDiagramBundle["overlay"],
-  focusMode: FocusMode,
-  autoThreshold = 14,
-): CroppedOverlayResult {
-  const changedIds = new Set(overlay.nodes.filter((n) => n.diffStatus !== "unchanged").map((n) => n.id));
-  const shouldFocus =
-    changedIds.size > 0 &&
-    (focusMode === "always" || (focusMode === "auto" && overlay.nodes.length > autoThreshold));
-  if (!shouldFocus) return { overlay, focused: false, hiddenNodes: 0 };
-
-  const keptIds = new Set<string>(changedIds);
-  for (const e of overlay.edges) {
-    if (changedIds.has(e.from) || changedIds.has(e.to)) {
-      keptIds.add(e.from);
-      keptIds.add(e.to);
-    }
-  }
-
-  const keptNodes = overlay.nodes.filter((n) => keptIds.has(n.id));
-  const hiddenNodes = overlay.nodes.length - keptNodes.length;
-  if (hiddenNodes <= 0 || keptNodes.length === 0) return { overlay, focused: false, hiddenNodes: 0 };
-
-  const keptEdges = overlay.edges.filter((e) => changedIds.has(e.from) || changedIds.has(e.to));
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-
-  for (const n of keptNodes) {
-    minX = Math.min(minX, n.x - n.w / 2);
-    minY = Math.min(minY, n.y - n.h / 2);
-    maxX = Math.max(maxX, n.x + n.w / 2);
-    maxY = Math.max(maxY, n.y + n.h / 2);
-  }
-  for (const e of keptEdges) {
-    for (const pt of e.points) {
-      minX = Math.min(minX, pt.x);
-      minY = Math.min(minY, pt.y);
-      maxX = Math.max(maxX, pt.x);
-      maxY = Math.max(maxY, pt.y);
-    }
-  }
-
-  const padX = 44;
-  const padTop = 54;
-  const shiftX = padX - minX;
-  const shiftY = padTop - minY;
-
-  const shiftedNodes: DiffDiagramNode[] = keptNodes.map((n) => ({
-    ...n,
-    x: Math.round((n.x + shiftX) * 10) / 10,
-    y: Math.round((n.y + shiftY) * 10) / 10,
-  }));
-  const shiftedEdges: DiffDiagramEdge[] = keptEdges.map((e) => ({
-    ...e,
-    points: e.points.map((pt) => ({
-      x: Math.round((pt.x + shiftX) * 10) / 10,
-      y: Math.round((pt.y + shiftY) * 10) / 10,
-    })),
-  }));
-
-  const laneBounds = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
-  for (const n of shiftedNodes) {
-    if (!n.lane) continue;
-    const cur = laneBounds.get(n.lane) ?? {
-      minX: Number.POSITIVE_INFINITY,
-      minY: Number.POSITIVE_INFINITY,
-      maxX: Number.NEGATIVE_INFINITY,
-      maxY: Number.NEGATIVE_INFINITY,
-    };
-    cur.minX = Math.min(cur.minX, n.x - n.w / 2);
-    cur.minY = Math.min(cur.minY, n.y - n.h / 2);
-    cur.maxX = Math.max(cur.maxX, n.x + n.w / 2);
-    cur.maxY = Math.max(cur.maxY, n.y + n.h / 2);
-    laneBounds.set(n.lane, cur);
-  }
-
-  const shiftedLanes = (overlay.lanes ?? [])
-    .filter((l) => laneBounds.has(l.id))
-    .map((l) => {
-      const b = laneBounds.get(l.id);
-      if (!b) return l;
-      return {
-        ...l,
-        x: Math.max(8, Math.round(b.minX - 16)),
-        y: Math.max(8, Math.round(b.minY - 34)),
-        w: Math.round(b.maxX - b.minX + 32),
-        h: Math.round(b.maxY - b.minY + 52),
-      };
-    });
-
-  return {
-    overlay: {
-      ...overlay,
-      width: Math.max(360, Math.round(maxX - minX + padX * 2)),
-      height: Math.max(220, Math.round(maxY - minY + padTop + 36)),
-      lanes: shiftedLanes,
-      nodes: shiftedNodes,
-      edges: shiftedEdges,
-    },
-    focused: true,
-    hiddenNodes,
-  };
+  return undefined;
 }
 
 export function rankChangedFiles(params: {
@@ -270,7 +162,7 @@ export function rankChangedFiles(params: {
   const { commitDiff, headSpec, drilldown, preset } = params;
   const drillByPath = new Map((drilldown?.files ?? []).map((f) => [f.p, f]));
   const modById = new Map((headSpec.modules ?? []).map((m) => [m.id, m]));
-  const fallbackCov = headSpec.verification.realLineCoveragePct ?? headSpec.verification.directTestCoveragePct;
+  const testedSet = detectTestedInPr(commitDiff.changedFiles, drilldown);
 
   const findingsByFile = new Map<string, { err: number; warn: number }>();
   for (const f of commitDiff.findings.introduced) {
@@ -281,30 +173,62 @@ export function rankChangedFiles(params: {
   }
 
   const ranked = commitDiff.changedFiles.map((cf): RankedChangedFile => {
+    const fileClass = classifyFile(cf.path);
     const df = drillByPath.get(cf.path);
     const mod = cf.moduleId ? modById.get(cf.moduleId) : undefined;
     const fStats = findingsByFile.get(cf.path) ?? { err: 0, warn: 0 };
-    const capabilities = df?.c ?? mod?.capabilities ?? ["PURE"];
+    const isCode = fileClass === "source";
+    const isRiskBearing = fileClass === "source" || fileClass === "iac" || fileClass === "contract" || fileClass === "fixture";
+
+    const capabilities = isCode && df ? df.c : [];
+    const ioRisk = isCode ? capabilities.filter((c) => STATEFUL_CAPS.has(c)).length : 0;
+    const testedInPr = testedSet.has(cf.path);
+    const coveragePct = resolveMeasuredCoverage(df, fileClass);
+    const coverageKnown = coveragePct !== undefined;
+    const noDirectTest = isCode && !testedInPr && df?.tc === 0 && !coverageKnown;
+
+    const preexistingDependents = cf.status === "added" ? 0 : cf.blastRadius;
+    const newWiring = cf.status === "added" ? cf.blastRadius : 0;
+    const churn = isCode || fileClass === "iac" ? (df?.ch ?? 0) : 0;
+    const locDelta = isCode || fileClass === "iac" ? cf.insertions + cf.deletions : 0;
+    const contractDelta =
+      fileClass === "contract" || fileClass === "fixture"
+        ? 1
+        : isCode && ((df?.t.length ?? 0) > 0 || (df?.x.length ?? 0) > 0)
+          ? 1
+          : 0;
+
     const signals: ScoreSignals = {
       findingsError: fStats.err,
       findingsWarn: fStats.warn,
-      tangleCount: mod?.inTangle ? 1 : 0,
-      blastRadius: cf.blastRadius,
-      coveragePct: resolveFileCoveragePct(df, fallbackCov),
-      churn: df?.ch ?? 0,
-      locDelta: cf.insertions + cf.deletions,
-      contractDelta: (df?.t.length ?? 0) > 0 || (df?.x.length ?? 0) > 0 ? 1 : 0,
-      ioRisk: capabilities.filter((c) => STATEFUL_CAPS.has(c)).length,
-      changedNodes: 1,
+      tangleCount: isCode && mod?.inTangle ? 1 : 0,
+      blastRadius: preexistingDependents,
+      coveragePct,
+      coverageKnown,
+      churn,
+      locDelta,
+      contractDelta,
+      ioRisk,
+      changedNodes: isRiskBearing ? 1 : 0,
       changedEdges: 0,
+      addedEdges: 0,
+      removedEdges: 0,
     };
-    const score = computePresetScore(preset, signals);
+
+    const rawScore = isRiskBearing ? computePresetScore(preset, signals) : 0;
+    const score = fileClass === "source" && cf.status === "added" ? rawScore + Math.min(12, newWiring * 2) : rawScore;
+
     return {
       file: cf,
+      fileClass,
       score,
-      priority: priorityTierForScore(score),
-      churn: signals.churn,
-      coveragePct: signals.coveragePct,
+      churn,
+      coveragePct,
+      coverageKnown,
+      noDirectTest,
+      testedInPr,
+      preexistingDependents,
+      newWiring,
       capabilities,
       findingsCount: fStats.err + fStats.warn,
       reasons: buildReasons(signals),
@@ -313,7 +237,7 @@ export function rankChangedFiles(params: {
 
   ranked.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    if (b.file.blastRadius !== a.file.blastRadius) return b.file.blastRadius - a.file.blastRadius;
+    if (b.preexistingDependents !== a.preexistingDependents) return b.preexistingDependents - a.preexistingDependents;
     return a.file.path.localeCompare(b.file.path);
   });
   return ranked;
@@ -325,13 +249,13 @@ export function rankDiffDiagrams(params: {
   drilldown?: DrilldownIndex;
   preset: RankPreset;
   focusMode: FocusMode;
+  topFileHint?: { moduleId: string | null; fileName: string };
 }): RankedDiagram[] {
-  const { commitDiff, headSpec, drilldown, preset, focusMode } = params;
+  const { commitDiff, headSpec, drilldown, preset, focusMode, topFileHint } = params;
   const drillByPath = new Map((drilldown?.files ?? []).map((f) => [f.p, f]));
   const modById = new Map((headSpec.modules ?? []).map((m) => [m.id, m]));
-  const fallbackCov = headSpec.verification.realLineCoveragePct ?? headSpec.verification.directTestCoveragePct;
 
-  const totalContractDelta =
+  const surfaceContractDelta =
     commitDiff.surfaces.endpointsAdded.length +
     commitDiff.surfaces.endpointsRemoved.length +
     commitDiff.surfaces.entitiesAdded.length +
@@ -343,7 +267,9 @@ export function rankDiffDiagrams(params: {
 
   const ranked = commitDiff.diagrams.map((bundle): RankedDiagram => {
     const changedNodes = bundle.overlay.nodes.filter((n) => n.diffStatus !== "unchanged");
-    const changedEdges = bundle.overlay.edges.filter((e) => e.diffStatus !== "unchanged");
+    const addedEdges = bundle.overlay.edges.filter((e) => e.diffStatus === "added").length;
+    const removedEdges = bundle.overlay.edges.filter((e) => e.diffStatus === "removed").length;
+    const changedEdges = addedEdges + removedEdges;
     const changedNodeIds = new Set(changedNodes.map((n) => n.id));
     const isRuntime = bundle.id === "diff:runtime";
     const unitSlug = bundle.id.startsWith("diff:modules:") ? bundle.id.slice("diff:modules:".length) : "";
@@ -371,32 +297,41 @@ export function rankDiffDiagrams(params: {
     for (const n of changedNodes) {
       const mod = modById.get(n.id);
       if (!mod) continue;
-      maxBlast = Math.max(maxBlast, mod.fanIn);
       if (mod.inTangle && mod.tangleId && !seenTangles.has(mod.tangleId)) {
         seenTangles.add(mod.tangleId);
         tangleCount += 1;
       }
-      ioRisk += mod.capabilities.filter((c) => STATEFUL_CAPS.has(c)).length;
     }
 
     let churnTotal = 0;
     let locDelta = 0;
     let covSum = 0;
+    let covCount = 0;
+    let fileContractHits = 0;
     for (const cf of matchingFiles) {
+      const cls = classifyFile(cf.path);
       const df = drillByPath.get(cf.path);
-      maxBlast = Math.max(maxBlast, cf.blastRadius);
+      const fileSurfaceRefs = (df?.t.length ?? 0) + (df?.x.length ?? 0);
+      if (cls === "contract" || cls === "fixture" || (cls === "source" && fileSurfaceRefs > 0)) {
+        fileContractHits += 1;
+      }
+      if (cls !== "source" && cls !== "iac") continue;
+      if (cf.status !== "added") maxBlast = Math.max(maxBlast, cf.blastRadius);
       churnTotal += df?.ch ?? 0;
       locDelta += cf.insertions + cf.deletions;
-      covSum += resolveFileCoveragePct(df, fallbackCov);
+      if (cls === "source" && df) {
+        ioRisk += df.c.filter((c) => STATEFUL_CAPS.has(c)).length;
+        if (typeof df.fc === "number") {
+          covSum += clampPct(df.fc);
+          covCount += 1;
+        }
+      }
     }
-    const coveragePct = matchingFiles.length > 0 ? clampPct(covSum / matchingFiles.length) : clampPct(fallbackCov);
-    const contractDelta = isRuntime
-      ? totalContractDelta
-      : Math.min(
-          totalContractDelta,
-          matchingFiles.filter((f) => (drillByPath.get(f.path)?.t.length ?? 0) > 0 || (drillByPath.get(f.path)?.x.length ?? 0) > 0)
-            .length,
-        );
+
+    const coverageKnown = covCount > 0;
+    const coveragePct = coverageKnown ? clampPct(covSum / covCount) : undefined;
+    const boundedSurfaceDelta = Math.min(surfaceContractDelta, fileContractHits);
+    const contractDelta = (isRuntime ? surfaceContractDelta : boundedSurfaceDelta) + fileContractHits;
 
     const signals: ScoreSignals = {
       findingsError,
@@ -404,29 +339,32 @@ export function rankDiffDiagrams(params: {
       tangleCount,
       blastRadius: maxBlast,
       coveragePct,
+      coverageKnown,
       churn: churnTotal,
       locDelta,
       contractDelta,
       ioRisk,
       changedNodes: changedNodes.length,
-      changedEdges: changedEdges.length,
+      changedEdges,
+      addedEdges,
+      removedEdges,
     };
+
     const score = bundle.changedCount === 0 ? 0 : computePresetScore(preset, signals);
-    const cropped = cropFocusedSubgraph(bundle.overlay, focusMode);
+    const compact = buildCompactDeltaGraph(bundle.overlay, focusMode, topFileHint);
 
     return {
       bundle,
       score,
-      priority: priorityTierForScore(score),
       breakdown: {
         preset,
         ...signals,
-        coverageGapPct: clampPct(100 - coveragePct),
         reasons: buildReasons(signals),
       },
-      focused: cropped.focused,
-      hiddenNodes: cropped.hiddenNodes,
-      overlay: cropped.overlay,
+      focused: compact.focused,
+      hiddenNodes: compact.hiddenNodes,
+      foldedByLane: compact.foldedByLane,
+      overlay: compact.overlay,
     };
   });
 

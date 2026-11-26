@@ -44,7 +44,7 @@ jobs:
             --rank risk \
             --format both \
             --focus auto \
-            --theme dark \
+            --theme auto \
             "${EXTRA_ARGS[@]}"
 
       - name: Upload Show-Me screenshots & manifest artifact

@@ -407,7 +407,7 @@ const showMeCmd = Command.make(
     rank: Flag.withDefault(Flag.String("rank"), "risk"),
     format: Flag.withDefault(Flag.String("format"), "both"),
     focus: Flag.withDefault(Flag.String("focus"), "auto"),
-    theme: Flag.withDefault(Flag.String("theme"), "dark"),
+    theme: Flag.withDefault(Flag.String("theme"), "auto"),
     imageBaseUrl: Flag.optional(Flag.String("image-base-url")),
     noTopFile: Flag.withDefault(Flag.Boolean("no-top-file"), false),
   },
