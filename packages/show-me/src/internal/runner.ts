@@ -4,7 +4,7 @@ import type { RepoSpecV4 } from "../../../../src/schema.ts";
 import type { CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
 import { runCommitDiffWorktrees } from "../../../../src/studio/diffRunner.ts";
 import type { DrilldownIndex } from "../../../../src/studio/drilldown.ts";
-import { diffFactSets, loadRepoExtensions, type FactDiffResult } from "@repospec/core";
+import { diffFactSets, loadRepoExtensions, type FactDiffResult } from "../../../core/src/facts.ts";
 import { renderDiffDiagramSvg, renderSymbolCardSvg } from "./svgRenderer.ts";
 import { renderIacCardSvg } from "./iacCardSvg.ts";
 import { buildShowMePrComment, type ShowMeShotRecord } from "./markdown.ts";

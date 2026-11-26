@@ -12,7 +12,7 @@ export interface EjectResult {
 const TEMPLATES: Record<Exclude<EjectTarget, "all">, { relPath: string; content: string }> = {
   "show-me": {
     relPath: ".repospec/show-me.ts",
-    content: `import { defineShowMe } from "@repospec/show-me";
+    content: `import { defineShowMe } from "repospec/show-me";
 
 export default defineShowMe({
   triage(ctx, fallback) {
@@ -39,7 +39,7 @@ export default defineShowMe({
   },
   report: {
     relPath: ".repospec/report.ts",
-    content: `import { defineReport } from "@repospec/report";
+    content: `import { defineReport } from "repospec/report";
 
 export default defineReport({
   title: undefined,
@@ -58,7 +58,7 @@ export default defineReport({
   },
   ci: {
     relPath: ".repospec/ci.ts",
-    content: `import { defineCi } from "@repospec/ci";
+    content: `import { defineCi } from "repospec/ci";
 
 export default defineCi({
   gates: [
@@ -81,7 +81,7 @@ export default defineCi({
   },
   extractor: {
     relPath: ".repospec/extractors/custom.ts",
-    content: `import { defineExtractor } from "@repospec/core";
+    content: `import { defineExtractor } from "repospec/core";
 
 export default defineExtractor({
   id: "custom.todo-markers",

@@ -1,8 +1,8 @@
 import path from "node:path";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
-import { diffFactSets, queryFactsFromDb } from "@repospec/core";
-import { ejectJellywareTarget, parseEjectTarget } from "@repospec/core/eject";
+import { diffFactSets, queryFactsFromDb } from "../../packages/core/src/facts.ts";
+import { ejectJellywareTarget, parseEjectTarget } from "../../packages/core/src/eject.ts";
 import { serializeSpec } from "../canonicalize.ts";
 import { runCommitDiffWorktrees } from "../studio/diffRunner.ts";
 import { CliUsageError } from "./errors.ts";

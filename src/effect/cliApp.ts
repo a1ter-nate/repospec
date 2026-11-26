@@ -12,7 +12,7 @@ import {
   buildUnitPassport,
   formatImpactAsGithubMarkdown,
 } from "../passport.ts";
-import { runShowMeBundle } from "@repospec/show-me";
+import { runShowMeBundle } from "../../packages/show-me/src/index.ts";
 import { renderVisualHtml, type ReportCustomization } from "../render.ts";
 import { ejectCmd, factsCmd, scanCmd } from "./jellyCli.ts";
 import { buildRepoSpecJsonSchema, type StorageMode } from "../schema.ts";

@@ -5,8 +5,8 @@ import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments } from "../cano
 import { discoverRepo } from "../discover.ts";
 import { buildCrossDomainLinks } from "../extractors/crossLink.ts";
 import { projectInvariantsToGraph } from "../indexDb.ts";
-import { evaluateCiGates, type CiDefinition } from "@repospec/ci";
-import { loadRepoExtensions, type LoadedRepoExtensions } from "@repospec/core";
+import { evaluateCiGates, type CiDefinition } from "../../packages/ci/src/index.ts";
+import { loadRepoExtensions, type LoadedRepoExtensions } from "../../packages/core/src/facts.ts";
 import { buildVerificationScopeSummary } from "../internal/coverage.ts";
 import { buildAllDiagrams, buildStaticTraces, resolveEvidenceAnchors } from "../layout.ts";
 import { buildModuleArchitecture } from "../moduleGraph.ts";
