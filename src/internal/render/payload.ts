@@ -44,7 +44,7 @@ export function buildCompactRenderPayload(
 ): Record<string, unknown> {
   const includeDrilldown = drilldown && (!inline || drilldown.files.length <= 160);
   const compactDrilldown = includeDrilldown
-    ? { files: drilldown.files, edges: drilldown.edges }
+    ? { files: drilldown.files, edges: drilldown.edges, extraSources: inline ? undefined : drilldown.extraSources }
     : undefined;
   const flowBundle = buildFlowAnalysisFromFacts(spec.extensions?.facts ?? []);
   const byEntity = new Map<string, EntityFieldLifecycle[]>();

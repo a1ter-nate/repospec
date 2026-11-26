@@ -29,6 +29,7 @@ export interface DrilldownIndex {
   files: DrilldownFile[];
   edges: Array<[number, number, number]>;
   sourcesGzipBase64?: string;
+  extraSources?: Record<string, string>;
 }
 
 export function buildDrilldownIndex(
@@ -36,6 +37,7 @@ export function buildDrilldownIndex(
   ast: AstIndexData,
   repoRoot?: string,
   realCoverage?: RealCoverageReport | null,
+  extraFiles?: readonly string[],
 ): DrilldownIndex {
   const unitByName = new Map<string, UnitDescriptor>();
   for (const u of units) unitByName.set(u.name, u);
@@ -139,6 +141,26 @@ export function buildDrilldownIndex(
     edges.push([fromIdx, toIdx, imp.line]);
   }
 
+  let extraSources: Record<string, string> | undefined;
+  if (repoRoot && extraFiles && extraFiles.length > 0) {
+    const extras: Record<string, string> = {};
+    let count = 0;
+    for (const rel of extraFiles) {
+      if (!rel || idxByPath.has(rel) || rel in extras || count >= 60) continue;
+      const absPath = path.join(repoRoot, rel);
+      if (!fs.existsSync(absPath)) continue;
+      try {
+        const raw = fs.readFileSync(absPath, "utf8");
+        const lines = raw.split("\n");
+        extras[rel] = lines.length > 600 ? `${lines.slice(0, 600).join("\n")}\n// ... truncated (${lines.length} lines total)` : raw;
+        count += 1;
+      } catch {
+        continue;
+      }
+    }
+    if (count > 0) extraSources = extras;
+  }
+
   const sourcesGzipBase64 = repoRoot && sourceTexts.length > 0 ? packSourceArchiveBase64(sourceTexts) : undefined;
-  return { files, edges, sourcesGzipBase64 };
+  return { files, edges, sourcesGzipBase64, extraSources };
 }

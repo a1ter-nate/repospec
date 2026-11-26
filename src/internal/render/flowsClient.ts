@@ -47,8 +47,9 @@ export function renderFlowsClientScript(): string {
         stageHead = '<div class="fx-stage-head"><div class="fx-head-l">' + backMapBtn + subNav + '</div><div class="fx-head-r">' + dockToggleBtn + guideBtn + "</div></div>";
         stageBody = '<div class="fx-empty">No work flows extracted. Add entrypoints or .repospec/flows.yaml.</div>';
       } else {
-        const filtered = getFilteredWorkFlows(fl);
-        const wf = filtered.find((w) => w.id === state.activeFlowId) || filtered[0] || fl.workFlows[0];
+        const grouped = groupFilteredWorkFlows(fl);
+        const flatOrdered = grouped.flatMap((g) => g[1]);
+        const wf = flatOrdered.find((w) => w.id === state.activeFlowId) || flatOrdered[0] || fl.workFlows[0];
         const mode = state.flowMode === "optimized" ? "optimized" : "current";
         const up = findFlowUpstreamRefs(wf.file);
         const firstRoute = up.routes[0] || null;
@@ -241,12 +242,16 @@ export function renderFlowsClientScript(): string {
   function renderFlowCodeSnippet(filePath, focusLine) {
     if (!filePath || filePath === ".") return '<div class="muted mono" style="padding:10px">No source file mapped.</div>';
     const fIdx = ddIdxByPath.get(filePath);
-    if (fIdx === undefined) return '<div class="mono muted" style="padding:10px">' + esc(filePath) + ":" + (focusLine || 1) + "</div>";
-    if (!FILE_SOURCES) {
-      ensureFileSourcesLoaded();
-      return '<div class="mono muted" style="padding:10px">Loading source for ' + esc(filePath) + ":" + (focusLine || 1) + "…</div>";
+    const extraRaw = DATA.drilldown?.extraSources?.[filePath];
+    if (fIdx === undefined && !extraRaw) return '<div class="mono muted" style="padding:10px">' + esc(filePath) + ":" + (focusLine || 1) + "</div>";
+    let raw = extraRaw || "";
+    if (fIdx !== undefined) {
+      if (!FILE_SOURCES) {
+        ensureFileSourcesLoaded();
+        return '<div class="mono muted" style="padding:10px">Loading source for ' + esc(filePath) + ":" + (focusLine || 1) + "…</div>";
+      }
+      raw = FILE_SOURCES[fIdx] || extraRaw || "";
     }
-    const raw = FILE_SOURCES[fIdx];
     if (!raw) return '<div class="mono muted" style="padding:10px">' + esc(filePath) + ":" + (focusLine || 1) + " (source not embedded in inline mode)</div>";
     const lines = raw.split("\\n");
     const ln = Math.max(1, Math.min(lines.length, Number(focusLine) || 1));
@@ -267,7 +272,7 @@ export function renderFlowsClientScript(): string {
       '<div class="code-chrome-left"><span class="code-fname" title="' + esc(filePath) + '">' + esc(filePath) + '</span><span class="code-range">:' + ln + '</span><span class="badge b-na">' + langChipForPath(filePath) + "</span></div>" +
       '<div class="code-chrome-right">' +
       '<button class="tbtn" data-code-full="' + (state.codeFullFile ? "0" : "1") + '">' + (state.codeFullFile ? "Excerpt" : "Full") + "</button>" +
-      '<button class="tbtn" data-open-file="' + esc(filePath) + '" data-open-file-line="' + ln + '">Call Graph →</button>' +
+      (fIdx !== undefined ? '<button class="tbtn" data-open-file="' + esc(filePath) + '" data-open-file-line="' + ln + '">Call Graph →</button>' : "") +
       "</div></div>" +
       '<div class="code-box">' + rows.join("") + "</div></div>"
     );

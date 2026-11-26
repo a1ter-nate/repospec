@@ -137,7 +137,16 @@ export const generateRepoSpecEffect = Effect.fn("repospec.generate")(function* (
   yield* sqliteSvc.storeDigest(targetDbPath, digest);
   const idsModule = generateIdsModule(spec, digest);
   const sdkModule = generateSqliteSdkModule();
-  const drilldown = buildDrilldownIndex(ctx.units, merged.ast, ctx.rootDir, realCoverage);
+  const factFiles = new Set<string>();
+  for (const f of merged.facts) {
+    if (f.file) factFiles.add(f.file);
+    const p = f.payload as Record<string, unknown> | undefined;
+    const prod = p?.producer as { file?: string } | undefined;
+    const cons = p?.consumer as { file?: string } | undefined;
+    if (prod?.file) factFiles.add(prod.file);
+    if (cons?.file) factFiles.add(cons.file);
+  }
+  const drilldown = buildDrilldownIndex(ctx.units, merged.ast, ctx.rootDir, realCoverage, Array.from(factFiles));
 
   return {
     spec,

@@ -137,26 +137,30 @@ export function renderFlowsRailScript(): string {
     );
   }
 
+  function groupFilteredWorkFlows(fl) {
+    const list = getFilteredWorkFlows(fl);
+    const groups = new Map();
+    for (const w of list) {
+      const g = flowGroupName(w);
+      const arr = groups.get(g) || [];
+      arr.push(w);
+      groups.set(g, arr);
+    }
+    return Array.from(groups.entries()).sort((a, b) => {
+      const aErr = a[1].some((x) => x.hasError) ? 1 : 0;
+      const bErr = b[1].some((x) => x.hasError) ? 1 : 0;
+      if (bErr !== aErr) return bErr - aErr;
+      if (b[1].length !== a[1].length) return b[1].length - a[1].length;
+      return a[0].localeCompare(b[0]);
+    });
+  }
+
   function renderFlowRailListHtml(fl, sub) {
     const closed = state.flowRailClosed || {};
     if (sub === "workflows") {
-      const list = getFilteredWorkFlows(fl);
-      if (list.length === 0) return '<div class="fx-empty">No flows match this filter.</div>';
-      const activeId = state.activeFlowId || list[0].id;
-      const groups = new Map();
-      for (const w of list) {
-        const g = flowGroupName(w);
-        const arr = groups.get(g) || [];
-        arr.push(w);
-        groups.set(g, arr);
-      }
-      const orderedGroups = Array.from(groups.entries()).sort((a, b) => {
-        const aErr = a[1].some((x) => x.hasError) ? 1 : 0;
-        const bErr = b[1].some((x) => x.hasError) ? 1 : 0;
-        if (bErr !== aErr) return bErr - aErr;
-        if (b[1].length !== a[1].length) return b[1].length - a[1].length;
-        return a[0].localeCompare(b[0]);
-      });
+      const orderedGroups = groupFilteredWorkFlows(fl);
+      if (orderedGroups.length === 0) return '<div class="fx-empty">No flows match this filter.</div>';
+      const activeId = state.activeFlowId || orderedGroups[0][1][0].id;
       const searching = Boolean(String(state.flowSearch || "").trim());
       return orderedGroups.map(([gName, items]) => {
         const gk = "wf:" + gName;
