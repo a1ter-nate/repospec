@@ -217,7 +217,28 @@ describe("@repospec/flows — Work Flows, Data Lifecycles, State Machines, Async
     expect(renderWorkFlowSwimlaneSvg(statusFlow)).toContain("RACE WINDOW BEFORE COMMIT");
     expect(renderWorkFlowSwimlaneSvg(statusFlow, { mode: "optimized" })).not.toContain("RACE WINDOW BEFORE COMMIT");
     expect(renderDataHubSvg(hiddenField.entity, [hiddenField])).toContain("data-hub-field=");
-    expect(renderStateMachineSvg(lcSm)).toContain("data-sm-state=");
+    const smSvg = renderStateMachineSvg(lcSm);
+    expect(smSvg).toContain("data-sm-state=");
+    expect(smSvg).toContain("START");
+    const busSvg = renderStateMachineSvg({
+      id: "sm:test:bus",
+      name: "lifecycleBus",
+      file: "src/lc.ts",
+      line: 1,
+      unit: "app",
+      states: ["draft", "build", "qc", "live", "retired"],
+      transitions: [
+        { from: "draft", to: "build", event: "to_build" },
+        { from: "build", to: "qc", event: "to_qc", guard: "uuid+serial" },
+        { from: "qc", to: "live", event: "to_live", guard: "approved" },
+        { from: "draft", to: "retired", event: "retire" },
+        { from: "build", to: "retired", event: "retire" },
+        { from: "qc", to: "retired", event: "retire" },
+        { from: "live", to: "retired", event: "retire" },
+      ],
+    });
+    expect(busSvg).toContain("any active state");
+    expect(busSvg).toContain("uuid +1");
     expect(renderAsyncHandoffsSvg(bundle.asyncHandoffs)).toContain("data-async-idx=");
     const standaloneHtml = renderFlowsHtmlReport(bundle, "Sample Flows", { repoDir });
     const dataMatch = standaloneHtml.match(/<script id="flow-data" type="application\/json">([\s\S]*?)<\/script>/);

@@ -8,6 +8,7 @@ import type {
   WorkFlowRecord,
 } from "./types.ts";
 import { buildFlowsHtmlDocument } from "./flowsHtml.ts";
+import { renderStateMachineSvg as renderCleanStateMachineSvg } from "./stateMachineSvg.ts";
 
 function esc(s: string): string {
   return s
@@ -362,76 +363,19 @@ export function renderDataHubSvg(entityName: string, fields: readonly EntityFiel
 }
 
 export function renderStateMachineSvg(machine: ExtractedStateMachine): string {
-  const outCount = new Map<string, number>();
-  for (const tr of machine.transitions) {
-    outCount.set(tr.from, (outCount.get(tr.from) ?? 0) + 1);
+  const states: string[] = [];
+  for (const st of (machine.states ?? []).slice(0, 24)) {
+    if (!st) continue;
+    states.push(st);
   }
-  const states = [...machine.states]
-    .sort((a, b) => Number((outCount.get(a) ?? 0) === 0) - Number((outCount.get(b) ?? 0) === 0))
-    .slice(0, 12);
-  const perRow = Math.min(6, Math.max(3, Math.ceil(states.length / 2)));
-  const boxW = 96;
-  const gapX = 16;
-  const rowH = 74;
-  const rows = Math.ceil(states.length / perRow);
-  const width = Math.max(660, 24 + perRow * (boxW + gapX));
-  const height = Math.max(120, 34 + rows * rowH);
-
-  const pos = new Map<string, { x: number; y: number }>();
-  states.forEach((st, idx) => {
-    const r = Math.floor(idx / perRow);
-    const c = r % 2 === 0 ? idx % perRow : perRow - 1 - (idx % perRow);
-    pos.set(st, { x: 14 + c * (boxW + gapX), y: 26 + r * rowH });
-  });
-
-  const parts: string[] = [
-    `<svg class="rs-flow-svg" viewBox="0 0 ${width} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg">`,
-    `<defs><marker id="sm-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#94a3b8"/></marker><marker id="sm-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f59e0b"/></marker></defs>`,
-  ];
-
-  for (const tr of machine.transitions.slice(0, 24)) {
-    const p1 = pos.get(tr.from);
-    const p2 = pos.get(tr.to);
-    if (!p1 || !p2) continue;
-    const x1 = p1.x + boxW / 2;
-    const y1 = p1.y + 15;
-    const x2 = p2.x + boxW / 2;
-    const y2 = p2.y + 15;
-    const guarded = Boolean(tr.guard);
-    const stroke = guarded ? "#f59e0b" : "#64748b";
-    const midX = (x1 + x2) / 2;
-    const midY = Math.min(y1, y2) - (Math.abs(x2 - x1) > boxW + gapX + 10 ? 18 : 0);
-    const d =
-      Math.abs(y1 - y2) < 4 && Math.abs(x2 - x1) <= boxW + gapX + 10
-        ? `M${x1 < x2 ? p1.x + boxW : p1.x},${y1} L${x1 < x2 ? p2.x : p2.x + boxW},${y2}`
-        : `M${x1},${y1 + 15} Q${midX},${midY} ${x2},${y2}`;
-    parts.push(
-      `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${guarded ? "1.7" : "1.1"}"${guarded ? "" : ' stroke-dasharray="3 2"'} marker-end="url(#${guarded ? "sm-g" : "sm-arr"})"/>`,
-    );
-    if (tr.guard) {
-      parts.push(
-        `<text x="${midX}" y="${Math.max(12, y1 - 12)}" text-anchor="middle" fill="#fbbf24" font-size="8" font-family="ui-monospace,monospace"><title>${esc(tr.guard)}</title>${esc(trunc(tr.guard, 18))}</text>`,
-      );
-    }
+  if (states.length === 0) return `<svg class="rs-flow-svg" viewBox="0 0 320 48" width="100%" xmlns="http://www.w3.org/2000/svg"></svg>`;
+  const stateSet = new Set(states);
+  const transitions = [];
+  for (const tr of machine.transitions ?? []) {
+    if (!tr.from || !tr.to || !stateSet.has(tr.from) || !stateSet.has(tr.to)) continue;
+    transitions.push(tr);
   }
-
-  for (const st of states) {
-    const p = pos.get(st);
-    if (!p) continue;
-    const isTerminal = (outCount.get(st) ?? 0) === 0;
-    const stroke = isTerminal ? "#ef4444" : "#38bdf8";
-    const fill = isTerminal ? "rgba(239,68,68,0.14)" : "rgba(56,189,248,0.12)";
-    parts.push(
-      `<g class="rs-sm-node" data-sm-state="${esc(`${machine.id}::${st}`)}" style="cursor:pointer">`,
-      `<title>${esc(`${machine.name}: ${st} — click to inspect incoming/outgoing transitions & guards`)}</title>`,
-      `<rect x="${p.x}" y="${p.y}" width="${boxW}" height="30" rx="6" fill="${fill}" stroke="${stroke}"/>`,
-      `<text x="${p.x + boxW / 2}" y="${p.y + 19}" text-anchor="middle" fill="#f8fafc" font-size="9.5" font-weight="700" font-family="ui-monospace,monospace">${esc(trunc(st, 13))}</text>`,
-      `</g>`,
-    );
-  }
-
-  parts.push(`</svg>`);
-  return parts.join("");
+  return renderCleanStateMachineSvg({ ...machine, states, transitions });
 }
 
 export function renderAsyncHandoffsSvg(handoffs: readonly AsyncHandoff[]): string {
