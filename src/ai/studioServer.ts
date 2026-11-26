@@ -178,7 +178,7 @@ export function startStudioServer(opts: StudioServerOptions): { url: string; htm
         port: tryPort,
         fetch: handler,
       });
-      boundPort = tryPort;
+      boundPort = server.port ?? tryPort;
       break;
     } catch {
       continue;

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "service": "repospec",
+  "laws": [
+    {
+      "id": "LAW-TAXONOMY-01",
+      "invariant": "Layer axis/rank resolution and external vendor classification remain monotone and deterministic across extractors and SQL rules.",
+      "witnessRef": "tests/taxonomy.table.test.ts"
+    },
+    {
+      "id": "LAW-LAYOUT-01",
+      "invariant": "Fixed-lane diagram layout produces zero overlapping nodes, deterministic coordinates, and routed edges inside viewBox bounds.",
+      "witnessRef": "tests/layout.pbt.test.ts"
+    },
+    {
+      "id": "LAW-PIPELINE-01",
+      "invariant": "SQLite index invariants match the reference model for arbitrary layer-import, OpenAPI contract, and sub-router sequences without leaking unmounted fragments.",
+      "witnessRef": "tests/pipeline.mbt.test.ts"
+    },
+    {
+      "id": "LAW-FEDERATE-01",
+      "invariant": "Multi-repo aggregation is order-independent (identical SHA-256 digest), detects cross-repo SCC cycles, and flags shared-datastore coupling.",
+      "witnessRef": "tests/federate-and-studio.mbt.test.ts"
+    },
+    {
+      "id": "LAW-CANONICAL-01",
+      "invariant": "Fragment merging prunes dangling edges, canonicalizes sort order, and produces stable semantic SHA-256 digests.",
+      "witnessRef": "tests/canonicalize-and-sdk.test.ts"
+    }
+  ]
+}

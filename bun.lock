@@ -19,7 +19,7 @@
         "fast-check": "^4.11.0",
         "oxfmt": "^0.80.0",
         "oxlint": "^1.95.0",
-        "veristack": "^0.1.1",
+        "veristack": "^0.1.5",
       },
     },
   },
@@ -240,7 +240,7 @@
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
-    "veristack": ["veristack@0.1.1", "", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "vstack": "bin/vstack.mjs", "veristack": "bin/vstack.mjs" } }, "sha512-ioS7ofcLHTmchyp8X20X8nHQKAHR1dfkD4FH5+8L+4+1VJijU2/wCy6NHi20LRwW2mvpgKHxycLc09W9ipdYCA=="],
+    "veristack": ["veristack@0.1.5", "", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "vstack": "bin/vstack.mjs", "veristack": "bin/vstack.mjs" } }, "sha512-cHxVA+vW6lMyZjm7QYznGyV+EO0P4LKJI8SjOZgVdNdKlN3o1zzdsvur1LghTh1holV6DI36bt8kF17tmtrx4Q=="],
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 

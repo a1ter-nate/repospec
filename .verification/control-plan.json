@@ -46,6 +46,15 @@
       "maxAllowedRung": "R0",
       "controlRef": "lefthook.yml",
       "reqId": "REQ-HYGIENE-01"
+    },
+    {
+      "id": "CP-006",
+      "seam": "federated multi-repo aggregator & Studio HTTP loopback boundary",
+      "failureMode": "Multi-repo aggregation misses distributed cycles or Studio proxy allows non-loopback SSRF requests",
+      "severity": 9,
+      "maxAllowedRung": "R3",
+      "controlRef": "tests/federate-and-studio.mbt.test.ts",
+      "reqId": "REQ-FED-01"
     }
   ],
   "formalChecks": []

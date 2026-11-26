@@ -47,10 +47,12 @@
     "lint:ts-only": "bun -e 'import { Glob } from \"bun\"; const bad = [...new Glob(\"{src,tests}/**/*.{js,mjs,cjs,jsx}\").scanSync(\".\")]; if (bad.length > 0) { console.error(\"Non-TypeScript files found:\\n\" + bad.join(\"\\n\")); process.exit(1); }'",
     "lint:no-comments": "bunx vstack no-comments . --fail",
     "lint:state-machines": "bunx vstack state-machines . --fail",
-    "lint:laws": "bunx vstack laws . --fail",
+    "lint:laws": "bunx vstack laws . --verify --fail",
     "lint:formal-sync": "bunx vstack formal-sync . --fail",
+    "lint:bench": "bunx vstack bench . --corpus src --fail",
     "lint:diff-cheats": "bunx vstack diff-cheats . --base HEAD --fail",
-    "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bun run lint:formal-sync && bunx vstack scan . --ratchet .verification/ratchet.json --fail-on-cheats --fail-on-errors",
+    "perf:check": "bun tools/check-perf-budget.ts",
+    "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bun run lint:formal-sync && bun run lint:bench && bun run perf:check && bunx vstack scan . --strict && bunx vstack doctor . --fail",
     "generate": "bun src/cli.ts generate",
     "schema": "bun src/cli.ts schema",
     "check": "bun run typecheck && bun test && bun run check:vstack"
@@ -70,6 +72,6 @@
     "fast-check": "^4.11.0",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
-    "veristack": "^0.1.1"
+    "veristack": "^0.1.5"
   }
 }

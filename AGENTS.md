@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Hard Verification Gates
-1. Run `bun run check` before committing or pushing (`tsc --noEmit`, `bun test`, `oxlint` with `@interfere/landmines` + `anti-slop`, `lint:privacy`, `lint:ts-only`, `no-comments`, `state-machines`, `laws`, and `vstack scan --ratchet .verification/ratchet.json --fail-on-cheats`).
+1. Run `bun run check` before committing or pushing (`tsc --noEmit`, `bun test`, `oxlint` with `@interfere/landmines` + `anti-slop`, `lint:privacy`, `lint:ts-only`, `no-comments`, `state-machines`, `laws --verify`, `formal-sync`, `bench`, `perf:check` empirical Big-O, `vstack scan . --strict`, and `vstack doctor . --fail`).
 2. Enforce **100% TypeScript** across `src/` and `tests/` (zero `.js`/`.mjs`/`.cjs` files, zero untyped browser JS embedded inside TS template strings).
 3. Enforce a **500-line hard file cap** (`max-lines <= 500`), **`<= 6` runtime exports per module**, and **`<= 15` entries per directory** (`wide-directory`). Split cohesive responsibilities into deep modules rather than padding or ratcheting debt.
 4. `tests/fixtures/`, `rules/`, and `skills/repospec/` are locked oracles; keep them passing without weakening assertions or deleting cases.
