@@ -53,15 +53,12 @@ export function renderFlowsClientScript(): string {
         const up = findFlowUpstreamRefs(wf.file);
         const callees = selStep ? findStepCalleeFiles(wf.file, selStep.fn) : [];
 
-        const upHtml =
-          '<div style="margin-top:10px"><div class="sec-title">What Makes It Happen (Triggers &amp; Callers)</div>' +
-          (up.routes.length > 0
-            ? up.routes.map((ep) => '<div class="row"><span class="badge">' + esc(ep.method) + '</span><span class="mono">' + esc(ep.path) + "</span></div>").join("")
-            : "") +
-          (up.callers.length > 0
-            ? up.callers.map((c) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(c.file) + '" data-flow-jump-line="' + c.line + '"><span class="mono">' + esc(c.file.split("/").pop()) + '</span><span class="mono muted">:' + c.line + " →</span></div>").join("")
-            : '<div class="muted" style="font-size:12px">Entrypoint (' + esc(wf.triggerKind || "http") + ") — no static upstream importers.</div>") +
-          "</div>";
+        const upHtml = (up.routes.length > 0 || up.callers.length > 0)
+          ? '<div style="margin-top:10px"><div class="sec-title">What Makes It Happen</div>' +
+            up.routes.map((ep) => '<div class="row"><span class="badge">' + esc(ep.method) + '</span><span class="mono">' + esc(ep.path) + "</span></div>").join("") +
+            up.callers.map((c) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(c.file) + '" data-flow-jump-line="' + c.line + '"><span class="mono">' + esc(c.file.split("/").pop()) + '</span><span class="mono muted">:' + c.line + " →</span></div>").join("") +
+            "</div>"
+          : "";
 
         const stepBox = selStep
           ? '<div class="card" style="padding:10px;margin-bottom:10px;border-color:rgba(124,200,255,0.45)">' +
@@ -187,10 +184,21 @@ export function renderFlowsClientScript(): string {
       '<button class="info-btn' + (state.showGuide ? " active" : "") + '" data-toggle-guide="1" title="What am I looking at?">?</button>' +
       "</div></div>";
 
+    const wsStyle = !INLINE && state.drawerWidth && !state.drawerCollapsed ? ' style="--drawer-w:' + state.drawerWidth + 'px"' : "";
+    const drawerTopbar = !INLINE
+      ? '<div class="drawer-topbar"><span class="drawer-kicker">Flow Inspector</span><button class="tbtn" data-toggle-drawer="1" title="Collapse panel (])">⇥</button></div>'
+      : "";
+    const reopenBtn = !INLINE && state.drawerCollapsed
+      ? '<button class="drawer-reopen-btn" data-toggle-drawer="1" title="Open panel (])">⇤ Inspector</button>'
+      : "";
+    const resizerHtml = !INLINE
+      ? '<div class="drawer-resizer" id="drawer-resizer" title="Drag to resize · Double-click to reset"></div>'
+      : "";
     return (
-      '<div class="workspace code-open">' +
-      '<div class="canvas-panel" style="position:relative;overflow:auto;padding:14px 16px">' + filterBar + renderInfoPopoverHtml() + content + "</div>" +
-      '<aside class="drawer">' + drawerHtml + "</aside>" +
+      '<div class="workspace code-open' + (state.drawerCollapsed ? " drawer-collapsed" : "") + '" id="workspace"' + wsStyle + ">" +
+      '<div class="canvas-panel" style="position:relative;overflow:auto;padding:14px 16px">' + reopenBtn + filterBar + renderInfoPopoverHtml() + content + "</div>" +
+      resizerHtml +
+      '<aside class="drawer" id="drawer">' + drawerTopbar + drawerHtml + "</aside>" +
       "</div>"
     );
   }
@@ -230,7 +238,7 @@ export function renderFlowsClientScript(): string {
       '<button class="tbtn" data-code-full="' + (state.codeFullFile ? "0" : "1") + '">' + (state.codeFullFile ? "Excerpt" : "Full") + "</button>" +
       '<button class="tbtn" data-open-file="' + esc(filePath) + '" data-open-file-line="' + ln + '">Call Graph →</button>' +
       "</div></div>" +
-      '<div style="background:#070b14;border:1px solid var(--rs-border);border-radius:7px;padding:6px 0;overflow:auto;max-height:290px;margin-top:6px;font-size:11.5px">' +
+      '<div style="background:#070b14;border:1px solid var(--rs-border);border-radius:7px;padding:6px 0;overflow:auto;max-height:440px;margin-top:6px;font-size:12px">' +
       rows.join("") + "</div>"
     );
   }

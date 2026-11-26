@@ -288,33 +288,34 @@ export function renderInspectorClientScript(): string {
         ).join("") + "</div>"
       : "";
 
+    const statStrip = !scopedUnitSlug
+      ? '<div class="stat-strip">' +
+        '<div class="stat-cell"><div class="stat-num">' + apps.length + '</div><div class="stat-lbl">Apps &amp; Services</div></div>' +
+        '<div class="stat-cell"><div class="stat-num">' + pkgs.length + '</div><div class="stat-lbl">Libraries</div></div>' +
+        '<div class="stat-cell"><div class="stat-num">' + (stores.length + exts.length) + '</div><div class="stat-lbl">State &amp; APIs</div></div>' +
+        "</div>"
+      : (storyHtml || "");
+
+    const makeLinkList = (list) =>
+      list.slice(0, 5).map((n) => '<span class="row-link mono" data-select-node="' + esc(n.id) + '">' + esc(shortPkg(n.label)) + "</span>").join(", ") +
+      (list.length > 5 ? ' <span class="muted">+' + (list.length - 5) + "</span>" : "");
+
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(drawerHeading) + '</div><div class="drawer-sub">' + esc(drawerSub) + "</div></div></div>" +
       (DATA.customUi?.briefingHtml ? '<div class="sec">' + DATA.customUi.briefingHtml + "</div>" : "") +
-      (storyHtml || '<div style="font-size:12px;color:#cbd5e1">' + shapeLine + "</div>") +
+      statStrip +
       (!scopedUnitSlug
-        ? '<div class="sec"><div class="sec-title">System Makeup</div>' +
-          (apps.length > 0 ? '<div class="row"><span class="muted">Entry / Apps</span><span class="mono">' + esc(apps.slice(0, 4).map((a) => shortPkg(a.label)).join(", ")) + (apps.length > 4 ? " +" + (apps.length - 4) : "") + "</span></div>" : "") +
-          (pkgs.length > 0 ? '<div class="row"><span class="muted">Libraries</span><span class="mono">' + esc(pkgs.slice(0, 4).map((p) => shortPkg(p.label)).join(", ")) + (pkgs.length > 4 ? " +" + (pkgs.length - 4) : "") + "</span></div>" : "") +
-          (stores.length > 0 ? '<div class="row"><span class="muted">State</span><span class="mono">' + esc(stores.map((s) => s.label).join(", ")) + " (" + DATA.summary.datastoreEntities + ")</span></div>" : "") +
-          (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span class="mono">' + esc(exts.slice(0, 5).map((x) => x.label).join(", ")) + (exts.length > 5 ? " +" + (exts.length - 5) : "") + "</span></div>" : "") +
-          (DATA.summary.govRules > 0 ? '<div class="row"><span class="muted">Gov Rules</span><span class="mono">' + DATA.summary.govRules + " scoped rules</span></div>" : "") +
+        ? '<div class="sec"><div class="sec-title">Start Exploring</div>' +
+          (apps.length > 0 ? '<div class="row"><span class="muted">Apps</span><span style="text-align:right">' + makeLinkList(apps) + "</span></div>" : "") +
+          (pkgs.length > 0 ? '<div class="row"><span class="muted">Packages</span><span style="text-align:right">' + makeLinkList(pkgs) + "</span></div>" : "") +
+          (stores.length > 0 ? '<div class="row"><span class="muted">Datastores</span><span style="text-align:right">' + makeLinkList(stores) + "</span></div>" : "") +
+          (exts.length > 0 ? '<div class="row"><span class="muted">External</span><span style="text-align:right">' + makeLinkList(exts) + "</span></div>" : "") +
           "</div>"
         : "") +
       topFlowsPreview +
       tangleBanner +
       findingsHtml +
-      traceHtml +
-      '<div class="sec">' + renderDisclosure({
-        title: "Coverage & Scope Details",
-        badge: hasRealCov ? ver.realLineCoveragePct + "%" : ver.directTestCoveragePct + "% 1-hop",
-        badgeClass: "b-na",
-        open: false,
-        bodyHtml: covMetricRow +
-          '<div class="row"><span class="muted">Invariants</span><span class="mono">' + ver.invariantsPassed + " pass · " + ver.invariantsWarned + " warn · " + ver.invariantsFailed + " fail · " + ver.invariantsNa + " N/A</span></div>" +
-          (tierKindLabel ? '<div class="row"><span class="muted">Lane Basis</span><span class="mono">' + esc(tierKindLabel) + "</span></div>" : "") +
-          '<div class="muted" style="font-size:11px;line-height:1.4">Static graph + coverage only; cross-repo wire contracts &amp; behavioral semantics require runtime E2E/contract proofs.</div>',
-      }) + "</div>"
+      traceHtml
     );
   }
 
@@ -364,18 +365,23 @@ export function renderInspectorClientScript(): string {
 
     const singleFilePath = mod.files.length === 1 && ddIdxByPath.has(mod.files[0].file) ? mod.files[0].file : "";
     const singleFileSyms = singleFilePath ? (DD_FILES[ddIdxByPath.get(singleFilePath)]?.m || []).length : 0;
+    const modPrimary = singleFilePath
+      ? '<button class="action-btn" data-open-file-graph="' + esc(singleFilePath) + '">Callstack &amp; Code (' + singleFileSyms + ") →</button>"
+      : ddFolderCount > 0
+        ? '<button class="action-btn" data-open-folder="' + esc(mod.unitSlug + "::" + mod.name) + '">Open ' + esc(mod.name) + "/ (" + ddFolderCount + ") →</button>"
+        : subDiag
+          ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ") →</button>"
+          : "";
+    const modMore =
+      '<details class="more-wrap"><summary class="action-btn sec-btn" title="More actions">•••</summary><div class="more-menu">' +
+      '<button class="tbtn" data-toggle-blast="' + esc(mod.id) + '">' + (state.blastSeedId === mod.id ? "Exit Blast Radius" : "Blast Radius") + "</button>" +
+      '<button class="tbtn" data-copy-ctx="module" data-copy-ctx-id="' + esc(mod.id) + '">Copy Agent Context</button>' +
+      '<button class="tbtn" data-clear-sel="1">Back to Overview</button>' +
+      "</div></details>";
     const actions = [
-      singleFilePath
-        ? '<button class="action-btn" data-open-file-graph="' + esc(singleFilePath) + '">Symbol Callstack & Code (' + singleFileSyms + ") →</button>"
-        : ddFolderCount > 0
-          ? '<button class="action-btn" data-open-folder="' + esc(mod.unitSlug + "::" + mod.name) + '">Open ' + esc(mod.name) + "/ (" + ddFolderCount + " files) →</button>"
-          : subDiag
-            ? '<button class="action-btn" data-open-layers="' + esc(subDiag.id) + '">Drill into ' + esc(mod.name) + "/ (" + subDiag.nodes.length + ")</button>"
-            : "",
-      '<button class="action-btn sec-btn" data-toggle-blast="' + esc(mod.id) + '">' + (state.blastSeedId === mod.id ? "Exit Blast" : "Blast Radius") + "</button>",
-      '<button class="action-btn sec-btn" data-copy-ctx="module" data-copy-ctx-id="' + esc(mod.id) + '">Copy Agent Context</button>',
-      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
-      '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
+      modPrimary,
+      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus" : "Focus (F)") + "</button>",
+      modMore,
     ].filter(Boolean).join(" ");
 
     const apiSec =

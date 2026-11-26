@@ -239,11 +239,23 @@ export function renderStageClientScript(): string {
           (selModObj && selModObj.files.length === 1 && ddIdxByPath.has(selModObj.files[0].file)) ||
           (selNodeObj?.provenance?.file && !selSpecNode && !selModObj && ddIdxByPath.has(selNodeObj.provenance.file)))
       );
+      const wsStyle = !INLINE && state.drawerWidth && !state.drawerCollapsed ? ' style="--drawer-w:' + state.drawerWidth + 'px"' : "";
+      const drawerKicker = state.e2eTraceSeed ? "E2E Trace" : state.activeFileGraph ? "Symbol & Code" : state.selectedNodeId || state.selectedEdgeId ? "Inspector" : "Overview";
+      const drawerTopbar = !INLINE
+        ? '<div class="drawer-topbar"><span class="drawer-kicker">' + drawerKicker + '</span><button class="tbtn" data-toggle-drawer="1" title="Collapse panel (])">⇥</button></div>'
+        : "";
+      const reopenBtn = !INLINE && state.drawerCollapsed
+        ? '<button class="drawer-reopen-btn" data-toggle-drawer="1" title="Open panel (])">⇤ ' + drawerKicker + "</button>"
+        : "";
+      const resizerHtml = !INLINE
+        ? '<div class="drawer-resizer" id="drawer-resizer" title="Drag to resize · Double-click to reset"></div>'
+        : "";
       bodyHtml =
-        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel ? " code-open" : "") + '">' +
+        '<div class="workspace' + (state.activeFileGraph || state.e2eTraceSeed || isSingleFileSel ? " code-open" : "") + (state.drawerCollapsed ? " drawer-collapsed" : "") + '" id="workspace"' + wsStyle + ">" +
         '<div class="canvas-panel">' +
         hudTopLeft +
         hudTopRight +
+        reopenBtn +
         renderInfoPopoverHtml() +
         hudBottomLeft +
         hudLegend +
@@ -254,7 +266,8 @@ export function renderStageClientScript(): string {
         (inMatrix ? renderMatrixView(diag) : renderDiagramSvg(diag)) +
         "</div>" +
         "</div>" +
-        '<div class="drawer" id="drawer">' + drawerHtml + "</div>" +
+        resizerHtml +
+        '<div class="drawer" id="drawer">' + drawerTopbar + drawerHtml + "</div>" +
         "</div>";
     }
 

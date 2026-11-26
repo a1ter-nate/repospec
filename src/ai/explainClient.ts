@@ -372,11 +372,17 @@ export function renderExplainClientScript(): string {
       setTimeout(() => { requestLocalAiExplain(cacheKey, payload, false); }, 0);
     }
 
-    const activeDoes = cached ? cached.does : det.does;
+    const authorDoc = extractLeadingDoc(allLines, startLine);
+    if (!cached && !loading && !errMsg && !aiConfigOpen) {
+      if (!authorDoc) return "";
+      return '<div class="doc-note">' + esc(authorDoc) + "</div>";
+    }
+
+    const activeDoes = cached ? cached.does : authorDoc || det.does;
     const activeWatch = cached ? cached.watch : det.watch;
     const sourceBadge = cached
       ? '<span class="badge b-purple">✦ AI · ' + esc(cached.model) + "</span>"
-      : '<span class="badge b-na">Instant</span>';
+      : '<span class="badge b-na">Local AI</span>';
 
     const modelOptions = aiDetectedModels.length > 0
       ? '<div class="pill-row" style="margin-top:4px">' + aiDetectedModels.map((m) =>

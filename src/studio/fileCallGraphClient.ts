@@ -362,7 +362,6 @@ export function renderFileCallGraphClientScript(): string {
       (gh ? '<a class="tbtn" style="text-decoration:none" href="' + esc(gh) + '" target="_blank" rel="noopener" title="Open in GitHub">GitHub ↗</a>' : "") +
       "</div></div>" +
       '<div class="code-box" id="code-viewer-box">' + rows.join("") + "</div>" +
-      '<div class="code-foot"><span>Ln ' + focusLine + " · " + scopeCount + " lines " + (hasScope ? "in scope" : "total") + "</span><span>" + esc(langChip) + " · UTF-8</span></div>" +
       "</div>"
     );
   }
@@ -385,6 +384,7 @@ export function renderFileCallGraphClientScript(): string {
       state.activeFolder = { unitSlug: f.u, folderPath: parentFolder, returnDiagId: state.activeFolder?.returnDiagId || state.activeLayerDiagId || ("modules:" + f.u) };
     }
     state.activeFileGraph = f.p;
+    state.drawerCollapsed = false;
     state.focusMode = false;
     state.selectedEdgeId = null;
     state.selectedNodeId = resolvedSym >= 0 ? "sym:" + idx + ":" + resolvedSym : null;
@@ -468,30 +468,30 @@ export function renderFileCallGraphClientScript(): string {
       const calleesList = callees.map((c) => ({ name: formatSymDisplayName(syms[c[1]]), line: c[2] }));
       const extsList = exts.map((o) => ({ name: o[1], line: o[2] }));
 
+      const symMore = '<details class="more-wrap"><summary class="tbtn" title="More actions">•••</summary><div class="more-menu">' +
+        '<button class="tbtn" data-open-e2e="' + esc(f.p + "::" + selSymIdx) + '">Trace E2E →</button>' +
+        '<button class="tbtn" data-copy-ctx="symbol" data-copy-ctx-id="' + selSymIdx + '">Copy Agent Context</button>' +
+        '<button class="tbtn" data-copy-share="1">Copy Share Link</button>' +
+        '<button class="tbtn" data-ai-cfg-toggle="1">✦ Local AI Explain…</button></div></details>';
       return (
-        '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "PUBLIC " : "PRIVATE ") + s[2] + " · " + f.p) + '</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge ' + (s[1] === "pub" ? "b-pass" : "b-warn") + '">' + (s[1] === "pub" ? "PUBLIC" : "PRIVATE") + '</span><button class="tbtn" data-clear-sel="1" title="Show all symbols in file">All</button></div></div>' +
-        '<div class="pill-row"><button class="tbtn" data-open-e2e="' + esc(f.p + "::" + selSymIdx) + '">Trace E2E →</button><button class="tbtn" data-copy-ctx="symbol" data-copy-ctx-id="' + selSymIdx + '">Copy Agent Context</button><button class="tbtn" data-copy-share="1">Share</button></div>' +
+        '<div class="drawer-head"><div><div class="drawer-title">' + esc(name) + '</div><div class="drawer-sub">' + esc((s[1] === "pub" ? "public " : "private ") + s[2] + " · " + f.p) + '</div></div><div style="display:flex;gap:4px;align-items:center"><button class="tbtn" data-clear-sel="1" title="Show whole file">File</button>' + symMore + "</div></div>" +
         (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p, s[3], s[4]) : "") +
         renderWhatThisDoesBox(idx, f, s, callersList, calleesList, extsList) +
-        callersHtml +
-        calleesHtml +
-        renderCodeBlockHtml(idx, f.p, s[3], s[4], focusLine, state.codeFullFile, true)
+        renderCodeBlockHtml(idx, f.p, s[3], s[4], focusLine, state.codeFullFile, true) + callersHtml + calleesHtml
       );
     }
-
     const pubs = syms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "pub");
     const privs = syms.map((s, si) => ({ s, si })).filter((x) => x.s[1] === "priv");
+    const symGroup = (title, list, borderCol, textCol) => list.length === 0 ? "" :
+      '<div class="sec"><div class="sec-title"><span>' + title + " (" + list.length + ')</span></div><div class="pill-row">' +
+      list.map((x) => '<button class="tray-chip" style="border-color:' + borderCol + ";color:" + textCol + '" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div></div>";
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.p + " · " + f.l + " lines") + "</div></div></div>" +
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.p + " · " + f.l + "L") + "</div></div></div>" +
       (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p) : "") +
       renderWhatThisDoesBox(idx, f, null, [], [], []) +
-      '<div class="sec"><div class="sec-title"><span>Public Surface (' + pubs.length + ')</span><span class="muted">click for code</span></div>' +
-      (pubs.length === 0 ? '<div class="muted">No exported functions/methods detected.</div>' : '<div class="pill-row">' + pubs.map((x) => '<button class="tray-chip" style="border-color:rgba(95,217,160,0.35);color:#6ee7b0" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
-      "</div>" +
-      '<div class="sec"><div class="sec-title"><span>Private / Internal Surface (' + privs.length + ')</span><span class="muted">click for code</span></div>' +
-      (privs.length === 0 ? '<div class="muted">No private helpers detected.</div>' : '<div class="pill-row">' + privs.map((x) => '<button class="tray-chip" style="border-color:rgba(245,194,107,0.32);color:#f5c26b" data-jump-sym="' + idx + ":" + x.si + ":" + x.s[3] + '">' + esc(formatSymDisplayName(x.s)) + "</button>").join("") + "</div>") +
-      "</div>" +
-      renderCodeBlockHtml(idx, f.p, 1, f.l, focusLine, true, false)
+      renderCodeBlockHtml(idx, f.p, 1, f.l, focusLine, true, false) +
+      symGroup("Public", pubs, "rgba(95,217,160,0.35)", "#6ee7b0") +
+      symGroup("Internal", privs, "rgba(245,194,107,0.32)", "#f5c26b")
     );
   }
 `;

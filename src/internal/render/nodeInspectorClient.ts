@@ -51,15 +51,25 @@ export function renderNodeInspectorClientScript(): string {
     const unitGovs = DATA.surfaces.govRules.filter((g) => !g.scopePrefix || (unitDir && (unitDir === g.scopePrefix || unitDir.startsWith(g.scopePrefix + "/"))));
 
     const provFile = node.provenance?.file && ddIdxByPath.has(node.provenance.file) ? node.provenance.file : "";
+    const primaryAction = provFile
+      ? '<button class="action-btn" data-open-file="' + esc(provFile) + '"' + (node.provenance?.line ? ' data-open-file-line="' + node.provenance.line + '"' : "") + ">View Code →</button>"
+      : layerFolderCount > 0
+        ? '<button class="action-btn" data-open-folder="' + esc(node.group + "::" + node.label) + '">Open ' + esc(node.label) + "/ (" + layerFolderCount + ") →</button>"
+        : modDiag
+          ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ") →</button>"
+          : layerDiag
+            ? '<button class="action-btn" data-open-layers="' + esc(layerDiag.id) + '">Open Layers (' + layerDiag.nodes.length + ") →</button>"
+            : "";
+    const moreItems = [
+      modDiag && layerDiag ? '<button class="tbtn" data-open-layers="' + esc(layerDiag.id) + '">Clean Arch Layers (' + layerDiag.nodes.length + ")</button>" : "",
+      '<button class="tbtn" data-toggle-blast="' + esc(node.id) + '">' + (state.blastSeedId === node.id ? "Exit Blast Radius" : "Blast Radius") + "</button>",
+      '<button class="tbtn" data-copy-ctx="node" data-copy-ctx-id="' + esc(node.id) + '">Copy Agent Context</button>',
+      '<button class="tbtn" data-clear-sel="1">Back to Overview</button>',
+    ].filter(Boolean).join("");
     const actions = [
-      provFile ? '<button class="action-btn" data-open-file="' + esc(provFile) + '"' + (node.provenance?.line ? ' data-open-file-line="' + node.provenance.line + '"' : "") + '>View Code & Callstack →</button>' : "",
-      layerFolderCount > 0 ? '<button class="action-btn" data-open-folder="' + esc(node.group + "::" + node.label) + '">Open ' + esc(node.label) + "/ (" + layerFolderCount + " files) →</button>" : "",
-      modDiag ? '<button class="action-btn" data-open-layers="' + esc(modDiag.id) + '">Open Modules (' + modDiag.nodes.length + ")</button>" : "",
-      layerDiag ? '<button class="action-btn sec-btn" data-open-layers="' + esc(layerDiag.id) + '">Layers (' + layerDiag.nodes.length + ")</button>" : "",
-      '<button class="action-btn sec-btn" data-toggle-blast="' + esc(node.id) + '">' + (state.blastSeedId === node.id ? "Exit Blast" : "Blast Radius") + "</button>",
-      '<button class="action-btn sec-btn" data-copy-ctx="node" data-copy-ctx-id="' + esc(node.id) + '">Copy Agent Context</button>',
-      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>",
-      '<button class="action-btn sec-btn" data-clear-sel="1">Briefing</button>',
+      primaryAction,
+      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus" : "Focus (F)") + "</button>",
+      '<details class="more-wrap"><summary class="action-btn sec-btn" title="More actions">•••</summary><div class="more-menu">' + moreItems + "</div></details>",
     ].filter(Boolean).join(" ");
 
     const findingsList = node.findings || [];
@@ -169,11 +179,13 @@ export function renderNodeInspectorClientScript(): string {
       ? '<div class="sec"><div class="sec-title">Surfaces</div>' + surfaceItemsHtml + "</div>"
       : "";
 
-    const govSec =
-      '<div class="sec"><div class="sec-title">Governance (' + unitGovs.length + ")</div>" +
-      (unitGovs.length === 0
-        ? '<div class="muted" style="font-size:11px">No scoped governance rules indexed.</div>'
-        : unitGovs.slice(0, 8).map((g) => {
+    const govSec = unitGovs.length > 0
+      ? '<div class="sec">' + renderDisclosure({
+          title: "Governance Rules",
+          badge: unitGovs.length,
+          badgeClass: "b-na",
+          open: false,
+          bodyHtml: unitGovs.slice(0, 8).map((g) => {
             const scopeTag = g.scopePrefix ? g.scopePrefix : "repo root";
             const bullets = g.rationale ? g.rationale.split(" | ").filter(Boolean) : [];
             const body =
@@ -187,8 +199,9 @@ export function renderNodeInspectorClientScript(): string {
               open: false,
               bodyHtml: body,
             });
-          }).join("")) +
-      "</div>";
+          }).join(""),
+        }) + "</div>"
+      : "";
 
     const layerAnatomySec = linkedLayerMod
       ? '<div class="sec"><div class="sec-title"><span>Folder Anatomy (' + linkedLayerMod.fileCount + ' files)</span><span class="muted">' + linkedLayerMod.lines + "L · " + linkedLayerMod.exportCount + " exp</span></div>" +
@@ -214,13 +227,12 @@ export function renderNodeInspectorClientScript(): string {
 
     return (
       '<div class="drawer-head"><div><div class="drawer-title">' + esc(shortPkg(node.label)) + '</div><div class="drawer-sub">' + esc(node.kind) + (node.meta?.archetype ? " · " + esc(node.meta.archetype) : "") + (node.meta?.layerAxis ? " · " + esc(node.meta.layerAxis) : "") + "</div></div></div>" +
-      provenanceLinksHtml(node.provenance?.file, node.provenance?.line) +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">' + actions + "</div>" +
-      findingsSec +
-      layerAnatomySec +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + actions + "</div>" +
       connSec +
+      layerAnatomySec +
       flowsFromHereSec +
       sourceCodeSec +
+      findingsSec +
       surfaceSec +
       govSec
     );

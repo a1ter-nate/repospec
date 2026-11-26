@@ -223,6 +223,8 @@ export function renderVisualHtml(
     flowCodeFile: null,
     flowCodeLine: 1,
     flowReturnFromMap: false,
+    drawerCollapsed: (() => { try { return localStorage.getItem("repospec:drawer-collapsed") === "1"; } catch { return false; } })(),
+    drawerWidth: (() => { try { const w = Number(localStorage.getItem("repospec:drawer-w")); return Number.isFinite(w) && w >= 280 ? w : null; } catch { return null; } })(),
     factsKindFilter: "",
     checksFilter: "active",
     search: "",

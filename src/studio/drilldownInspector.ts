@@ -10,23 +10,21 @@ export function renderDrilldownInspectorScript(): string {
     const fileEndpoints = DATA.surfaces.endpoints.filter((ep) => ep.file === f.p);
     const fileFindings = DATA.invariants.filter((inv) => (inv.status === "fail" || inv.status === "warn") && inv.evidence.some((ev) => ev.file === f.p));
 
-    const pills =
-      '<div class="pill-row">' +
-      '<span class="badge b-info">' + f.l + " lines</span>" +
-      '<span class="badge b-na">' + f.e + " exports</span>" +
-      f.c.map((c) => '<span class="badge ' + capBadgeClass(c) + '">' + esc(c) + "</span>").join("") +
-      "</div>";
-
-    const symsHtml =
-      '<div class="sec"><div class="sec-title"><span>Exported API (' + f.s.length + ")</span></div>" +
-      (f.s.length === 0
-        ? '<div class="muted" style="font-size:11px">No named top-level exports indexed.</div>'
-        : f.s.map((sym) => {
+    const capsList = f.c.filter((c) => c !== "PURE");
+    const subMeta = f.u + " · " + f.l + "L · " + f.e + " exp" + (capsList.length > 0 ? " · " + capsList.join(", ") : "");
+    const symsHtml = f.s.length > 0
+      ? '<div class="sec">' + renderDisclosure({
+          title: "Exported API",
+          badge: f.s.length,
+          badgeClass: "b-na",
+          open: false,
+          bodyHtml: f.s.map((sym) => {
             const gh = githubUrl(f.p, sym[2]);
             const loc = gh ? '<a class="ext-link" href="' + esc(gh) + '" target="_blank" rel="noopener">:' + sym[2] + " ↗</a>" : '<span class="mono muted">:' + sym[2] + "</span>";
             return '<div class="api-row"><span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sym[0]) + '</span><span style="display:flex;gap:5px;align-items:center;flex-shrink:0"><span class="badge b-na">' + esc(sym[1]) + "</span>" + loc + "</span></div>";
-          }).join("")) +
-      "</div>";
+          }).join(""),
+        }) + "</div>"
+      : "";
 
     const surfaceRows = [];
     if (f.x.length > 0) {
@@ -49,25 +47,31 @@ export function renderDrilldownInspectorScript(): string {
       const inner = ddInnerPath(fileObj);
       return fileObj.u === f.u ? inner : fileObj.u + "/" + inner;
     };
-    const callersSec =
-      '<div class="sec"><div class="sec-title"><span>Imported By (' + inLinks.length + ')</span><span class="muted">click to jump</span></div>' +
-      (inLinks.length === 0
-        ? '<div class="muted" style="font-size:11px">No direct production callers indexed (entry point or dynamic).</div>'
-        : inLinks.slice(0, 20).map((inc) => {
+    const callersSec = inLinks.length > 0
+      ? '<div class="sec">' + renderDisclosure({
+          title: "Imported By (←)",
+          badge: inLinks.length,
+          badgeClass: "b-pass",
+          open: inLinks.length <= 4,
+          bodyHtml: inLinks.slice(0, 20).map((inc) => {
             const cf = DD_FILES[inc.from];
             return '<div class="row"><span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(cf.p) + '" data-open-file="' + esc(cf.p) + '">← ' + esc(shortRel(cf)) + '</span><span class="mono muted" style="flex-shrink:0">:' + inc.line + "</span></div>";
-          }).join("") + (inLinks.length > 20 ? '<div class="muted">+' + (inLinks.length - 20) + " more</div>" : "")) +
-      "</div>";
+          }).join("") + (inLinks.length > 20 ? '<div class="muted">+' + (inLinks.length - 20) + " more</div>" : ""),
+        }) + "</div>"
+      : "";
 
-    const importsSec =
-      '<div class="sec"><div class="sec-title"><span>Imports (' + outLinks.length + ')</span><span class="muted">click to jump</span></div>' +
-      (outLinks.length === 0
-        ? '<div class="muted" style="font-size:11px">Leaf file (0 internal file imports).</div>'
-        : outLinks.slice(0, 20).map((out) => {
+    const importsSec = outLinks.length > 0
+      ? '<div class="sec">' + renderDisclosure({
+          title: "Imports (→)",
+          badge: outLinks.length,
+          badgeClass: "b-info",
+          open: outLinks.length <= 4,
+          bodyHtml: outLinks.slice(0, 20).map((out) => {
             const tf = DD_FILES[out.to];
             return '<div class="row"><span class="row-link mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(tf.p) + '" data-open-file="' + esc(tf.p) + '">→ ' + esc(shortRel(tf)) + '</span><span class="mono muted" style="flex-shrink:0">:' + out.line + "</span></div>";
-          }).join("") + (outLinks.length > 20 ? '<div class="muted">+' + (outLinks.length - 20) + " more</div>" : "")) +
-      "</div>";
+          }).join("") + (outLinks.length > 20 ? '<div class="muted">+' + (outLinks.length - 20) + " more</div>" : ""),
+        }) + "</div>"
+      : "";
 
     const findingsSec = fileFindings.length > 0
       ? '<div class="sec"><div class="sec-title">Active Findings (' + fileFindings.length + ")</div>" +
@@ -85,25 +89,30 @@ export function renderDrilldownInspectorScript(): string {
         "</div>"
       : "";
 
+    const ghFile = githubUrl(f.p, 1);
+    const fileMore =
+      '<details class="more-wrap"><summary class="action-btn sec-btn" title="More actions">•••</summary><div class="more-menu">' +
+      '<button class="tbtn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus Bow-Tie (F)") + "</button>" +
+      '<button class="tbtn" data-toggle-blast="' + esc("file:" + f.p) + '">' + (state.blastSeedId === "file:" + f.p ? "Exit Blast Radius" : "Blast Radius") + "</button>" +
+      '<button class="tbtn" data-open-e2e="' + esc(f.p + "::-1") + '">Trace E2E</button>' +
+      '<button class="tbtn" data-copy-ctx="file" data-copy-ctx-id="' + esc(f.p) + '">Copy Agent Context</button>' +
+      (ghFile ? '<a class="tbtn" href="' + esc(ghFile) + '" target="_blank" rel="noopener">Open in GitHub ↗</a>' : "") +
+      '<button class="tbtn" data-clear-sel="1">Back to Overview</button>' +
+      "</div></details>";
+
     return (
-      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(f.u + " · " + f.p) + "</div></div></div>" +
-      provenanceLinksHtml(f.p, 1) +
-      pills +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Symbol Callstack & Code (' + allSyms.length + ') →</button>' +
-      '<button class="action-btn sec-btn" data-toggle-blast="' + esc("file:" + f.p) + '">' + (state.blastSeedId === "file:" + f.p ? "Exit Blast" : "Blast Radius") + "</button>" +
-      '<button class="action-btn sec-btn" data-open-e2e="' + esc(f.p + "::-1") + '">Trace E2E</button>' +
-      '<button class="action-btn sec-btn" data-copy-ctx="file" data-copy-ctx-id="' + esc(f.p) + '">Copy Agent Context</button>' +
-      '<button class="action-btn sec-btn" data-toggle-focus="1">' + (state.focusMode ? "Exit Focus (F)" : "Focus (F)") + "</button>" +
-      '<button class="action-btn sec-btn" data-clear-sel="1">Back</button></div>' +
+      '<div class="drawer-head"><div><div class="drawer-title">' + esc(f.p.split("/").pop()) + '</div><div class="drawer-sub">' + esc(subMeta) + "</div></div></div>" +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+      '<button class="action-btn" data-open-file-graph="' + esc(f.p) + '">Callstack (' + allSyms.length + ") →</button>" +
+      fileMore + "</div>" +
       (typeof renderFileFlowLaunchPills === "function" ? renderFileFlowLaunchPills(f.p) : "") +
-      findingsSec +
       renderCodeBlockHtml(idx, f.p, 1, f.l, 1, true, false) +
+      findingsSec +
+      callersSec +
+      importsSec +
       surfacePreviewSec +
       symsHtml +
       surfacesSec +
-      callersSec +
-      importsSec +
       (typeof renderFileFlowFootnote === "function" ? renderFileFlowFootnote(f.p) : "")
     );
   }

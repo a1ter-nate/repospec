@@ -43,6 +43,13 @@ export function renderClickClientScript(): string {
       return;
     }
 
+    if (target.closest("[data-toggle-drawer]")) {
+      state.drawerCollapsed = !state.drawerCollapsed;
+      try { localStorage.setItem("repospec:drawer-collapsed", state.drawerCollapsed ? "1" : "0"); } catch {}
+      render();
+      return;
+    }
+
     if (target.closest("[data-toggle-wires]")) {
       state.showAllEdges = !state.showAllEdges;
       render();

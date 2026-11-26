@@ -1,8 +1,16 @@
 export function renderEventsClientScript(): string {
   return `
+  let drawerDrag = false;
+
   appEl.addEventListener("dblclick", (ev) => {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    if (target.closest("#drawer-resizer")) {
+      state.drawerWidth = null;
+      try { localStorage.removeItem("repospec:drawer-w"); } catch {}
+      render();
+      return;
+    }
     if (target.closest("[data-node]")) {
       ev.preventDefault();
       return;
@@ -43,6 +51,14 @@ export function renderEventsClientScript(): string {
     if (ev.button !== 0 && ev.button !== 1) return;
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    const rz = target.closest("#drawer-resizer");
+    if (rz) {
+      ev.preventDefault();
+      drawerDrag = true;
+      rz.setPointerCapture(ev.pointerId);
+      document.getElementById("workspace")?.classList.add("resizing");
+      return;
+    }
     const mm = target.closest("#hud-minimap");
     if (mm) {
       ev.preventDefault();
@@ -69,6 +85,12 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointermove", (ev) => {
+    if (drawerDrag) {
+      const w = Math.max(280, Math.min(Math.round(window.innerWidth * 0.72), Math.round(window.innerWidth - ev.clientX)));
+      state.drawerWidth = w;
+      document.getElementById("workspace")?.style.setProperty("--drawer-w", w + "px");
+      return;
+    }
     if (minimapDrag) {
       panCameraToMinimapEvent(ev);
       return;
@@ -107,6 +129,16 @@ export function renderEventsClientScript(): string {
   });
 
   appEl.addEventListener("pointerup", (ev) => {
+    if (drawerDrag) {
+      drawerDrag = false;
+      const rz = document.getElementById("drawer-resizer");
+      if (rz && rz.hasPointerCapture(ev.pointerId)) rz.releasePointerCapture(ev.pointerId);
+      document.getElementById("workspace")?.classList.remove("resizing");
+      if (state.drawerWidth) {
+        try { localStorage.setItem("repospec:drawer-w", String(state.drawerWidth)); } catch {}
+      }
+      return;
+    }
     if (minimapDrag) {
       minimapDrag = false;
       const mm = document.getElementById("hud-minimap");
@@ -247,6 +279,13 @@ export function renderEventsClientScript(): string {
     if (ev.key.toLowerCase() === "f" && state.selectedNodeId) {
       ev.preventDefault();
       state.focusMode = !state.focusMode;
+      render();
+      return;
+    }
+    if (ev.key === "]") {
+      ev.preventDefault();
+      state.drawerCollapsed = !state.drawerCollapsed;
+      try { localStorage.setItem("repospec:drawer-collapsed", state.drawerCollapsed ? "1" : "0"); } catch {}
       render();
       return;
     }
