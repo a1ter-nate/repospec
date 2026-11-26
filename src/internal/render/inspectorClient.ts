@@ -267,6 +267,7 @@ export function renderInspectorClientScript(): string {
       covMetricRow +
       '<div class="row"><span class="muted">Invariants</span><span class="mono">' + ver.invariantsPassed + " pass · " + ver.invariantsWarned + " warn · " + ver.invariantsFailed + " fail · " + ver.invariantsNa + " N/A</span></div>" +
       (tierKindLabel ? '<div class="row"><span class="muted">Lane Basis</span><span class="mono">' + esc(tierKindLabel) + "</span></div>" : "") +
+      '<div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">Structural graph + coverage only; cross-repo wire contracts &amp; behavioral semantics (stubs, swallowed errors) require runtime E2E/contract proofs.</div>' +
       "</div>";
 
     return (

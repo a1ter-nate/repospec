@@ -5,9 +5,10 @@ import path from "node:path";
 import { BunServices } from "@effect/platform-bun";
 import { Effect, Layer } from "effect";
 import { Command } from "effect/cli";
-import { repospecCommand } from "../src/effect/cliApp.ts";
+import { repospecCommand, resolveGenerateOutDir } from "../src/effect/cliApp.ts";
 import { checkRepoSpecEffect, generateRepoSpecEffect } from "../src/effect/pipeline.ts";
 import { CoverageService, ExtractorRegistry, RepospecLive } from "../src/effect/services.ts";
+import { renderVisualHtml } from "../src/render.ts";
 import { buildRepoSpecJsonSchema } from "../src/schema.ts";
 
 function makeTempFixture(files: Record<string, string>): string {
@@ -157,8 +158,52 @@ describe("Effect 4 runtime, Layer DI, CLI, and hardened signal edge cases", () =
       expect(formatDrill?.fc).toBe(100);
       const modDiag = res.spec.diagrams.find((d) => d.category === "modules");
       expect(modDiag?.tierKind).toBe("inferred_dag_tiers");
+      const html = renderVisualHtml(res.spec, res.digest, { inline: false, drilldown: res.drilldown });
+      expect(html).toContain("cross-repo wire contracts");
+      expect(html).toContain("require runtime E2E/contract proofs");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test("resolveGenerateOutDir refreshes existing .repospec in place, honors --in-place and --out, and emits outputHint otherwise", () => {
+    const existing = resolveGenerateOutDir({
+      repoDir: "/tmp/my-app",
+      inPlace: false,
+      storageMode: "artifact",
+      hasExistingDotRepospec: true,
+      cwd: "/tmp/work",
+    });
+    expect(existing.outDir).toBe(path.resolve("/tmp/my-app/.repospec"));
+    expect(existing.outputHint).toBeUndefined();
+
+    const inPlace = resolveGenerateOutDir({
+      repoDir: "/tmp/my-app",
+      inPlace: true,
+      storageMode: "artifact",
+      hasExistingDotRepospec: false,
+      cwd: "/tmp/work",
+    });
+    expect(inPlace.outDir).toBe(path.resolve("/tmp/my-app/.repospec"));
+
+    const explicit = resolveGenerateOutDir({
+      repoDir: "/tmp/my-app",
+      explicitOut: "/tmp/custom-out",
+      inPlace: false,
+      storageMode: "artifact",
+      hasExistingDotRepospec: true,
+      cwd: "/tmp/work",
+    });
+    expect(explicit.outDir).toBe("/tmp/custom-out");
+
+    const fallback = resolveGenerateOutDir({
+      repoDir: "/tmp/my-app",
+      inPlace: false,
+      storageMode: "artifact",
+      hasExistingDotRepospec: false,
+      cwd: "/tmp/work",
+    });
+    expect(fallback.outDir).toBe(path.join("/tmp/work", "out", "my-app"));
+    expect(fallback.outputHint).toContain("--out .repospec");
   });
 });

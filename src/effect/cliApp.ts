@@ -262,12 +262,36 @@ const aggregateCmd = Command.make(
     }),
 ).pipe(Command.withDescription("Aggregate multiple repository specs into one federated mesh."));
 
+export function resolveGenerateOutDir(params: {
+  readonly repoDir: string;
+  readonly explicitOut?: string;
+  readonly inPlace: boolean;
+  readonly storageMode: StorageMode;
+  readonly hasExistingDotRepospec: boolean;
+  readonly cwd?: string;
+}): { readonly outDir: string; readonly outputHint?: string } {
+  const absRepo = path.resolve(params.repoDir);
+  if (params.explicitOut) {
+    return { outDir: params.explicitOut };
+  }
+  if (params.inPlace || params.storageMode === "commit" || params.hasExistingDotRepospec) {
+    return { outDir: path.join(absRepo, ".repospec") };
+  }
+  const baseCwd = params.cwd ?? process.cwd();
+  const defaultOut = path.join(baseCwd, "out", path.basename(absRepo));
+  return {
+    outDir: defaultOut,
+    outputHint: "Written outside the repo. Pass --in-place or --out .repospec (or create .repospec/) to refresh .repospec/ artifacts in place.",
+  };
+}
+
 const generateCmd = Command.make(
   "generate",
   {
     repoDir: Argument.String("repoDir"),
     out: Flag.optional(Flag.String("out")),
     mode: Flag.withDefault(Flag.String("mode"), "artifact"),
+    inPlace: Flag.withDefault(Flag.Boolean("in-place"), false),
     inline: Flag.withDefault(Flag.Boolean("inline"), false),
     diff: Flag.optional(Flag.String("diff")),
     timeline: Flag.optional(Flag.Int("timeline")),
@@ -276,9 +300,15 @@ const generateCmd = Command.make(
     Effect.gen(function* () {
       const repoFs = yield* RepoFs;
       const storageMode: StorageMode = cfg.mode === "commit" ? "commit" : "artifact";
-      const outDir =
-        Option.getOrUndefined(cfg.out) ??
-        path.join(process.cwd(), "out", path.basename(path.resolve(cfg.repoDir)));
+      const dotRepospecPath = path.join(path.resolve(cfg.repoDir), ".repospec");
+      const hasExistingDotRepospec = yield* repoFs.exists(dotRepospecPath);
+      const { outDir, outputHint } = resolveGenerateOutDir({
+        repoDir: cfg.repoDir,
+        explicitOut: Option.getOrUndefined(cfg.out),
+        inPlace: cfg.inPlace,
+        storageMode,
+        hasExistingDotRepospec,
+      });
       yield* repoFs.mkdir(outDir);
       const sqliteOut = path.join(outDir, "repospec.sqlite");
 
@@ -352,6 +382,7 @@ const generateCmd = Command.make(
         verification: spec.verification,
         diagnostics: spec.diagnostics,
         summary: spec.summary,
+        outputHint,
         artifacts: {
           spec: path.resolve(specOut),
           schema: path.resolve(schemaOut),

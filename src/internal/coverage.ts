@@ -241,6 +241,7 @@ export function buildVerificationScopeSummary(v: VerificationCoverage): {
   if (v.invariantsNa > 0) {
     parts.push(`${v.invariantsNa} of ${total} structural invariants were N/A (${v.invariantsPassed} passed, ${v.invariantsWarned} warned, ${v.invariantsFailed} failed).`);
   }
+  parts.push("Structural graph + coverage only; cross-repo wire contracts & behavioral semantics require runtime E2E/contract proofs.");
   return {
     coverage: {
       source,
