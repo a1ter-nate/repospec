@@ -20,6 +20,7 @@
         "@types/dagre": "^0.7.54",
         "@types/js-yaml": "^4.0.9",
         "fast-check": "^4.11.0",
+        "featlock": "github:a1ter-nate/featlock#v0.1.0-pre",
         "oxfmt": "^0.80.0",
         "oxlint": "^1.95.0",
         "veristack": "^0.1.19",
@@ -500,6 +501,8 @@
     "effect": ["effect@4.1.6", "", {}, "sha512-P3CxMsdcSCle/7/FnPILd9GJkNqGtduKam2LX9Xsb8LoOjmeQ9Kmsuh16JwtIthaxLyiTCOzUUt+PZsXIohl+A=="],
 
     "fast-check": ["fast-check@4.11.0", "", { "dependencies": { "pure-rand": "^8.0.0" } }, "sha512-V4Uc238rhQOdQlc+Gz7JG6SGBtrWnWL8d/6RyiBeCMcNKMhF6DZ0KkAVHJSyNV5r4lA0PmIpZ6iRpTVoz4qjoA=="],
+
+    "featlock": ["featlock@github:a1ter-nate/featlock#e84e24b", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "featlock": "bin/featlock.mjs", "flk": "bin/featlock.mjs" } }, "a1ter-nate-featlock-e84e24b", "sha512-75a86EjJItkifKr/nBopgBop+7ZW32jv3kNPlkVD+27iGPM6iboBgHgnjjgHrsy4Jn13BuX1VKrB3WTR92wDPQ=="],
 
     "js-yaml": ["js-yaml@4.3.2", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA=="],
 

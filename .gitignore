@@ -1,5 +1,6 @@
 node_modules/
 out/
 .repospec-out/
+.featlock/
 *.local.html
 .DS_Store

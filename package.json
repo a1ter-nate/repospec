@@ -83,6 +83,7 @@
     "check:vstack": "bun run lint:oxlint && bun run lint:privacy && bun run lint:ts-only && bun run lint:no-comments && bun run lint:state-machines && bun run lint:laws && bun run lint:formal-sync && bun run lint:bench && bun run perf:check && bunx vstack scan . --strict && bunx vstack doctor . --fail",
     "generate": "bun src/cli.ts generate",
     "schema": "bun src/cli.ts schema",
+    "check:features": "bunx featlock check .",
     "check": "bun run typecheck && bun test && bun run check:vstack"
   },
   "dependencies": {
@@ -101,6 +102,7 @@
     "@types/dagre": "^0.7.54",
     "@types/js-yaml": "^4.0.9",
     "fast-check": "^4.11.0",
+    "featlock": "github:a1ter-nate/featlock#v0.1.0-pre",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
     "veristack": "^0.1.19"
