@@ -298,12 +298,7 @@ export function renderFileCallGraphClientScript(): string {
     if (parts.length === 2 && Number(parts[0]) > 0 && Number(parts[1]) >= Number(parts[0])) {
       text = raw.split("\\n").slice(Number(parts[0]) - 1, Number(parts[1])).join("\\n");
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(() => {});
-    }
-    btn.textContent = "✓ Copied";
-    btn.style.color = "#5fd9a0";
-    setTimeout(() => { btn.textContent = "Copy"; btn.style.color = ""; }, 1400);
+    copyTextToClipboard(text, btn, "Copy");
   }
 
   function renderCodeBlockHtml(fileIdx, filePath, startLine, endLine, focusLine, fullFile, hasScope) {

@@ -139,16 +139,46 @@ export function renderStudioFeaturesClientScript(): string {
     } catch {}
   }
 
+  function copyTextToClipboard(text, btn, fallbackLabel) {
+    const prev = fallbackLabel || (btn ? btn.textContent : "") || "Copy";
+    const done = (ok) => {
+      if (!btn) return;
+      btn.textContent = ok ? "Copied ✓" : "Copy failed";
+      btn.style.color = ok ? "#5fd9a0" : "#ff8a8a";
+      setTimeout(() => { btn.textContent = prev; btn.style.color = ""; }, 1500);
+    };
+    const legacyCopy = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = String(text || "");
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-9999px";
+        ta.style.left = "-9999px";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return Boolean(ok);
+      } catch {
+        return false;
+      }
+    };
+    if (window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(String(text || "")).then(
+        () => done(true),
+        () => done(legacyCopy()),
+      );
+      return;
+    }
+    done(legacyCopy());
+  }
+
   function copyShareDeepLink(btn) {
     syncHashFromState();
-    const url = window.location.href;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).catch(() => {});
-    }
-    const prev = btn.textContent;
-    btn.textContent = "✓ Link Copied";
-    btn.style.color = "#5fd9a0";
-    setTimeout(() => { btn.textContent = prev || "Share"; btn.style.color = ""; }, 1400);
+    copyTextToClipboard(window.location.href, btn, "Share");
   }
 
   function buildAgentContextPack(kind, id) {
@@ -208,6 +238,20 @@ export function renderStudioFeaturesClientScript(): string {
       lines.push("- **Fan-in / Fan-out:** " + mod.fanIn + " callers / " + mod.fanOut + " dependencies");
       if (mod.topExports.length > 0) lines.push("- **Public API:** " + mod.topExports.map((s) => s.name + " (" + s.file + ":" + s.line + ")").join(", "));
       lines.push("- **Files:** " + mod.files.slice(0, 15).map((f) => f.file).join(", "));
+      return lines.join("\\n");
+    }
+    const node = nodeById.get(id);
+    if (node) {
+      const outEdges = DATA.edges.filter((e) => e.from === id && e.kind !== "contains");
+      const inEdges = DATA.edges.filter((e) => e.to === id && e.kind !== "contains");
+      const eps = DATA.surfaces.endpoints.filter((ep) => ep.unit === node.label);
+      lines.push("# Agent Context Pack — " + shortPkg(node.label));
+      lines.push("- **Node:** \`" + node.id + "\` (" + node.kind + (node.role ? " · " + node.role : "") + ")");
+      if (node.meta?.dir) lines.push("- **Directory:** \`" + node.meta.dir + "\`");
+      if (outEdges.length > 0) lines.push("- **Calls / Depends On (" + outEdges.length + "):** " + outEdges.slice(0, 14).map((e) => shortPkg(nodeById.get(e.to)?.label || e.to) + " (" + e.kind + ")").join(", "));
+      if (inEdges.length > 0) lines.push("- **Called By (" + inEdges.length + "):** " + inEdges.slice(0, 14).map((e) => shortPkg(nodeById.get(e.from)?.label || e.from) + " (" + e.kind + ")").join(", "));
+      if (eps.length > 0) lines.push("- **HTTP Routes (" + eps.length + "):** " + eps.slice(0, 10).map((ep) => ep.method + " " + ep.path).join(", "));
+      if ((node.findings || []).length > 0) lines.push("- **Active Findings:** " + node.findings.map((f) => f.ruleId + " (" + f.count + ")").join(", "));
       return lines.join("\\n");
     }
     return "# Agent Context Pack — " + DATA.repo.name + "\\n- Target: " + id;
@@ -343,14 +387,7 @@ export function renderStudioFeaturesClientScript(): string {
     if (ctxBtn) {
       const kind = ctxBtn.getAttribute("data-copy-ctx") || "module";
       const id = ctxBtn.getAttribute("data-copy-ctx-id") || "";
-      const md = buildAgentContextPack(kind, id);
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(md).catch(() => {});
-      }
-      const prev = ctxBtn.textContent;
-      ctxBtn.textContent = "✓ Context Copied";
-      ctxBtn.style.color = "#5fd9a0";
-      setTimeout(() => { ctxBtn.textContent = prev || "Copy Agent Context"; ctxBtn.style.color = ""; }, 1400);
+      copyTextToClipboard(buildAgentContextPack(kind, id), ctxBtn, "Copy Agent Context");
       return true;
     }
     const blastBtn = target.closest("[data-toggle-blast]");
@@ -408,12 +445,7 @@ export function renderStudioFeaturesClientScript(): string {
     const visPrBtn = target.closest("[data-copy-visual-pr]");
     if (visPrBtn) {
       const md = buildShowMeVisualPrMarkdown();
-      if (md && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(md).catch(() => {});
-      }
-      visPrBtn.textContent = "✓ PR Outline Copied";
-      visPrBtn.style.color = "#5fd9a0";
-      setTimeout(() => { visPrBtn.textContent = "Copy Visual PR"; visPrBtn.style.color = ""; }, 1400);
+      if (md) copyTextToClipboard(md, visPrBtn, "Copy Visual PR");
       return true;
     }
     const tlPt = target.closest("[data-tl-idx]");

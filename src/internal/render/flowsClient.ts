@@ -143,7 +143,10 @@ export function renderFlowsClientScript(): string {
         const focusFile = state.flowCodeFile || selField.writers?.[0]?.file || selField.readers?.[0]?.file || ".";
         const focusLine = state.flowCodeFile ? (state.flowCodeLine || 1) : (selField.writers?.[0]?.line || selField.readers?.[0]?.line || 1);
         ctxTitle = '<span class="mono">' + esc(hub.entity + "." + selField.field) + "</span>";
-        ctxAction = selField.multiWriterRisk ? '<span class="badge b-warn">3+ files edit</span>' : selField.derivedOnRead ? '<span class="badge b-info">computed</span>' : '<span class="badge b-pass">clean owner</span>';
+        ctxAction =
+          '<span style="display:inline-flex;align-items:center;gap:6px">' +
+          (selField.multiWriterRisk ? '<span class="badge b-warn">3+ files edit</span>' : selField.derivedOnRead ? '<span class="badge b-info">computed</span>' : '<span class="badge b-pass">clean owner</span>') +
+          '<button class="tbtn" data-copy-hub-ctx="' + esc(hub.entity) + '">Copy Context</button></span>';
         ctxHtml =
           '<div><div class="sec-title" style="margin-bottom:4px">Edited By (' + (selField.writers?.length || 0) + ")</div>" +
           (selField.writers || []).map((w) => '<div class="row" style="cursor:pointer" data-flow-jump-file="' + esc(w.file) + '" data-flow-jump-line="' + w.line + '"><span class="mono">' + esc(w.fn) + '</span><span class="mono muted">' + esc(w.mode) + " · " + esc(w.file.split("/").pop()) + ":" + w.line + "</span></div>").join("") +
@@ -308,13 +311,9 @@ export function renderFlowsClientScript(): string {
     svg.querySelectorAll(".is-hi").forEach((el) => el.classList.remove("is-hi"));
     svg.classList.add("hub-hover");
     nodeEl.classList.add("is-hi");
-    const fid = nodeEl.getAttribute("data-hub-file-id");
-    const rid = nodeEl.getAttribute("data-hub-reader-id");
-    const fIdx = nodeEl.getAttribute("data-hub-fld-idx");
+    const fid = nodeEl.getAttribute("data-hub-file-id"), rid = nodeEl.getAttribute("data-hub-reader-id"), fIdx = nodeEl.getAttribute("data-hub-fld-idx");
     svg.querySelectorAll(".rs-hub-edge").forEach((edge) => {
-      const eSrc = edge.getAttribute("data-hub-src");
-      const eDst = edge.getAttribute("data-hub-dst");
-      const eFld = edge.getAttribute("data-hub-fld");
+      const eSrc = edge.getAttribute("data-hub-src"), eDst = edge.getAttribute("data-hub-dst"), eFld = edge.getAttribute("data-hub-fld");
       if ((fid && eSrc === fid) || (rid && eDst === rid) || (fIdx !== null && eFld === fIdx)) {
         edge.classList.add("is-hi");
         if (eSrc) svg.querySelector('[data-hub-file-id="' + eSrc + '"]')?.classList.add("is-hi");
@@ -333,19 +332,8 @@ export function renderFlowsClientScript(): string {
 
   function handleFlowClick(target) {
     const flowSubBtn = target.closest("[data-flows-sub]");
-    if (flowSubBtn) {
-      state.flowsSubtab = flowSubBtn.getAttribute("data-flows-sub") || "workflows";
-      state.flowFilterChip = "all";
-      state.flowSearch = "";
-      state.flowCodeFile = null;
-      render();
-      return true;
-    }
-    if (target.closest("[data-toggle-flow-dock]")) {
-      state.flowDockCollapsed = !state.flowDockCollapsed;
-      render();
-      return true;
-    }
+    if (flowSubBtn) { state.flowsSubtab = flowSubBtn.getAttribute("data-flows-sub") || "workflows"; state.flowFilterChip = "all"; state.flowSearch = ""; state.flowCodeFile = null; render(); return true; }
+    if (target.closest("[data-toggle-flow-dock]")) { state.flowDockCollapsed = !state.flowDockCollapsed; render(); return true; }
     const fzBtn = target.closest("[data-flow-zoom]");
     if (fzBtn) {
       const dir = fzBtn.getAttribute("data-flow-zoom");
@@ -357,33 +345,13 @@ export function renderFlowsClientScript(): string {
       return true;
     }
     const grpBtn = target.closest("[data-flow-group]");
-    if (grpBtn) {
-      const k = grpBtn.getAttribute("data-flow-group") || "";
-      state.flowRailClosed = state.flowRailClosed || {};
-      state.flowRailClosed[k] = !state.flowRailClosed[k];
-      rerenderFlowRail();
-      return true;
-    }
+    if (grpBtn) { const k = grpBtn.getAttribute("data-flow-group") || ""; state.flowRailClosed = state.flowRailClosed || {}; state.flowRailClosed[k] = !state.flowRailClosed[k]; rerenderFlowRail(); return true; }
     const chipBtn = target.closest("[data-flow-chip]");
-    if (chipBtn) {
-      state.flowFilterChip = chipBtn.getAttribute("data-flow-chip") || "all";
-      render();
-      return true;
-    }
+    if (chipBtn) { state.flowFilterChip = chipBtn.getAttribute("data-flow-chip") || "all"; render(); return true; }
     const navBtn = target.closest("[data-flow-step-nav]");
-    if (navBtn) {
-      stepFlowSelection(Number(navBtn.getAttribute("data-flow-step-nav")) || 1);
-      return true;
-    }
+    if (navBtn) { stepFlowSelection(Number(navBtn.getAttribute("data-flow-step-nav")) || 1); return true; }
     const selFlowBtn = target.closest("[data-select-flow]");
-    if (selFlowBtn) {
-      state.activeFlowId = selFlowBtn.getAttribute("data-select-flow");
-      state.flowSelectedStepIdx = null;
-      state.flowCodeFile = null;
-      ensureFileSourcesLoaded();
-      render();
-      return true;
-    }
+    if (selFlowBtn) { state.activeFlowId = selFlowBtn.getAttribute("data-select-flow"); state.flowSelectedStepIdx = null; state.flowCodeFile = null; ensureFileSourcesLoaded(); render(); return true; }
     const selHubBtn = target.closest("[data-select-hub]");
     if (selHubBtn) {
       const ent = selHubBtn.getAttribute("data-select-hub") || "";
@@ -466,11 +434,28 @@ export function renderFlowsClientScript(): string {
       render();
       return true;
     }
+    const copyHubBtn = target.closest("[data-copy-hub-ctx]");
+    if (copyHubBtn) {
+      const ent = copyHubBtn.getAttribute("data-copy-hub-ctx");
+      const hub = (DATA.flows?.dataHubs || []).find((h) => h.entity === ent);
+      if (hub) {
+        const lines = [
+          "# Data Hub: " + hub.entity + " (" + hub.fieldCount + " fields, " + (hub.writerCount || 0) + " writer files)",
+          ...(hub.fields || []).map((f) =>
+            "- **" + f.field + "**" + (f.multiWriterRisk ? " [3+ files edit]" : "") +
+            " — Edited by: " + ((f.writers || []).map((w) => w.fn + " (" + w.file + ":" + w.line + ")").join(", ") || "none") +
+            ((f.readers || []).length > 0 ? " | Read by: " + f.readers.map((r) => r.fn + " (" + r.file + ":" + r.line + ")").join(", ") : "")
+          ),
+        ];
+        copyTextToClipboard(lines.join("\\n"), copyHubBtn, "Copy Context");
+      }
+      return true;
+    }
     const copyFlowBtn = target.closest("[data-copy-flow-ctx]");
     if (copyFlowBtn) {
       const fid = copyFlowBtn.getAttribute("data-copy-flow-ctx");
       const wf = (DATA.flows?.workFlows || []).find((w) => w.id === fid);
-      if (wf && navigator.clipboard) {
+      if (wf) {
         const lines = [
           "# Work Flow: " + wf.name + " (" + wf.file + ":" + wf.line + ")",
           "Serial awaits: " + wf.serialAwaitCount,
@@ -479,9 +464,7 @@ export function renderFlowsClientScript(): string {
           "## DDIA Hazards",
           ...(wf.hazards || []).map((h) => "- [" + h.kind + "] " + h.summary),
         ];
-        navigator.clipboard.writeText(lines.join("\\n")).catch(() => {});
-        copyFlowBtn.textContent = "Copied ✓";
-        setTimeout(() => { copyFlowBtn.textContent = "Copy Context"; }, 1400);
+        copyTextToClipboard(lines.join("\\n"), copyFlowBtn, "Copy Context");
       }
       return true;
     }

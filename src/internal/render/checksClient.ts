@@ -403,11 +403,7 @@ export function renderChecksClientScript(): string {
     if (copyPlace) {
       const fp = copyPlace.getAttribute("data-chk-copy-place");
       const pl = checksModelData().places.find((p) => p.file === fp);
-      if (pl && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(buildPlaceBriefMarkdown(pl)).catch(() => {});
-      }
-      copyPlace.textContent = "Copied ✓";
-      setTimeout(() => { copyPlace.textContent = "Copy brief"; }, 1400);
+      if (pl) copyTextToClipboard(buildPlaceBriefMarkdown(pl), copyPlace, "Copy brief");
       return true;
     }
     const jumpBtn = target.closest("[data-chk-jump]");

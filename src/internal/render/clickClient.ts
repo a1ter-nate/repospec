@@ -304,11 +304,7 @@ export function renderClickClientScript(): string {
     const copyInvBtn = target.closest("[data-copy-inv]");
     if (copyInvBtn) {
       const inv = invById.get(copyInvBtn.getAttribute("data-copy-inv"));
-      if (inv && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(buildFixBriefMarkdown(inv)).catch(() => {});
-      }
-      copyInvBtn.textContent = "Copied ✓";
-      setTimeout(() => { copyInvBtn.textContent = "Copy Fix Brief"; }, 1400);
+      if (inv) copyTextToClipboard(buildFixBriefMarkdown(inv), copyInvBtn, copyInvBtn.textContent || "Copy Fix Brief");
       return;
     }
 
