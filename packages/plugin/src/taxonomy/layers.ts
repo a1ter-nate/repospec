@@ -124,7 +124,16 @@ interface DefaultVendorsConfig {
   sdks: Array<{ pattern: string; category: string; label?: string }>;
 }
 
-const DEFAULT_VENDORS_PATH = path.resolve(import.meta.dir, "../../../../config/default-vendors.json");
+function resolveDefaultVendorsPath(): string {
+  const candidates = [
+    path.resolve(import.meta.dir, "../../../../config/default-vendors.json"),
+    path.resolve(import.meta.dir, "../config/default-vendors.json"),
+    path.resolve(import.meta.dir, "../../config/default-vendors.json"),
+  ];
+  return candidates.find((c) => fs.existsSync(c)) ?? candidates[0] ?? "config/default-vendors.json";
+}
+
+const DEFAULT_VENDORS_PATH = resolveDefaultVendorsPath();
 const LOADED_VENDORS: {
   observability: string[];
   transports: Set<string>;

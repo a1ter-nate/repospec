@@ -1,4 +1,30 @@
-import { Resvg } from "@resvg/resvg-js";
+import { createRequire } from "node:module";
+
+interface ResvgLike {
+  render(): { asPng(): Uint8Array };
+}
+
+type ResvgCtor = new (
+  svg: string,
+  options: {
+    font: { loadSystemFonts: boolean; defaultFontFamily: string };
+    fitTo: { mode: "zoom"; value: number };
+  },
+) => ResvgLike;
+
+let cachedResvgCtor: ResvgCtor | null | undefined;
+
+function loadResvgCtor(): ResvgCtor | null {
+  if (cachedResvgCtor !== undefined) return cachedResvgCtor;
+  try {
+    const req = createRequire(import.meta.url);
+    const mod = req("@resvg/resvg-js") as { Resvg?: ResvgCtor };
+    cachedResvgCtor = typeof mod.Resvg === "function" ? mod.Resvg : null;
+  } catch {
+    cachedResvgCtor = null;
+  }
+  return cachedResvgCtor;
+}
 
 export type ShowMeTheme = "dark" | "light";
 export type ShowMeThemeMode = ShowMeTheme | "auto";
@@ -84,7 +110,15 @@ export function truncateText(text: string, maxChars: number): string {
   return `${text.slice(0, Math.max(1, maxChars - 1))}…`;
 }
 
+export function isPngRasterizerAvailable(): boolean {
+  return loadResvgCtor() !== null;
+}
+
 export function rasterizeSvgToPng(svg: string, zoom = 2): Uint8Array {
+  const Resvg = loadResvgCtor();
+  if (!Resvg) {
+    throw new Error("PNG rasterization unavailable: optional dependency @resvg/resvg-js is not installed.");
+  }
   const resvg = new Resvg(svg, {
     font: {
       loadSystemFonts: true,

@@ -4,7 +4,7 @@
     "correctness": "error",
     "suspicious": "error"
   },
-  "ignorePatterns": ["out/**", "node_modules/**", "tools/**"],
+  "ignorePatterns": ["dist/**", "out/**", "node_modules/**", "tools/**"],
   "jsPlugins": [
     {
       "name": "landmines",

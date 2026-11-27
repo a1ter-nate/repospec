@@ -34,7 +34,16 @@ import { createDomainStates, flushAllDomainStates, type PluginDomainStates } fro
 import { createPluginSupervisor } from "./supervisor.ts";
 import type { PluginCheckResult, PluginHostInstance, PluginHostOptions, PluginScanResult } from "./types.ts";
 
-const DEFAULT_RULES_DIR = path.resolve(import.meta.dir, "../../../../rules");
+function resolveDefaultRulesDir(): string {
+  const candidates = [
+    path.resolve(import.meta.dir, "../../../../rules"),
+    path.resolve(import.meta.dir, "../rules"),
+    path.resolve(import.meta.dir, "../../rules"),
+  ];
+  return candidates.find((c) => fs.existsSync(c)) ?? candidates[0] ?? "rules";
+}
+
+const DEFAULT_RULES_DIR = resolveDefaultRulesDir();
 
 interface CiGateLike {
   readonly id: string;

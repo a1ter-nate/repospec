@@ -2,7 +2,7 @@
 
 **OpenAPI for everything else in a codebase.**
 
-RepoSpec is a deterministic, zero-AI, polyglot **architecture compiler (`v5.0.0`)** for **TypeScript, JavaScript, Rust, Python, and C# / .NET**. It compiles source code, tests, CI workflows, IaC, OpenAPI specs, SQL migrations, and governance files into one schema-validated **Index** (`repospec.sqlite` + `repospec.json`) — and derives zero-drift **Levelized Module Maps**, **"How This Module Works" Anatomy Inspectors**, SQL invariant checks, typed SDKs, and developer/agent shepherding reports on every commit.
+RepoSpec is a deterministic, zero-AI, polyglot **architecture compiler (`v5.0.1`)** for **TypeScript, JavaScript, Rust, Python, and C# / .NET**. It compiles source code, tests, CI workflows, IaC, OpenAPI specs, SQL migrations, and governance files into one schema-validated **Index** (`repospec.sqlite` + `repospec.json`) — and derives zero-drift **Levelized Module Maps**, **"How This Module Works" Anatomy Inspectors**, SQL invariant checks, typed SDKs, and developer/agent shepherding reports on every commit.
 
 > **Core Guarantee:** Pure commit-time static truth. Running `repospec generate` twice on the same commit produces byte-identical JSON (identical SHA-256) with zero wall-clock timestamps, zero random IDs, and zero LLM calls.
 
@@ -86,53 +86,55 @@ bun run check
 
 ```bash
 # File or unit Passport (layer axis/rank, blast radius, direct tests, entities, FK cascades, scoped rules)
-bun src/cli.ts explain apps/api/src/client/payments.ts --db ./out/my-repo/repospec.sqlite
+bunx repospec explain apps/api/src/client/payments.ts --db ./out/my-repo/repospec.sqlite
 
 # PR architecture impact brief from a git diff range
-bun src/cli.ts impact HEAD~5..HEAD --db ./out/my-repo/repospec.sqlite --repo /path/to/repo --format github
+bunx repospec impact HEAD~5..HEAD --db ./out/my-repo/repospec.sqlite --repo /path/to/repo --format github
 
 # Precedent & prohibition check before adding new code (refuses when ungrounded)
-bun src/cli.ts precedents --path src/Domain/NewService.cs --db ./out/my-repo/repospec.sqlite
+bunx repospec precedents --path src/Domain/NewService.cs --db ./out/my-repo/repospec.sqlite
 
 # Named or ad-hoc SQL queries against the indexed graph
-bun src/cli.ts query ./out/my-repo/repospec.sqlite --named modules
-bun src/cli.ts query ./out/my-repo/repospec.sqlite --named tangles
-bun src/cli.ts query ./out/my-repo/repospec.sqlite --named violations
-bun src/cli.ts query ./out/my-repo/repospec.sqlite --named http_endpoints
-bun src/cli.ts query ./out/my-repo/repospec.sqlite --named fk_cascades
+bunx repospec query ./out/my-repo/repospec.sqlite --named modules
+bunx repospec query ./out/my-repo/repospec.sqlite --named tangles
+bunx repospec query ./out/my-repo/repospec.sqlite --named violations
+bunx repospec query ./out/my-repo/repospec.sqlite --named http_endpoints
+bunx repospec query ./out/my-repo/repospec.sqlite --named fk_cascades
 
 # CI drift & invariant gate (exits non-zero on failing invariants, error diagnostics, or digest drift)
-bun src/cli.ts check /path/to/repo --spec ./out/my-repo/repospec.json
+bunx repospec check /path/to/repo --spec ./out/my-repo/repospec.json
 
 # Validate an existing spec or structurally diff two commits
-bun src/cli.ts validate ./out/my-repo/repospec.json
-bun src/cli.ts diff ./out/base/repospec.json ./out/head/repospec.json
+bunx repospec validate ./out/my-repo/repospec.json
+bunx repospec diff ./out/base/repospec.json ./out/head/repospec.json
 
 # Kernel-only scan (IR + SQLite + custom facts, zero HTML UI) & custom fact queries/diffs
-bun src/cli.ts scan /path/to/repo --out ./out/my-repo
-bun src/cli.ts facts ./out/my-repo/repospec.sqlite --kind feature_flag
-bun src/cli.ts facts /path/to/repo --diff HEAD~1..HEAD
+bunx repospec scan /path/to/repo --out ./out/my-repo
+bunx repospec facts ./out/my-repo/repospec.sqlite --kind feature_flag
+bunx repospec facts /path/to/repo --diff HEAD~1..HEAD
 
 # Priority-ranked architectural PR diff screenshots (SVG/PNG + /show-me comment)
-bun src/cli.ts show-me /path/to/repo HEAD~1..HEAD --out ./out/show-me --format both
+bunx repospec show-me /path/to/repo HEAD~1..HEAD --out ./out/show-me --format both
 
 # Eject editable jellyware overrides or custom extractors into .repospec/
-bun src/cli.ts eject all /path/to/repo
+bunx repospec eject all /path/to/repo
 ```
 
 ---
 
-## Modular Packages & Jellyware Extensibility
+## Modular Packages & Plugin Architecture
 
-RepoSpec separates its deterministic **scanning + SQLite storage kernel** from **swappable, ejectable presentation & CI layers** across four workspace packages (also re-exported from `repospec/*`):
+RepoSpec separates its deterministic **tight replayable core kernel** (`@repospec/core`) and **leaf plugin SDK** (`@repospec/plugin`) from **swappable, dogfooded feature suites and 15 built-in plugins** (`packages/plugins/*`, all toggleable via `--plugin` / `--disable-plugin` and re-exported from `repospec/*`):
 
 | Package | Root Subpath | Responsibility |
 | :--- | :--- | :--- |
-| **`@repospec/core`** | `repospec/core`, `repospec/core/facts`, `repospec/core/eject`, `repospec/core/effect` | Scanning kernel, canonical IR, SQLite `facts` / `fact_edges` / `metrics` tables, shared AST `ScanToolkit`, `defineExtractor`, declarative `.repospec/facts.yaml`, `.repospec/rules/*.sql` loader, and `repospec eject` |
+| **`@repospec/plugin`** | `repospec/plugin`, `repospec/plugin/effect` | Leaf plugin SDK (`Plugin.define`, Effect/Promise adapters, canonical schema, layer taxonomy, and coverage utilities — zero core dependencies) |
+| **`@repospec/core`** | `repospec/core`, `repospec/core/facts`, `repospec/core/eject`, `repospec/core/effect` | Tight replayable plugin kernel (`PluginHost`, `State.create`), canonical IR, SQLite `facts` / `fact_edges` / `metrics` tables, shared AST `ScanToolkit`, `defineExtractor`, declarative `.repospec/facts.yaml`, `.repospec/rules/*.sql` loader, and `repospec eject` |
 | **`@repospec/report`** | `repospec/report` | Default interactive Visual Studio HTML renderer + `defineReport` UI customization (CSS theme variables, `customCss`, `customHeadHtml`, `customHeaderHtml`, `customBriefingHtml`, `extraTabs`, `customClientScript`, `transformPayload`, full `renderHtml` escape hatch) |
 | **`@repospec/show-me`** | `repospec/show-me`, `repospec/show-me/svg` | Gate-based PR triage (`Scrutinize` / `Look` / `Skim`), chromeless light/dark SVG/PNG renderer, IaC delta cards, and `defineShowMe` overrides (`triage`, `selectShots`, `renderCard`, `formatComment`, `ctx.factDiff()`) |
 | **`@repospec/ci`** | `repospec/ci` | `defineCi` programmatic CI gates (wired automatically into `repospec check`), custom formatters, and GitHub Actions workflow templates |
 | **`@repospec/flows`** | `repospec/flows`, `repospec/flows/svg`, `repospec/flows/languages` | Ordered entrypoint effect-tracer (TypeScript, Rust, C#, plus custom `.repospec/languages/*.ts` plugins — see [Language Plugin Spec](docs/language-plugin-spec.md)), entity/field data-lifecycle hubs, statecharts, cross-boundary async stitching, `.repospec/flows.yaml` journeys, OTel telemetry overlay, 6 DDIA SQL invariants, and interactive spatial SVG workbenches |
+| **`@repospec/perf`** | `repospec/perf`, `repospec/perf/algorithms`, `repospec/perf/data-structures` | Code performance AST scanner (10 anti-patterns with drop-in swap recommendations), per-function Space-Time complexity advisor (`O(1)`–`O(2^n)`), verified data structures (`RingBufferDeque`, `BinaryHeap`, `PrefixTrie`, `UnionFind`, `LruCache`), and algorithms (`binarySearch`, `topK`, `prefixSums`, `hashJoin`, `memoize`, `mergeSorted`) |
 
 ### Pull Custom Domain Facts Out of Your Code
 

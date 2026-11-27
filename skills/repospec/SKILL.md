@@ -26,7 +26,7 @@ Use these exact terms across plans, reviews, and SQL rules:
 
 ### Phase 0: Build or Locate the Index
 
-Run `bun src/cli.ts generate <repoDir> --out <dir> --mode artifact` (or `scan <repoDir> --out <dir>` for kernel IR + SQLite + custom facts without HTML UI; see `bun src/cli.ts --help` for subcommand flags) or locate an existing `repospec.sqlite` matching `HEAD`.
+Run `bunx repospec generate <repoDir> --out <dir> --mode artifact` (or `bunx repospec scan <repoDir> --out <dir>` for kernel IR + SQLite + custom facts without HTML UI; see `bunx repospec --help` for subcommand flags) or locate an existing `repospec.sqlite` matching `HEAD`.
 
 - **Custom domain extraction & jellyware:** Add `.repospec/facts.yaml`, `.repospec/extractors/*.ts`, or `.repospec/rules/*.sql` to pull custom facts (`facts`/`fact_edges`/`metrics` tables) and query or diff them via `facts <dbOrRepo> [--kind <k>] [--diff <base..head>]`. Run `eject <show-me|report|ci|extractor|facts|rule|all> <repoDir>` to scaffold editable `.repospec/` overrides for UI (`report.ts`), PR screenshots (`show-me.ts`), or CI gates (`ci.ts`).
 

@@ -1,10 +1,21 @@
+import fs from "node:fs";
 import path from "node:path";
 import { Plugin, type RepoSpecV4 } from "@repospec/plugin";
 import { analyzeComplexityProfile } from "./internal/complexityAdvisor.ts";
 import { analyzeSourcePerformance } from "./internal/perfAstScanner.ts";
 import { analyzeRepoPerformance, perfExtractorPlugin, renderPerfStudioTabHtml } from "./internal/perfExtractor.ts";
 
-const PERF_RULES_DIR = path.resolve(import.meta.dir, "../rules");
+function resolvePerfRulesDir(): string {
+  const candidates = [
+    path.resolve(import.meta.dir, "../rules"),
+    path.resolve(import.meta.dir, "./perf-rules"),
+    path.resolve(import.meta.dir, "../perf-rules"),
+    path.resolve(import.meta.dir, "../dist/perf-rules"),
+  ];
+  return candidates.find((c) => fs.existsSync(c)) ?? candidates[0] ?? "rules";
+}
+
+const PERF_RULES_DIR = resolvePerfRulesDir();
 
 export {
   analyzeComplexityProfile,

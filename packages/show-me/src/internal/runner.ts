@@ -18,7 +18,7 @@ import {
   type RankPreset,
 } from "./ranking.ts";
 import { selectShots, type SelectedShot, type ShotSelectionPlan, type SuppressedShot } from "./shots.ts";
-import { rasterizeSvgToPng, type ShowMeTheme, type ShowMeThemeMode } from "./svgPrimitives.ts";
+import { isPngRasterizerAvailable, rasterizeSvgToPng, type ShowMeTheme, type ShowMeThemeMode } from "./svgPrimitives.ts";
 import { triageCommitDiff, type AttentionItem, type PrArchetype, type ReviewLevel, type TriageResult } from "./triage.ts";
 
 export type ShowMeFormat = "png" | "svg" | "both";
@@ -139,8 +139,13 @@ function writeVariantAssets(params: {
     fs.writeFileSync(path.join(absOut, svgFile), svg, "utf8");
   }
   if (format === "png" || format === "both") {
-    pngFile = `${baseName}.png`;
-    fs.writeFileSync(path.join(absOut, pngFile), rasterizeSvgToPng(svg, 2));
+    if (isPngRasterizerAvailable()) {
+      pngFile = `${baseName}.png`;
+      fs.writeFileSync(path.join(absOut, pngFile), rasterizeSvgToPng(svg, 2));
+    } else if (!svgFile) {
+      svgFile = `${baseName}.svg`;
+      fs.writeFileSync(path.join(absOut, svgFile), svg, "utf8");
+    }
   }
   return { svgFile, pngFile };
 }

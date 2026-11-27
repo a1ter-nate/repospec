@@ -55,31 +55,6 @@ export const rustAstExtractor: ExtractorPlugin = {
     ast.declaredEntities.push(...declaredEntities);
     ast.dbForeignKeys.push(...dbForeignKeys);
 
-    if (ctx.allFiles.includes("scripts/check-migrations.py")) {
-      const id = "rule:gate:check-migrations";
-      nodes.push({
-        id,
-        domain: "rules",
-        kind: "quality_gate",
-        role: "rule",
-        label: "check-migrations.py",
-        group: "quality_gate",
-        provenance: { file: "scripts/check-migrations.py", line: 1 },
-        tags: ["R1", "sql", "rust"],
-        meta: { gateName: "check-migrations", rung: "R1", scriptPath: "scripts/check-migrations.py" },
-      });
-      rules.push({
-        id,
-        name: "check-migrations",
-        category: "quality_gate",
-        enforcement: "ci_gate",
-        rung: "R1",
-        statement: "SQL migrations enforce additive-only evolution and credential allowlists via scripts/check-migrations.py",
-        targets: ["arch:datastore:postgres"],
-        provenance: { file: "scripts/check-migrations.py", line: 1 },
-      });
-    }
-
     const unitByDir = new Map<string, UnitDescriptor>();
     for (const u of sortedUnits) {
       if (!unitByDir.has(u.dir)) unitByDir.set(u.dir, u);
