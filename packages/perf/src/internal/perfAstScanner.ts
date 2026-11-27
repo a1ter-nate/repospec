@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { analyzePolyglotSource, detectPolyglotLanguage } from "./polyglotPerfScanner.ts";
 import type { PerfAntiPatternFinding } from "./types.ts";
 
 const LINEAR_LOOKUP_METHODS = new Set(["includes", "indexOf", "lastIndexOf", "find", "findIndex", "some"]);
@@ -51,10 +52,12 @@ function isStringExpression(expr: ts.Expression): boolean {
   return false;
 }
 
-function isLikelyStringLookup(methodName: string, call: ts.CallExpression): boolean {
+function isLikelyStringLookup(methodName: string, call: ts.CallExpression, recvText: string): boolean {
   if (methodName !== "includes" && methodName !== "indexOf" && methodName !== "lastIndexOf") return false;
   const firstArg = call.arguments[0];
-  return Boolean(firstArg && (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg)));
+  if (firstArg && (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg))) return true;
+  if (methodName === "includes" && call.arguments.length >= 2) return true;
+  return /\bas\s+string\b|String\(|\.toLowerCase\(\)|\.toUpperCase\(\)|\.trim\(\)|\.toString\(\)/.test(recvText);
 }
 
 function countArrayChainLength(call: ts.CallExpression): number {
@@ -78,7 +81,7 @@ function inspectLoopCall(
   const line = lineOfNode(ctx.sf, call);
   const methodName = prop.name.text;
   const recvText = prop.expression.getText(ctx.sf);
-  if (LINEAR_LOOKUP_METHODS.has(methodName) && !recvText.startsWith("Set") && !recvText.startsWith("Map") && !isLikelyStringLookup(methodName, call)) {
+  if (LINEAR_LOOKUP_METHODS.has(methodName) && !recvText.startsWith("Set") && !recvText.startsWith("Map") && !isLikelyStringLookup(methodName, call, recvText)) {
     ctx.findings.push({
       patternId: "linear-lookup-in-loop",
       severity: "high",
@@ -262,6 +265,7 @@ export function analyzeSourcePerformance(
   filePath = "inline.ts",
 ): readonly PerfAntiPatternFinding[] {
   if (typeof sourceText !== "string" || filePath.length === 0) throw new Error("analyzeSourcePerformance requires sourceText and filePath");
+  if (detectPolyglotLanguage(filePath) !== null) return analyzePolyglotSource(sourceText, filePath).findings;
   const sf = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
   const findings: PerfAntiPatternFinding[] = [];
   const ctx: InspectContext = { sf, file: filePath, findings };

@@ -66,12 +66,113 @@ describe("@repospec/perf AST scanner & complexity advisor unit", () => {
     expect(matched?.swapTo.length).toBeGreaterThan(10);
   });
 
-  test("ignores literal string .includes() substring checks inside loops", () => {
+  test("ignores literal string .includes(), string-cast .includes(v, pos), non-this property calls, and deferred event callbacks", () => {
     const hits = analyzeSourcePerformance(
-      "export function filterLogs(lines: string[]) { const out: string[] = []; for (const l of lines) { if (l.includes('ERROR')) out.push(l); } return out; }",
+      `export function filterLogs(lines: string[], needle: string) {
+        const out: string[] = [];
+        for (const l of lines) {
+          if (l.includes('ERROR')) out.push(l);
+          if ((l as string).includes(needle, 2)) out.push(l);
+        }
+        return out;
+      }`,
       "src/logs.ts",
     );
     expect(hits.some((h) => h.patternId === "linear-lookup-in-loop")).toBe(false);
+
+    const profiles = analyzeComplexityProfile(
+      `export function match(path: string, re: RegExp) {
+        const a = path.match(re);
+        const b = path.match(re);
+        return a ?? b;
+      }
+      export function drawStage(btn: { onclick?: () => void; onchange?: () => void }) {
+        btn.onclick = () => drawStage(btn);
+        btn.onchange = () => drawStage(btn);
+      }`,
+      "src/ui.ts",
+    );
+    const byName = new Map(profiles.map((p) => [p.symbol, p]));
+    expect(byName.get("match")?.timeComplexity).toBe("O(1)");
+    expect(byName.get("drawStage")?.timeComplexity).toBe("O(1)");
+  });
+
+  test("scans Rust, Python, and C# polyglot performance anti-patterns and complexity profiles", () => {
+    const rustCode = `
+pub async fn drain_jobs(mut q: Vec<String>, allowed: Vec<String>) {
+  while !q.is_empty() {
+    let item = q.remove(0);
+    if allowed.contains(&item) {
+      let _re = Regex::new("[a-z]+").unwrap();
+      run_job(&item).await;
+    }
+  }
+}
+pub fn fib_rust(n: u32) -> u32 {
+  if n <= 1 { return n; }
+  fib_rust(n - 1) + fib_rust(n - 2)
+}
+#[cfg(test)]
+mod tests {
+  fn test_helper(mut q: Vec<u32>) {
+    while !q.is_empty() { q.remove(0); }
+  }
+}
+`;
+    const rustHits = analyzeSourcePerformance(rustCode, "crates/worker/src/lib.rs");
+    expect(rustHits.some((h) => h.patternId === "array-shift-unshift-in-loop")).toBe(true);
+    expect(rustHits.some((h) => h.patternId === "linear-lookup-in-loop")).toBe(true);
+    expect(rustHits.some((h) => h.patternId === "regex-or-formatter-in-loop")).toBe(true);
+    expect(rustHits.some((h) => h.patternId === "serial-await-in-loop")).toBe(true);
+    expect(rustHits.filter((h) => h.patternId === "array-shift-unshift-in-loop")).toHaveLength(1);
+    const rustProfiles = analyzeComplexityProfile(rustCode, "crates/worker/src/lib.rs");
+    expect(rustProfiles.find((p) => p.symbol === "fib_rust")?.timeComplexity).toBe("O(2^n)");
+
+    const pyCode = `
+def drain_py(q, items):
+    while q:
+        x = q.pop(0)
+        p = re.compile(r"\\d+")
+        c = copy.deepcopy(x)
+    return sorted(items)[0]
+
+def fib_py(n):
+    if n <= 1:
+        return n
+    return fib_py(n - 1) + fib_py(n - 2)
+`;
+    const pyHits = analyzeSourcePerformance(pyCode, "app/worker.py");
+    expect(pyHits.some((h) => h.patternId === "array-shift-unshift-in-loop")).toBe(true);
+    expect(pyHits.some((h) => h.patternId === "regex-or-formatter-in-loop")).toBe(true);
+    expect(pyHits.some((h) => h.patternId === "json-deep-clone-in-loop")).toBe(true);
+    expect(pyHits.some((h) => h.patternId === "sort-to-find-extremum")).toBe(true);
+    const pyProfiles = analyzeComplexityProfile(pyCode, "app/worker.py");
+    expect(pyProfiles.find((p) => p.symbol === "fib_py")?.timeComplexity).toBe("O(2^n)");
+
+    const csCode = `
+public class Worker {
+  public async Task RunAsync(List<string> queue, List<string> allowed) {
+    string log = "";
+    while (queue.Count > 0) {
+      var item = queue[0];
+      queue.RemoveAt(0);
+      if (allowed.Contains(item)) {
+        var rx = new Regex("abc");
+        log += "ok";
+        await ProcessAsync(item);
+      }
+    }
+    var best = allowed.OrderBy(x => x).First();
+  }
+}
+`;
+    const csHits = analyzeSourcePerformance(csCode, "src/Worker.cs");
+    expect(csHits.some((h) => h.patternId === "array-shift-unshift-in-loop")).toBe(true);
+    expect(csHits.some((h) => h.patternId === "linear-lookup-in-loop")).toBe(true);
+    expect(csHits.some((h) => h.patternId === "regex-or-formatter-in-loop")).toBe(true);
+    expect(csHits.some((h) => h.patternId === "string-concat-in-loop")).toBe(true);
+    expect(csHits.some((h) => h.patternId === "serial-await-in-loop")).toBe(true);
+    expect(csHits.some((h) => h.patternId === "sort-to-find-extremum")).toBe(true);
   });
 
   test("estimates O(1), O(log n), O(n), O(n log n), O(n^2), and O(2^n) complexity profiles", () => {

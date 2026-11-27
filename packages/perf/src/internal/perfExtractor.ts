@@ -5,8 +5,8 @@ import { analyzeComplexityProfile } from "./complexityAdvisor.ts";
 import { analyzeSourcePerformance } from "./perfAstScanner.ts";
 import type { ComplexityProfile, PerfAnalysisBundle, PerfAntiPatternFinding } from "./types.ts";
 
-const TS_JS_EXT_RE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
-const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|dist|build|node_modules)\/|\.(?:test|spec|d)\.[a-z]+$/i;
+const SOURCE_EXT_RE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|rs|py|cs)$/;
+const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|bench|benchmarks|dist|build|target|node_modules)\/|\.(?:test|spec|d)\.[a-z]+$|Tests?\.cs$/i;
 const QUADRATIC_CLASSES = new Set(["O(n^2)", "O(n^2 log n)", "O(n^3)", "O(2^n)"]);
 
 function assertPerf(condition: boolean, message: string): void {
@@ -35,7 +35,7 @@ export function analyzeRepoPerformance(ctx: RepoContext): PerfAnalysisBundle {
   let scannedFiles = 0;
 
   for (const rel of ctx.allFiles) {
-    if (!TS_JS_EXT_RE.test(rel) || IGNORED_PATH_RE.test(rel)) continue;
+    if (!SOURCE_EXT_RE.test(rel) || IGNORED_PATH_RE.test(rel)) continue;
     const abs = path.join(ctx.rootDir, rel);
     let sourceText = "";
     try {

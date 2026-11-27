@@ -1,4 +1,5 @@
 import ts from "typescript";
+import { analyzePolyglotSource, detectPolyglotLanguage } from "./polyglotPerfScanner.ts";
 import type { BigOClass, ComplexityProfile } from "./types.ts";
 
 const LINEAR_METHODS = new Set(["includes", "indexOf", "lastIndexOf", "find", "findIndex", "some"]);
@@ -131,7 +132,7 @@ function updateCountersForNode(node: ts.Node, depth: number, fnName: string, cou
   }
   if (!ts.isPropertyAccessExpression(node.expression)) return false;
   const m = node.expression.name.text;
-  if (m === fnName) counters.selfCallCount += 1;
+  if (m === fnName && node.expression.expression.kind === ts.SyntaxKind.ThisKeyword) counters.selfCallCount += 1;
   if (m === "sort") counters.hasSortCall = true;
   if (depth >= 1 && LINEAR_METHODS.has(m)) counters.hasLinearLookupInLoop = true;
   if (ALLOC_METHODS.has(m) || m === "push") {
@@ -164,7 +165,9 @@ function analyzeSingleFunction(candidate: FunctionCandidate, filePath: string): 
     const isHoLoop = updateCountersForNode(frame.node, frame.depth, candidate.name, counters);
     const children: ts.Node[] = [];
     ts.forEachChild(frame.node, (c) => {
-      if (!ts.isFunctionDeclaration(c) && !ts.isMethodDeclaration(c)) children.push(c);
+      if (ts.isFunctionDeclaration(c) || ts.isMethodDeclaration(c)) return;
+      if ((ts.isArrowFunction(c) || ts.isFunctionExpression(c)) && !isHoLoop) return;
+      children.push(c);
     });
     for (let i = children.length - 1; i >= 0; i -= 1) {
       const child = children[i];
@@ -196,6 +199,7 @@ export function analyzeComplexityProfile(
   filePath = "inline.ts",
 ): readonly ComplexityProfile[] {
   assertAdvisor(typeof sourceText === "string" && filePath.length > 0, "analyzeComplexityProfile requires sourceText and filePath");
+  if (detectPolyglotLanguage(filePath) !== null) return analyzePolyglotSource(sourceText, filePath).profiles;
   const sf = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
   return collectFunctionCandidates(sf)
     .map((c) => analyzeSingleFunction(c, filePath))
