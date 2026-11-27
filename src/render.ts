@@ -7,6 +7,8 @@ import { renderFileCallGraphClientScript } from "./studio/fileCallGraphClient.ts
 import { renderGuidesClientScript } from "./studio/guides.ts";
 import { renderStudioCss } from "./studio/styles.ts";
 import { renderSyntaxClientScript } from "./studio/syntaxClient.ts";
+import { renderEntityJourneyClientScript } from "./ai/entityJourneyClient.ts";
+import { renderEntityJourneySvgScript } from "./ai/entityJourneySvgClient.ts";
 import { renderExplainClientScript } from "./ai/explainClient.ts";
 import { renderStudioFeaturesClientScript } from "./ai/studioFeaturesClient.ts";
 import { renderStudioVizClientScript } from "./ai/studioVizClient.ts";
@@ -222,6 +224,9 @@ export function renderVisualHtml(
     surfTailOpen: false,
     flowsSubtab: isLibraryDefault && (DATA.flows?.workFlows?.length || 0) === 0 && (DATA.flows?.stateMachines?.length || 0) > 0 ? "machines" : "workflows",
     activeFlowId: null,
+    activeJourneyKey: null,
+    jrnSelNode: "MODEL",
+    jrnBypassOnly: false,
     activeHubEntity: null,
     activeSmId: null,
     flowMode: "current",
@@ -268,6 +273,8 @@ export function renderVisualHtml(
 
   ${renderInspectorClientScript()}
   ${renderNodeInspectorClientScript()}
+  ${renderEntityJourneyClientScript()}
+  ${renderEntityJourneySvgScript()}
   ${renderFlowsRailScript()}
   ${renderFlowsClientScript()}
   ${renderMapFlowsBridgeClientScript()}

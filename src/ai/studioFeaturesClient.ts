@@ -77,6 +77,9 @@ export function renderStudioFeaturesClientScript(): string {
       if (state.checkId) params.set("ck", state.checkId);
       if (state.checksView && state.checksView !== "rules") params.set("cv", state.checksView);
     }
+    if (state.tab === "flows" && state.flowsSubtab && state.flowsSubtab !== "workflows") {
+      params.set("fsub", state.flowsSubtab);
+    }
     const nextHash = params.toString() ? "#" + params.toString() : "";
     if (window.location.hash !== nextHash) {
       try { history.replaceState(null, "", nextHash || window.location.pathname + window.location.search); } catch {}
@@ -136,6 +139,8 @@ export function renderStudioFeaturesClientScript(): string {
       if (ck) state.checkId = ck;
       const cv = p.get("cv");
       if (cv === "places" || cv === "rules") state.checksView = cv;
+      const fsub = p.get("fsub");
+      if (fsub) state.flowsSubtab = fsub;
     } catch {}
   }
 

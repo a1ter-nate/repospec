@@ -12,8 +12,8 @@ export function renderFlowsRailCss(): string {
   .fx-legend-strip { display: flex; align-items: center; gap: 14px; padding: 5px 16px; border-bottom: 1px solid var(--line-1); background: var(--bg-1); font-size: var(--fs-12); color: var(--text-3); flex-wrap: wrap; flex-shrink: 0; } .fx-legend-chip { display: inline-flex; align-items: center; gap: 6px; }
   .fx-diagram-pane { flex: 1 1 0; min-height: 180px; overflow: hidden; background-color: var(--bg-0); background-image: radial-gradient(rgba(148, 163, 184, 0.13) 1px, transparent 1px); background-size: 22px 22px; position: relative; cursor: grab; user-select: none; touch-action: none; } .fx-diagram-pane.dragging { cursor: grabbing; }
   .fx-svg-wrap { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; } .fx-svg-wrap svg { display: block; } .fx-diagram-pane [data-async-idx].is-sel rect:first-of-type { stroke: var(--accent) !important; stroke-width: 1.8 !important; }
-  .rs-hub-svg.hub-hover .rs-hub-node { opacity: 0.28; transition: opacity 0.12s ease; } .rs-hub-svg.hub-hover .rs-hub-node.is-hi { opacity: 1 !important; }
-  .rs-hub-svg.hub-hover .rs-hub-edge { stroke-opacity: 0.08 !important; transition: stroke-opacity 0.12s ease; } .rs-hub-svg.hub-hover .rs-hub-edge.is-hi { stroke-opacity: 1 !important; stroke-width: 2.3 !important; }
+  .rs-hub-svg.hub-hover .rs-hub-node, .rs-jrn-svg.jrn-hover .rs-jrn-node { opacity: 0.28; transition: opacity 0.12s ease; } .rs-hub-svg.hub-hover .rs-hub-node.is-hi, .rs-jrn-svg.jrn-hover .rs-jrn-node.is-hi { opacity: 1 !important; }
+  .rs-hub-svg.hub-hover .rs-hub-edge, .rs-jrn-svg.jrn-hover .rs-jrn-edge { stroke-opacity: 0.08 !important; transition: stroke-opacity 0.12s ease; } .rs-hub-svg.hub-hover .rs-hub-edge.is-hi, .rs-jrn-svg.jrn-hover .rs-jrn-edge.is-hi { stroke-opacity: 1 !important; stroke-width: 2.3 !important; }
   .fx-h-resizer { height: 6px; flex-shrink: 0; cursor: row-resize; background: var(--bg-1); position: relative; z-index: 10; touch-action: none; } .fx-h-resizer::after { content: ""; position: absolute; left: 0; right: 0; top: 2px; height: 2px; background: var(--line-2); transition: background var(--dur) var(--ease); } .fx-h-resizer:hover::after, .fx-col.h-resizing .fx-h-resizer::after { background: var(--accent); }
   .fx-dock { flex: 0 0 var(--fx-dock-h, 44vh); min-height: 180px; max-height: 74vh; display: grid; grid-template-columns: 310px minmax(280px, 0.78fr) minmax(360px, 1.22fr); background: var(--bg-1); overflow: hidden; } .fx-dock.is-collapsed { flex: 0 0 0 !important; min-height: 0; height: 0; border: 0; }
   .fx-dock-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line-1); overflow: hidden; } .fx-dock-col:last-child { border-right: 0; }
@@ -56,6 +56,7 @@ export function renderFlowsRailScript(): string {
       db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/>',
       states: '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M8.7 10.7a5 5 0 0 1 6.6 0"/><polyline points="14 7 16 10.5 12.5 11"/>',
       async: '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>',
+      journey: '<circle cx="4" cy="12" r="2.5"/><rect x="9.5" y="7" width="5" height="10" rx="1.5"/><circle cx="20" cy="12" r="2.5"/><line x1="6.5" y1="12" x2="9.5" y2="12"/><line x1="14.5" y1="12" x2="17.5" y2="12"/>',
       search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
     };
     return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (p[kind] || p.trigger) + "</svg>";
@@ -122,12 +123,14 @@ export function renderFlowsRailScript(): string {
   }
 
   function renderFlowSubNav(fl, sub) {
+    const jCount = buildEntityJourneys().length;
     const items = [
+      { id: "journeys", icon: "journey", label: "Entity Journeys", count: jCount },
       { id: "workflows", icon: "flows", label: "Swimlanes", count: fl.workFlows.length },
       { id: "hubs", icon: "db", label: "Data Hubs", count: fl.dataHubs.length },
       { id: "machines", icon: "states", label: "Statecharts", count: fl.stateMachines.length },
       { id: "async", icon: "async", label: "Async", count: fl.asyncCount || 0 },
-    ];
+    ].filter((it) => it.id !== "journeys" || it.count > 0);
     return (
       '<nav class="fx-sub-nav" aria-label="Flow views">' +
       items.map((b) =>
@@ -156,6 +159,7 @@ export function renderFlowsRailScript(): string {
   }
 
   function renderFlowRailListHtml(fl, sub) {
+    if (sub === "journeys") return renderJourneyRailListHtml();
     const closed = state.flowRailClosed || {};
     if (sub === "workflows") {
       const orderedGroups = groupFilteredWorkFlows(fl);
@@ -306,8 +310,12 @@ export function renderFlowsRailScript(): string {
         '<button class="fr-chip' + (chip === "all" ? " active" : "") + '" data-flow-chip="all">All <span class="fr-chip-n">' + fl.dataHubs.length + "</span></button>" +
         (mwN > 0 ? '<button class="fr-chip' + (chip === "mw" ? " active" : "") + '" data-flow-chip="mw"><span class="fr-dot is-warn"></span>Multi-writer <span class="fr-chip-n">' + mwN + "</span></button>" : "") +
         "</div>";
+    } else if (sub === "journeys") {
+      const js = buildEntityJourneys();
+      const bpN = js.filter((j) => j.bypassSvcCount > 0 || j.layerSkips.length > 0).length;
+      chipsHtml = '<div class="fr-chips"><button class="fr-chip' + (chip === "all" ? " active" : "") + '" data-flow-chip="all">All <span class="fr-chip-n">' + js.length + "</span></button>" + (bpN > 0 ? '<button class="fr-chip' + (chip === "bypass" ? " active" : "") + '" data-flow-chip="bypass"><span class="fr-dot is-warn"></span>Has bypasses <span class="fr-chip-n">' + bpN + "</span></button>" : "") + "</div>";
     }
-    const placeholders = { workflows: "Filter flows or files…", hubs: "Filter entities…", machines: "Filter statecharts…", async: "Filter channels…" };
+    const placeholders = { journeys: "Filter models…", workflows: "Filter flows or files…", hubs: "Filter entities…", machines: "Filter statecharts…", async: "Filter channels…" };
     return (
       '<section class="fx-dock-col">' +
       '<div class="fr-top">' +
@@ -333,6 +341,13 @@ export function renderFlowsRailScript(): string {
   function stepFlowSelection(delta) {
     const fl = DATA.flows || { workFlows: [], dataHubs: [], stateMachines: [], asyncHandoffs: [] };
     const sub = state.flowsSubtab || "workflows";
+    if (sub === "journeys") {
+      const js = buildEntityJourneys();
+      if (js.length === 0) return;
+      const curIdx = Math.max(0, js.findIndex((j) => j.key === (state.activeJourneyKey || js[0].key)));
+      state.activeJourneyKey = js[(curIdx + delta + js.length) % js.length].key;
+      state.jrnSelNode = "MODEL"; state.flowCodeFile = null; render(); return;
+    }
     if (sub === "workflows") {
       const list = getFilteredWorkFlows(fl);
       if (list.length === 0) return;
@@ -427,7 +442,7 @@ export function renderFlowsRailScript(): string {
   }
 
   function applyFlowDiagramScale() {
-    const key = (state.flowsSubtab || "workflows") + ":" + (state.activeFlowId || "") + ":" + (state.activeHubEntity || "") + ":" + (state.activeSmId || "") + ":" + (state.flowMode || "current");
+    const key = (state.flowsSubtab || "workflows") + ":" + (state.activeFlowId || "") + ":" + (state.activeJourneyKey || "") + ":" + (state.jrnBypassOnly ? "bp" : "all") + ":" + (state.activeHubEntity || "") + ":" + (state.activeSmId || "") + ":" + (state.flowMode || "current");
     if (!getFlowSvgDims()) return;
     if (state.flowCamKey !== key) {
       state.flowCamKey = key;

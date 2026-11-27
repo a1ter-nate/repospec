@@ -42,7 +42,10 @@ export function renderFlowsClientScript(): string {
     let ctxHtml = '<div class="muted" style="font-size:12px">Select an item below to inspect triggers, tradeoffs, and code.</div>';
     let codeHtml = '<div class="muted mono" style="padding:12px">No source file mapped.</div>';
 
-    if (sub === "workflows") {
+    if (sub === "journeys") {
+      const jv = renderJourneyView(backMapBtn, subNav, zoomBtns, dockToggleBtn, navStepBtns, guideBtn);
+      stageHead = jv.stageHead; legendStrip = jv.legendStrip; stageBody = jv.stageBody; ctxTitle = jv.ctxTitle; ctxAction = jv.ctxAction; ctxHtml = jv.ctxHtml; codeHtml = jv.codeHtml;
+    } else if (sub === "workflows") {
       if (fl.workFlows.length === 0) {
         stageHead = '<div class="fx-stage-head"><div class="fx-head-l">' + backMapBtn + subNav + '</div><div class="fx-head-r">' + dockToggleBtn + guideBtn + "</div></div>";
         stageBody = '<div class="fx-empty">No work flows extracted. Add entrypoints or .repospec/flows.yaml.</div>';
@@ -331,6 +334,7 @@ export function renderFlowsClientScript(): string {
   }
 
   function handleFlowClick(target) {
+    if (handleJourneyClick(target)) return true;
     const flowSubBtn = target.closest("[data-flows-sub]");
     if (flowSubBtn) { state.flowsSubtab = flowSubBtn.getAttribute("data-flows-sub") || "workflows"; state.flowFilterChip = "all"; state.flowSearch = ""; state.flowCodeFile = null; render(); return true; }
     if (target.closest("[data-toggle-flow-dock]")) { state.flowDockCollapsed = !state.flowDockCollapsed; render(); return true; }

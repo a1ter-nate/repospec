@@ -330,10 +330,9 @@ export function renderStageClientScript(): string {
     const target = ev.target;
     if (!(target instanceof Element)) return;
     const hubNode = target.closest(".rs-hub-node");
-    if (hubNode) {
-      applyHubHoverSpotlight(hubNode);
-      return;
-    }
+    if (hubNode) { applyHubHoverSpotlight(hubNode); return; }
+    const jrnNode = target.closest(".rs-jrn-node");
+    if (jrnNode) { applyJourneyHoverSpotlight(jrnNode); return; }
     const svgNode = target.closest("[data-node]");
     if (svgNode) {
       const nid = svgNode.getAttribute("data-node");
@@ -370,6 +369,10 @@ export function renderStageClientScript(): string {
     if (target.closest(".rs-hub-node")) {
       const rel = ev.relatedTarget;
       if (!(rel instanceof Element) || !rel.closest(".rs-hub-node")) clearHubHoverSpotlight();
+    }
+    if (target.closest(".rs-jrn-node")) {
+      const rel = ev.relatedTarget;
+      if (!(rel instanceof Element) || !rel.closest(".rs-jrn-node")) clearJourneyHoverSpotlight();
     }
     if (target.closest("[data-node]") || target.closest("g[data-edge]") || target.closest(".drawer [data-select-node]")) {
       const rel = ev.relatedTarget;
