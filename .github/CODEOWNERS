@@ -1,5 +1,7 @@
+/.github/CODEOWNERS @a1ter-nate
 /.github/workflows/ @a1ter-nate
 /.verification/ @a1ter-nate
+/package.json @a1ter-nate
 /AGENTS.md @a1ter-nate
 /skills/ @a1ter-nate
 /rules/ @a1ter-nate

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runGenerateRepoSpec } from "../src/effect/pipeline.ts";
+import { runGenerateRepoSpec } from "@repospec/core/effect";
 import { renderDiffDiagramSvg, renderSymbolCardSvg } from "../packages/show-me/src/internal/svgRenderer.ts";
 import { classifyFile, detectTestedInPr, parseIacDiff } from "../packages/show-me/src/internal/fileClass.ts";
 import { renderIacCardSvg } from "../packages/show-me/src/internal/iacCardSvg.ts";
@@ -19,9 +19,9 @@ import { runShowMeBundle, type ShowMeManifest } from "../packages/show-me/src/in
 import { selectShots } from "../packages/show-me/src/internal/shots.ts";
 import { rasterizeSvgToPng } from "../packages/show-me/src/internal/svgPrimitives.ts";
 import { triageCommitDiff } from "../packages/show-me/src/internal/triage.ts";
-import type { CommitArchDiff } from "../src/studio/commitDiff.ts";
-import type { DiffDiagramBundle } from "../src/studio/diffOverlay.ts";
-import type { DrilldownIndex } from "../src/studio/drilldown.ts";
+import type { CommitArchDiff } from "@repospec/plugin-studio";
+import type { DiffDiagramBundle } from "@repospec/plugin-studio";
+import type { DrilldownIndex } from "@repospec/plugin-studio";
 
 function mkBundle(id: string, label: string, nodeId: string, changedEdges: number): DiffDiagramBundle {
   return {

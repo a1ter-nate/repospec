@@ -10,6 +10,9 @@
     "./languages": "./src/languages.ts"
   },
   "dependencies": {
-    "@repospec/core": "workspace:*"
+    "@repospec/plugin": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
   }
 }

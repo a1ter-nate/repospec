@@ -3,10 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import fc from "fast-check";
-import { startStudioServer } from "../src/ai/studioServer.ts";
-import { aggregateRepoSpecs } from "../src/extractors/federate.ts";
-import { computeTopologicalLevels } from "../src/internal/topoLevels.ts";
-import { parseRepoSpec, type RepoSpecV4 } from "../src/schema.ts";
+import { startStudioServer } from "@repospec/plugin-studio";
+import { aggregateRepoSpecs } from "@repospec/plugin-arch";
+import { computeTopologicalLevels } from "@repospec/plugin-module-atlas";
+import { parseRepoSpec, type RepoSpecV4 } from "@repospec/plugin";
 
 interface MeshModel {
   repos: Map<string, { role: "client" | "service" | "library"; externals: Set<string>; entities: Set<string> }>;

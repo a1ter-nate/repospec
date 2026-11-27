@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { aggregateRepoSpecs } from "../src/extractors/federate.ts";
-import { renderVisualHtml } from "../src/render.ts";
-import { parseRepoSpec, type RepoSpecV4 } from "../src/schema.ts";
-import type { CommitArchDiff } from "../src/studio/commitDiff.ts";
+import { aggregateRepoSpecs } from "@repospec/plugin-arch";
+import { renderVisualHtml } from "@repospec/plugin-studio";
+import { parseRepoSpec, type RepoSpecV4 } from "@repospec/plugin";
+import type { CommitArchDiff } from "@repospec/plugin-studio";
 
 function makeMinimalSpec(params: {
   name: string;

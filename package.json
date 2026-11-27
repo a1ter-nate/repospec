@@ -27,21 +27,28 @@
     "repospec": "src/cli.ts"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/plugins/*"
   ],
   "exports": {
     ".": "./packages/core/src/index.ts",
+    "./plugin": "./packages/plugin/src/index.ts",
+    "./plugin/effect": "./packages/plugin/src/effect/index.ts",
     "./core": "./packages/core/src/index.ts",
     "./core/facts": "./packages/core/src/facts.ts",
     "./core/eject": "./packages/core/src/eject.ts",
     "./core/effect": "./packages/core/src/effect.ts",
+    "./cli": "./packages/cli/src/index.ts",
     "./report": "./packages/report/src/index.ts",
     "./show-me": "./packages/show-me/src/index.ts",
     "./show-me/svg": "./packages/show-me/src/svg.ts",
     "./ci": "./packages/ci/src/index.ts",
     "./flows": "./packages/flows/src/index.ts",
     "./flows/svg": "./packages/flows/src/svg.ts",
-    "./flows/languages": "./packages/flows/src/languages.ts"
+    "./flows/languages": "./packages/flows/src/languages.ts",
+    "./perf": "./packages/perf/src/index.ts",
+    "./perf/algorithms": "./packages/perf/src/algorithms.ts",
+    "./perf/data-structures": "./packages/perf/src/dataStructures.ts"
   },
   "files": [
     "src/",
@@ -59,6 +66,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:packages": "bun test ./packages/",
+    "test:plugins": "bun test ./packages/plugins/",
     "format": "bunx oxfmt src packages tests",
     "format:check": "bunx oxfmt --check src packages tests",
     "lint:oxlint": "bunx oxlint -c .oxlintrc.json --deny-warnings src packages tests",
@@ -94,6 +103,6 @@
     "fast-check": "^4.11.0",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
-    "veristack": "^0.1.5"
+    "veristack": "^0.1.19"
   }
 }

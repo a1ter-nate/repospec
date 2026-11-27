@@ -22,7 +22,7 @@
         "fast-check": "^4.11.0",
         "oxfmt": "^0.80.0",
         "oxlint": "^1.95.0",
-        "veristack": "^0.1.5",
+        "veristack": "^0.1.19",
       },
     },
     "packages/ci": {
@@ -32,9 +32,42 @@
         "@repospec/core": "workspace:*",
       },
     },
+    "packages/cli": {
+      "name": "@repospec/cli",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/core": "workspace:*",
+        "@repospec/flows": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+        "@repospec/plugin-arch": "workspace:*",
+        "@repospec/plugin-passport": "workspace:*",
+        "@repospec/plugin-studio": "workspace:*",
+        "@repospec/show-me": "workspace:*",
+        "effect": "^4.1.6",
+      },
+    },
     "packages/core": {
       "name": "@repospec/core",
       "version": "5.0.13",
+      "dependencies": {
+        "@repospec/perf": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+        "@repospec/plugin-arch": "workspace:*",
+        "@repospec/plugin-ci": "workspace:*",
+        "@repospec/plugin-flows": "workspace:*",
+        "@repospec/plugin-iac": "workspace:*",
+        "@repospec/plugin-lang-csharp": "workspace:*",
+        "@repospec/plugin-lang-python": "workspace:*",
+        "@repospec/plugin-lang-rust": "workspace:*",
+        "@repospec/plugin-lang-typescript": "workspace:*",
+        "@repospec/plugin-module-atlas": "workspace:*",
+        "@repospec/plugin-passport": "workspace:*",
+        "@repospec/plugin-sdk-gen": "workspace:*",
+        "@repospec/plugin-show-me": "workspace:*",
+        "@repospec/plugin-studio": "workspace:*",
+        "@repospec/plugin-surfaces": "workspace:*",
+        "@repospec/plugin-testing": "workspace:*",
+      },
       "peerDependencies": {
         "effect": "^4.1.6",
         "typescript": "^5.8.2",
@@ -44,7 +77,135 @@
       "name": "@repospec/flows",
       "version": "5.0.1",
       "dependencies": {
-        "@repospec/core": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/perf": {
+      "name": "@repospec/perf",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+      "peerDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/plugin": {
+      "name": "@repospec/plugin",
+      "version": "5.0.1",
+      "dependencies": {
+        "effect": "^4.1.6",
+      },
+    },
+    "packages/plugins/arch": {
+      "name": "@repospec/plugin-arch",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+        "@repospec/plugin-iac": "workspace:*",
+        "@repospec/plugin-module-atlas": "workspace:*",
+        "@repospec/plugin-studio": "workspace:*",
+      },
+    },
+    "packages/plugins/ci": {
+      "name": "@repospec/plugin-ci",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/flows": {
+      "name": "@repospec/plugin-flows",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/flows": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/iac": {
+      "name": "@repospec/plugin-iac",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/lang-csharp": {
+      "name": "@repospec/plugin-lang-csharp",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/lang-python": {
+      "name": "@repospec/plugin-lang-python",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/lang-rust": {
+      "name": "@repospec/plugin-lang-rust",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/lang-typescript": {
+      "name": "@repospec/plugin-lang-typescript",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/module-atlas": {
+      "name": "@repospec/plugin-module-atlas",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/passport": {
+      "name": "@repospec/plugin-passport",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/sdk-gen": {
+      "name": "@repospec/plugin-sdk-gen",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/show-me": {
+      "name": "@repospec/plugin-show-me",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+        "@repospec/show-me": "workspace:*",
+      },
+    },
+    "packages/plugins/studio": {
+      "name": "@repospec/plugin-studio",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/flows": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/surfaces": {
+      "name": "@repospec/plugin-surfaces",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
+      },
+    },
+    "packages/plugins/testing": {
+      "name": "@repospec/plugin-testing",
+      "version": "5.0.1",
+      "dependencies": {
+        "@repospec/plugin": "workspace:*",
       },
     },
     "packages/report": {
@@ -58,7 +219,8 @@
       "name": "@repospec/show-me",
       "version": "5.0.13",
       "dependencies": {
-        "@repospec/core": "workspace:*",
+        "@repospec/plugin": "workspace:*",
+        "@repospec/plugin-studio": "workspace:*",
       },
     },
   },
@@ -249,9 +411,45 @@
 
     "@repospec/ci": ["@repospec/ci@workspace:packages/ci"],
 
+    "@repospec/cli": ["@repospec/cli@workspace:packages/cli"],
+
     "@repospec/core": ["@repospec/core@workspace:packages/core"],
 
     "@repospec/flows": ["@repospec/flows@workspace:packages/flows"],
+
+    "@repospec/perf": ["@repospec/perf@workspace:packages/perf"],
+
+    "@repospec/plugin": ["@repospec/plugin@workspace:packages/plugin"],
+
+    "@repospec/plugin-arch": ["@repospec/plugin-arch@workspace:packages/plugins/arch"],
+
+    "@repospec/plugin-ci": ["@repospec/plugin-ci@workspace:packages/plugins/ci"],
+
+    "@repospec/plugin-flows": ["@repospec/plugin-flows@workspace:packages/plugins/flows"],
+
+    "@repospec/plugin-iac": ["@repospec/plugin-iac@workspace:packages/plugins/iac"],
+
+    "@repospec/plugin-lang-csharp": ["@repospec/plugin-lang-csharp@workspace:packages/plugins/lang-csharp"],
+
+    "@repospec/plugin-lang-python": ["@repospec/plugin-lang-python@workspace:packages/plugins/lang-python"],
+
+    "@repospec/plugin-lang-rust": ["@repospec/plugin-lang-rust@workspace:packages/plugins/lang-rust"],
+
+    "@repospec/plugin-lang-typescript": ["@repospec/plugin-lang-typescript@workspace:packages/plugins/lang-typescript"],
+
+    "@repospec/plugin-module-atlas": ["@repospec/plugin-module-atlas@workspace:packages/plugins/module-atlas"],
+
+    "@repospec/plugin-passport": ["@repospec/plugin-passport@workspace:packages/plugins/passport"],
+
+    "@repospec/plugin-sdk-gen": ["@repospec/plugin-sdk-gen@workspace:packages/plugins/sdk-gen"],
+
+    "@repospec/plugin-show-me": ["@repospec/plugin-show-me@workspace:packages/plugins/show-me"],
+
+    "@repospec/plugin-studio": ["@repospec/plugin-studio@workspace:packages/plugins/studio"],
+
+    "@repospec/plugin-surfaces": ["@repospec/plugin-surfaces@workspace:packages/plugins/surfaces"],
+
+    "@repospec/plugin-testing": ["@repospec/plugin-testing@workspace:packages/plugins/testing"],
 
     "@repospec/report": ["@repospec/report@workspace:packages/report"],
 
@@ -317,6 +515,8 @@
 
     "pure-rand": ["pure-rand@8.4.2", "", {}, "sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng=="],
 
+    "smol-toml": ["smol-toml@1.9.1", "", {}, "sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ=="],
+
     "tinypool": ["tinypool@2.2.0", "", {}, "sha512-jBrmx4lYmaC9k/mgPbylxs7kBUxHtD8256up+HjLaDFfXScKJQyil+SWXSvhAtT7XHo+yTVlpB81PGmHP8oLSQ=="],
 
     "tslib": ["tslib@2.9.1", "", {}, "sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA=="],
@@ -325,9 +525,11 @@
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
-    "veristack": ["veristack@0.1.5", "", { "dependencies": { "oxc-parser": "^0.160.0" }, "bin": { "vstack": "bin/vstack.mjs", "veristack": "bin/vstack.mjs" } }, "sha512-cHxVA+vW6lMyZjm7QYznGyV+EO0P4LKJI8SjOZgVdNdKlN3o1zzdsvur1LghTh1holV6DI36bt8kF17tmtrx4Q=="],
+    "veristack": ["veristack@0.1.19", "", { "dependencies": { "oxc-parser": "^0.160.0", "smol-toml": "^1.9.1", "yaml": "^2.9.1" }, "bin": { "vstack": "bin/vstack.mjs", "veristack": "bin/vstack.mjs" } }, "sha512-fjxbTDN2ZpQYVV657AmHMB8CcmImCRcurpiCDbC0NNfZkoJ1yTYLp2QckobfZoNzqClxVpYKRqVH3TWaawDRog=="],
 
     "ws": ["ws@8.23.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ=="],
+
+    "yaml": ["yaml@2.9.1", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw=="],
 
     "zod": ["zod@4.6.6", "", {}, "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA=="],
 

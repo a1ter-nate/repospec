@@ -5,11 +5,11 @@ import path from "node:path";
 import { BunServices } from "@effect/platform-bun";
 import { Effect, Layer } from "effect";
 import { Command } from "effect/cli";
-import { repospecCommand, resolveGenerateOutDir } from "../src/effect/cliApp.ts";
-import { checkRepoSpecEffect, generateRepoSpecEffect } from "../src/effect/pipeline.ts";
-import { CoverageService, ExtractorRegistry, RepospecLive } from "../src/effect/services.ts";
-import { renderVisualHtml } from "../src/render.ts";
-import { buildRepoSpecJsonSchema } from "../src/schema.ts";
+import { repospecCommand, resolveGenerateOutDir } from "@repospec/cli";
+import { checkRepoSpecEffect, generateRepoSpecEffect } from "@repospec/core/effect";
+import { CoverageService, ExtractorRegistry, RepospecLive } from "@repospec/core/effect";
+import { renderVisualHtml } from "@repospec/plugin-studio";
+import { buildRepoSpecJsonSchema } from "@repospec/plugin";
 
 function makeTempFixture(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-eff-"));

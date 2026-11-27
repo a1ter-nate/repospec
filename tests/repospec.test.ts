@@ -4,11 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { generateRepoSpec } from "../src/cli.ts";
-import { buildFilePassport, buildPrecedentsReport } from "../src/passport.ts";
-import { renderVisualHtml } from "../src/render.ts";
-import { buildCommitArchDiff } from "../src/studio/commitDiff.ts";
-import { extractFileCallGraph } from "../src/studio/fileSymbols.ts";
-import { canonicalizeGitRemote } from "../src/taxonomy.ts";
+import { buildFilePassport, buildPrecedentsReport } from "@repospec/plugin-passport";
+import { renderVisualHtml } from "@repospec/plugin-studio";
+import { buildCommitArchDiff } from "@repospec/plugin-studio";
+import { extractFileCallGraph } from "@repospec/plugin-studio";
+import { canonicalizeGitRemote } from "@repospec/plugin";
 
 function makeFixture(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-v4-test-"));

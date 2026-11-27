@@ -1,4 +1,4 @@
-import type { DiffDiagramBundle, DiffDiagramEdge, DiffDiagramNode } from "../../../../src/studio/diffOverlay.ts";
+import type { DiffDiagramBundle, DiffDiagramEdge, DiffDiagramNode } from "@repospec/plugin-studio";
 import type { FocusMode } from "./ranking.ts";
 
 export interface CompactGraphResult {

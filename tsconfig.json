@@ -12,15 +12,46 @@
     "allowImportingTsExtensions": true,
     "types": ["bun"],
     "paths": {
+      "@repospec/plugin": ["./packages/plugin/src/index.ts"],
+      "@repospec/plugin/effect": ["./packages/plugin/src/effect/index.ts"],
+      "@repospec/plugin/*": ["./packages/plugin/src/*.ts"],
       "@repospec/core": ["./packages/core/src/index.ts"],
       "@repospec/core/*": ["./packages/core/src/*.ts"],
+      "@repospec/cli": ["./packages/cli/src/index.ts"],
       "@repospec/report": ["./packages/report/src/index.ts"],
       "@repospec/show-me": ["./packages/show-me/src/index.ts"],
       "@repospec/show-me/*": ["./packages/show-me/src/*.ts"],
       "@repospec/ci": ["./packages/ci/src/index.ts"],
       "@repospec/flows": ["./packages/flows/src/index.ts"],
-      "@repospec/flows/*": ["./packages/flows/src/*.ts"]
+      "@repospec/flows/*": ["./packages/flows/src/*.ts"],
+      "@repospec/perf": ["./packages/perf/src/index.ts"],
+      "@repospec/perf/algorithms": ["./packages/perf/src/algorithms.ts"],
+      "@repospec/perf/data-structures": ["./packages/perf/src/dataStructures.ts"],
+      "@repospec/perf/*": ["./packages/perf/src/*.ts"],
+      "@repospec/plugin-arch": ["./packages/plugins/arch/src/index.ts"],
+      "@repospec/plugin-ci": ["./packages/plugins/ci/src/index.ts"],
+      "@repospec/plugin-flows": ["./packages/plugins/flows/src/index.ts"],
+      "@repospec/plugin-iac": ["./packages/plugins/iac/src/index.ts"],
+      "@repospec/plugin-lang-csharp": ["./packages/plugins/lang-csharp/src/index.ts"],
+      "@repospec/plugin-lang-python": ["./packages/plugins/lang-python/src/index.ts"],
+      "@repospec/plugin-lang-rust": ["./packages/plugins/lang-rust/src/index.ts"],
+      "@repospec/plugin-lang-typescript": ["./packages/plugins/lang-typescript/src/index.ts"],
+      "@repospec/plugin-module-atlas": ["./packages/plugins/module-atlas/src/index.ts"],
+      "@repospec/plugin-passport": ["./packages/plugins/passport/src/index.ts"],
+      "@repospec/plugin-sdk-gen": ["./packages/plugins/sdk-gen/src/index.ts"],
+      "@repospec/plugin-show-me": ["./packages/plugins/show-me/src/index.ts"],
+      "@repospec/plugin-studio": ["./packages/plugins/studio/src/index.ts"],
+      "@repospec/plugin-surfaces": ["./packages/plugins/surfaces/src/index.ts"],
+      "@repospec/plugin-testing": ["./packages/plugins/testing/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "packages/*/src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "packages/*/tests/**/*.ts",
+    "packages/plugins/*/src/**/*.ts",
+    "packages/plugins/*/tests/**/*.ts",
+    "examples/plugins/*/src/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }

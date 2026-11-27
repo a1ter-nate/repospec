@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
-import { buildAllDiagrams } from "../src/layout.ts";
-import { buildModuleArchitecture } from "../src/moduleGraph.ts";
-import { renderVisualHtml } from "../src/render.ts";
-import { createEmptyAst, type CanonicalLayer, type LayoutNode, type RepoSpecV4, type SpecEdge, type SpecNode, type UnitDescriptor } from "../src/schema.ts";
-import { resolveLayerSemantics } from "../src/taxonomy.ts";
-import { computeTopologicalLevels } from "../src/internal/topoLevels.ts";
+import { buildAllDiagrams } from "@repospec/plugin-module-atlas";
+import { buildModuleArchitecture } from "@repospec/plugin-module-atlas";
+import { renderVisualHtml } from "@repospec/plugin-studio";
+import { createEmptyAst, type CanonicalLayer, type LayoutNode, type RepoSpecV4, type SpecEdge, type SpecNode, type UnitDescriptor } from "@repospec/plugin";
+import { resolveLayerSemantics } from "@repospec/plugin";
+import { computeTopologicalLevels } from "@repospec/plugin-module-atlas";
 
 const LAYER_POOL: Array<{ raw: string; canonical: CanonicalLayer }> = [
   { raw: "routes", canonical: "transport" },

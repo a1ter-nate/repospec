@@ -1,4 +1,4 @@
-import type { RepoSpecV4 } from "../../../src/schema.ts";
+import type { RepoSpecV4 } from "@repospec/plugin";
 
 export interface CiGateContext {
   readonly spec: RepoSpecV4;

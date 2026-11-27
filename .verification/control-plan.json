@@ -57,5 +57,17 @@
       "reqId": "REQ-FED-01"
     }
   ],
+  "contractChecks": [
+    {
+      "id": "CT-001",
+      "artifactFile": ".verification/contracts/repospec.schema.json",
+      "coveredPaths": [
+        "packages/plugin/src/schema/specSchema.ts",
+        "packages/plugin/src/schema/primitives.ts"
+      ],
+      "syncCommit": "3c21d31c4af9ddea8185f25433a0fb2a0c5ea8fb",
+      "bounds": "Canonical RepoSpec v5.0.0 Draft 2020-12 JSON Schema contract"
+    }
+  ],
   "formalChecks": []
 }

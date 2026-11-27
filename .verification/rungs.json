@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "archetype": "service",
+  "allowExcluded": [
+    "examples/plugins/"
+  ],
+  "rungs": {
+    "R0": {
+      "command": "bun run lint:oxlint && bun run lint:no-comments && bun run lint:state-machines",
+      "required": true
+    },
+    "R1": {
+      "command": "bun run typecheck && bun src/cli.ts check .",
+      "required": true
+    },
+    "R2": {
+      "command": "bun test --timeout 30000 ./tests/taxonomy.table.test.ts ./tests/canonicalize-and-sdk.test.ts ./tests/layout.pbt.test.ts ./tests/topo-and-symbols.test.ts ./tests/studio/ ./tests/flows/ ./packages/",
+      "required": true,
+      "canary": {
+        "enabled": true,
+        "testCommand": "bun test --timeout 30000 ./tests/taxonomy.table.test.ts ./tests/canonicalize-and-sdk.test.ts ./packages/core/tests/ ./packages/plugin/tests/",
+        "targets": [
+          "packages/core/src/state.ts",
+          "packages/plugin/src/specUtils.ts",
+          "packages/plugin/src/taxonomy/paths.ts",
+          "packages/plugin/src/taxonomy/layers.ts"
+        ],
+        "maxMutants": 8,
+        "minKillRate": 0.75
+      }
+    },
+    "R3": {
+      "command": "bun test --timeout 30000 ./tests/pipeline.mbt.test.ts ./tests/federate-and-studio.mbt.test.ts ./tests/plugin-architecture/ ./tests/plugins/ ./tests/effect-runtime.test.ts ./packages/",
+      "required": true
+    },
+    "R4": {
+      "command": "bun test --timeout 30000 ./tests/integration/ ./packages/plugins/studio/tests/studio-http.integration.test.ts",
+      "required": true
+    },
+    "R5": {
+      "command": "bunx vstack formal-sync . --fail && bunx vstack laws . --verify --fail && bunx vstack canary . --test-cmd \"bun test --timeout 30000 ./tests/taxonomy.table.test.ts ./tests/canonicalize-and-sdk.test.ts ./packages/core/tests/ ./packages/plugin/tests/\" --targets packages/core/src/state.ts,packages/plugin/src/specUtils.ts,packages/plugin/src/taxonomy/paths.ts --max-mutants 6 --min-kill-rate 0.75 --fail",
+      "required": true
+    },
+    "R6": {
+      "command": "bun run perf:check",
+      "required": true
+    },
+    "R7": {
+      "command": "bun test --timeout 30000 ./tests/e2e/ ./packages/plugins/studio/tests/studio-serve.e2e.test.ts",
+      "required": true
+    },
+    "R8": {
+      "command": "bun tools/synthetic-check.ts",
+      "required": true
+    }
+  }
+}

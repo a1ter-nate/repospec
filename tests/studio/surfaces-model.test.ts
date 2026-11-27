@@ -4,7 +4,7 @@ import {
   classifyEndpointGuard,
   normalizeEntityKey,
   type SurfacesSpecInput,
-} from "../../src/internal/render/surfacesModel.ts";
+} from "@repospec/plugin-studio";
 
 describe("surfacesModel truth shaping", () => {
   test("normalizeEntityKey aligns plural hubs with singular entity names without mangling status/access", () => {

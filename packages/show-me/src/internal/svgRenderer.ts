@@ -1,5 +1,5 @@
-import type { DiffDiagramEdge, DiffDiagramNode } from "../../../../src/studio/diffOverlay.ts";
-import type { DrilldownFile } from "../../../../src/studio/drilldown.ts";
+import type { DiffDiagramEdge, DiffDiagramNode } from "@repospec/plugin-studio";
+import type { DrilldownFile } from "@repospec/plugin-studio";
 import type { RankedChangedFile, RankedDiagram } from "./ranking.ts";
 import { escXml, FONT_MONO, FONT_SANS, paletteFor, truncateText, type ShowMeTheme, type ThemePalette } from "./svgPrimitives.ts";
 

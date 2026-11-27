@@ -1,0 +1,15 @@
+{
+  "name": "@repospec/plugin-ci",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "CI workflow extractor plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import oracle from "./fixtures/taxonomy-oracle.json";
-import type { CanonicalLayer } from "../src/schema.ts";
+import type { CanonicalLayer } from "@repospec/plugin";
 import {
   canonicalizeGitRemote,
   classifyExternalPackage,
   resolveFeatureOrLayerPath,
   resolveLayerSemantics,
-} from "../src/taxonomy.ts";
+} from "@repospec/plugin";
 
 describe("Taxonomy oracle tables (R2 Tests-as-Data) [REQ-TAXONOMY-01]", () => {
   test.each(oracle.layerSemantics)(

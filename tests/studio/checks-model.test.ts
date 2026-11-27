@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildChecksModel, classifyCheckTier, FIX_NEXT_HIT_LIMIT } from "../../src/internal/render/checksModel.ts";
-import type { ChecksSpecInput } from "../../src/internal/render/checksModel.ts";
+import { buildChecksModel, classifyCheckTier, FIX_NEXT_HIT_LIMIT } from "@repospec/plugin-studio";
+import type { ChecksSpecInput } from "@repospec/plugin-studio";
 
 describe("checksModel triage tiers, verdict, and places", () => {
   test("classifyCheckTier partitions fail, warn <= 12, warn > 12, info, and pass/na", () => {

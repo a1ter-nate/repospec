@@ -1,0 +1,15 @@
+{
+  "name": "@repospec/plugin-module-atlas",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Module architecture graph and fixed-lane diagram layout plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

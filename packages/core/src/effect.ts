@@ -2,6 +2,14 @@ export {
   checkRepoSpecEffect,
   diffSpecFilesEffect,
   generateRepoSpecEffect,
+  runGenerateRepoSpec,
   validateSpecFileEffect,
-} from "../../../src/effect/pipeline.ts";
-export { ExtractorRegistry, RepospecLive } from "../../../src/effect/services.ts";
+} from "./effect/pipeline.ts";
+export {
+  CoverageService,
+  ExtractorRegistry,
+  GitService,
+  RepoFs,
+  RepospecLive,
+  SqliteIndexService,
+} from "./effect/services.ts";

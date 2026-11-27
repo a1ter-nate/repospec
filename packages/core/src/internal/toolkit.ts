@@ -15,7 +15,7 @@ import type {
   SpecNode,
   SpecRule,
   UnitDescriptor,
-} from "../../../../src/schema.ts";
+} from "@repospec/plugin";
 
 export interface FactEmitInput {
   kind: string;

@@ -3,10 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import fc from "fast-check";
-import { createAndPopulateIndexDb, projectInvariantsToGraph, querySurfaces, runSqlInvariants } from "../src/indexDb.ts";
-import type { AstIndexData, CanonicalLayer, SpecEdge, SpecNode, UnitDescriptor } from "../src/schema.ts";
-import { createEmptyAst } from "../src/schema.ts";
-import { resolveLayerSemantics } from "../src/taxonomy.ts";
+import { createAndPopulateIndexDb, projectInvariantsToGraph, querySurfaces, runSqlInvariants } from "@repospec/core";
+import type { AstIndexData, CanonicalLayer, SpecEdge, SpecNode, UnitDescriptor } from "@repospec/plugin";
+import { createEmptyAst } from "@repospec/plugin";
+import { resolveLayerSemantics } from "@repospec/plugin";
 
 const RULES_DIR = path.resolve(import.meta.dir, "../rules");
 

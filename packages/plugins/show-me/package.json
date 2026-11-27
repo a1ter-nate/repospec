@@ -1,0 +1,16 @@
+{
+  "name": "@repospec/plugin-show-me",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Priority-ranked architectural diff screenshot and PR review plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*",
+    "@repospec/show-me": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

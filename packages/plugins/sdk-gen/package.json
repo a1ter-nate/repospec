@@ -1,0 +1,15 @@
+{
+  "name": "@repospec/plugin-sdk-gen",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Typed IDs and SQLite SDK codegen plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

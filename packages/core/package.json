@@ -10,9 +10,33 @@
     "./eject": "./src/eject.ts",
     "./effect": "./src/effect.ts"
   },
-  "files": ["src/"],
+  "files": [
+    "src/"
+  ],
   "peerDependencies": {
     "effect": "^4.1.6",
     "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@repospec/perf": "workspace:*",
+    "@repospec/plugin": "workspace:*",
+    "@repospec/plugin-arch": "workspace:*",
+    "@repospec/plugin-ci": "workspace:*",
+    "@repospec/plugin-flows": "workspace:*",
+    "@repospec/plugin-iac": "workspace:*",
+    "@repospec/plugin-lang-csharp": "workspace:*",
+    "@repospec/plugin-lang-python": "workspace:*",
+    "@repospec/plugin-lang-rust": "workspace:*",
+    "@repospec/plugin-lang-typescript": "workspace:*",
+    "@repospec/plugin-module-atlas": "workspace:*",
+    "@repospec/plugin-passport": "workspace:*",
+    "@repospec/plugin-sdk-gen": "workspace:*",
+    "@repospec/plugin-show-me": "workspace:*",
+    "@repospec/plugin-studio": "workspace:*",
+    "@repospec/plugin-surfaces": "workspace:*",
+    "@repospec/plugin-testing": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
   }
 }

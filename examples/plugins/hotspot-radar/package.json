@@ -1,0 +1,12 @@
+{
+  "name": "repospec-plugin-hotspot-radar",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Standalone reference RepoSpec plugin proving easy ON/OFF composition across facts, SQL invariants, Studio tabs, and CI gates.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  }
+}

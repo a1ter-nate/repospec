@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { RepoSpecV4 } from "../../../../src/schema.ts";
-import type { CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
-import { runCommitDiffWorktrees } from "../../../../src/studio/diffRunner.ts";
-import type { DrilldownIndex } from "../../../../src/studio/drilldown.ts";
-import { diffFactSets, loadRepoExtensions, type FactDiffResult } from "../../../core/src/facts.ts";
+import { pathToFileURL } from "node:url";
+import { diffFactSets, type FactDiffResult, type RepoSpecV4 } from "@repospec/plugin";
+import type { CommitArchDiff } from "@repospec/plugin-studio";
+import { runCommitDiffWorktrees } from "@repospec/plugin-studio";
+import type { DrilldownIndex } from "@repospec/plugin-studio";
 import { renderDiffDiagramSvg, renderSymbolCardSvg } from "./svgRenderer.ts";
 import { renderIacCardSvg } from "./iacCardSvg.ts";
 import { buildShowMePrComment, type ShowMeShotRecord } from "./markdown.ts";
@@ -165,11 +165,21 @@ export async function runShowMeBundle(options: ShowMeOptions): Promise<ShowMeMan
     generateFn: options.generateFn,
   });
 
-  const repoExt = await loadRepoExtensions(absRepo);
+  let repoShowMe: unknown = undefined;
+  const showMePath = path.join(absRepo, ".repospec", "show-me.ts");
+  if (!options.customization && fs.existsSync(showMePath)) {
+    try {
+      const modUrl = `${pathToFileURL(showMePath).href}?mtime=${fs.statSync(showMePath).mtimeMs}`;
+      const loaded = (await import(modUrl)) as Record<string, unknown>;
+      repoShowMe = loaded.default;
+    } catch {
+      repoShowMe = undefined;
+    }
+  }
   const custom =
     options.customization ??
-    (repoExt.showMeOverride && typeof repoExt.showMeOverride === "object"
-      ? (repoExt.showMeOverride as ShowMeCustomization)
+    (repoShowMe && typeof repoShowMe === "object"
+      ? (repoShowMe as ShowMeCustomization)
       : undefined);
 
   const rankedFiles = rankChangedFiles({

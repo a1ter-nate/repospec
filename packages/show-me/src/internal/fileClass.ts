@@ -1,6 +1,6 @@
 import path from "node:path";
-import type { ChangedFileEntry } from "../../../../src/studio/commitDiff.ts";
-import type { DrilldownIndex } from "../../../../src/studio/drilldown.ts";
+import type { ChangedFileEntry } from "@repospec/plugin-studio";
+import type { DrilldownIndex } from "@repospec/plugin-studio";
 
 export type FileClass = "source" | "test" | "fixture" | "contract" | "iac" | "script" | "doc" | "config";
 

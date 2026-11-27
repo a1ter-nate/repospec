@@ -1,0 +1,21 @@
+{
+  "name": "@repospec/perf",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Code performance AST scanner, space-time complexity advisor, and verified algorithms & data structures plugin for RepoSpec.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./algorithms": "./src/algorithms.ts",
+    "./data-structures": "./src/dataStructures.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  },
+  "peerDependencies": {
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

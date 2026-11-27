@@ -1,0 +1,22 @@
+{
+  "name": "@repospec/cli",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "RepoSpec Effect CLI command definitions.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/core": "workspace:*",
+    "@repospec/flows": "workspace:*",
+    "@repospec/plugin": "workspace:*",
+    "@repospec/plugin-arch": "workspace:*",
+    "@repospec/plugin-passport": "workspace:*",
+    "@repospec/plugin-studio": "workspace:*",
+    "@repospec/show-me": "workspace:*",
+    "effect": "^4.1.6"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

@@ -3,9 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { generateRepoSpec } from "../src/cli.ts";
-import { classifyTerraformPlane, isDeployableComputeResource } from "../src/extractors/iac.ts";
-import { renderVisualHtml } from "../src/render.ts";
-import type { IacPlane } from "../src/schema.ts";
+import { classifyTerraformPlane, isDeployableComputeResource } from "@repospec/plugin-iac";
+import { renderVisualHtml } from "@repospec/plugin-studio";
+import type { IacPlane } from "@repospec/plugin";
 
 function makeTmpRepo(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-sig-"));

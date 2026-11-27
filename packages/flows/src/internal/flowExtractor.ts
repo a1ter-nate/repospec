@@ -9,7 +9,7 @@ import type {
   RepoContext,
   StateMachineRecord,
   UnitDescriptor,
-} from "../../../../src/schema.ts";
+} from "@repospec/plugin";
 import {
   applyTelemetryOverlay,
   extractAsyncHandoffs,

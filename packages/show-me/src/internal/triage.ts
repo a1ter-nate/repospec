@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { CommitArchDiff } from "../../../../src/studio/commitDiff.ts";
+import type { CommitArchDiff } from "@repospec/plugin-studio";
 import { parseIacDiff, type IacBlockDelta } from "./fileClass.ts";
 import type { RankedChangedFile, RankedDiagram } from "./ranking.ts";
 

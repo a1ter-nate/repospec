@@ -1,0 +1,17 @@
+{
+  "name": "@repospec/plugin",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "RepoSpec public plugin SDK, domain transform contracts, schema IR types, and taxonomy helpers.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./effect": "./src/effect/index.ts",
+    "./promise": "./src/promise/adapter.ts"
+  },
+  "dependencies": {
+    "effect": "^4.1.6"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

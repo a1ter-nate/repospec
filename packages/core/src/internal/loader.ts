@@ -2,26 +2,22 @@ import type { Database } from "bun:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ExtractorPlugin, FactRecord, SpecDiagnostic } from "../../../../src/schema.ts";
+import { diffFactSets, type ExtractorPlugin, type FactDiffResult, type FactRecord, type SpecDiagnostic } from "@repospec/plugin";
 import { loadDeclarativeFactsExtractor } from "./declarativeFacts.ts";
 import type { RepoSpecConfig } from "./toolkit.ts";
+
+export { diffFactSets };
+export type { FactDiffResult };
 
 export interface LoadedRepoExtensions {
   readonly dotDir: string;
   readonly config: RepoSpecConfig | null;
   readonly extractors: ExtractorPlugin[];
   readonly extraRulesDirs: string[];
-  readonly reportOverride: unknown;
-  readonly showMeOverride: unknown;
-  readonly ciOverride: unknown;
+  readonly studioCustomizations: unknown[];
+  readonly showMeCustomizations: unknown[];
+  readonly ciDefinitions: unknown[];
   readonly diagnostics: SpecDiagnostic[];
-}
-
-export interface FactDiffResult {
-  readonly kind?: string;
-  readonly added: FactRecord[];
-  readonly removed: FactRecord[];
-  readonly unchangedCount: number;
 }
 
 function isExtractorPlugin(value: unknown): value is ExtractorPlugin {
@@ -63,9 +59,9 @@ export async function loadRepoExtensions(repoDir: string): Promise<LoadedRepoExt
       config: null,
       extractors,
       extraRulesDirs,
-      reportOverride: null,
-      showMeOverride: null,
-      ciOverride: null,
+      studioCustomizations: [],
+      showMeCustomizations: [],
+      ciDefinitions: [],
       diagnostics,
     };
   }
@@ -137,14 +133,24 @@ export async function loadRepoExtensions(repoDir: string): Promise<LoadedRepoExt
   const showMeMod = await importLocalModule(path.join(dotDir, "show-me.ts"), diagnostics, "plugin.showme.load-failed");
   const ciMod = await importLocalModule(path.join(dotDir, "ci.ts"), diagnostics, "plugin.ci.load-failed");
 
+  const studioCustomizations: unknown[] = [];
+  const showMeCustomizations: unknown[] = [];
+  const ciDefinitions: unknown[] = [];
+  if (config?.report) studioCustomizations.push(config.report);
+  if (reportMod?.default) studioCustomizations.push(reportMod.default);
+  if (config?.showMe) showMeCustomizations.push(config.showMe);
+  if (showMeMod?.default) showMeCustomizations.push(showMeMod.default);
+  if (config?.ci) ciDefinitions.push(config.ci);
+  if (ciMod?.default) ciDefinitions.push(ciMod.default);
+
   return {
     dotDir,
     config,
     extractors,
     extraRulesDirs,
-    reportOverride: reportMod?.default ?? config?.report ?? null,
-    showMeOverride: showMeMod?.default ?? config?.showMe ?? null,
-    ciOverride: ciMod?.default ?? config?.ci ?? null,
+    studioCustomizations,
+    showMeCustomizations,
+    ciDefinitions,
     diagnostics,
   };
 }
@@ -200,33 +206,4 @@ export function queryFactsFromDb(
       payload,
     };
   });
-}
-
-function factIdentity(f: FactRecord): string {
-  return `${f.kind}|${f.key}|${f.file}`;
-}
-
-export function diffFactSets(
-  baseFacts: readonly FactRecord[],
-  headFacts: readonly FactRecord[],
-  kind?: string,
-): FactDiffResult {
-  const baseFiltered = kind ? baseFacts.filter((f) => f.kind === kind) : baseFacts;
-  const headFiltered = kind ? headFacts.filter((f) => f.kind === kind) : headFacts;
-  const baseMap = new Map(baseFiltered.map((f) => [factIdentity(f), f]));
-  const headMap = new Map(headFiltered.map((f) => [factIdentity(f), f]));
-
-  const added: FactRecord[] = [];
-  const removed: FactRecord[] = [];
-  let unchangedCount = 0;
-
-  for (const [k, f] of headMap) {
-    if (baseMap.has(k)) unchangedCount += 1;
-    else added.push(f);
-  }
-  for (const [k, f] of baseMap) {
-    if (!headMap.has(k)) removed.push(f);
-  }
-
-  return { kind, added, removed, unchangedCount };
 }

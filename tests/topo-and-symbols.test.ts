@@ -5,9 +5,9 @@ import {
   computeTopologicalLevels,
   peelUnitModulePaths,
   summarizeModuleMetadata,
-} from "../src/internal/topoLevels.ts";
-import type { AstFileFact } from "../src/schema.ts";
-import { extractFileCallGraph, packSourceArchiveBase64 } from "../src/studio/fileSymbols.ts";
+} from "@repospec/plugin-module-atlas";
+import type { AstFileFact } from "@repospec/plugin";
+import { extractFileCallGraph, packSourceArchiveBase64 } from "@repospec/plugin-studio";
 
 function makeFileFact(file: string, overrides: Partial<AstFileFact> = {}): AstFileFact {
   return {

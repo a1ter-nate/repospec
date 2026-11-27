@@ -1,0 +1,18 @@
+{
+  "name": "@repospec/plugin-arch",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Architecture, cross-domain linker, and federation plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*",
+    "@repospec/plugin-iac": "workspace:*",
+    "@repospec/plugin-module-atlas": "workspace:*",
+    "@repospec/plugin-studio": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

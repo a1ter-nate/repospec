@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "../src/canonicalize.ts";
+import { buildCanonicalSpec, diffSpecs, hashSpec, mergeFragments, serializeSpec } from "@repospec/core";
 import {
   createEmptyAst,
   type GraphFragment,
@@ -7,8 +7,8 @@ import {
   type RepoSpecV4,
   type SpecEdge,
   type SpecNode,
-} from "../src/schema.ts";
-import { generateIdsModule, generateSqliteSdkModule } from "../src/sdkGen.ts";
+} from "@repospec/plugin";
+import { generateIdsModule, generateSqliteSdkModule } from "@repospec/plugin-sdk-gen";
 
 function makeCtx(name = "@unit/sample"): RepoContext {
   return {

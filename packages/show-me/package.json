@@ -8,8 +8,14 @@
     ".": "./src/index.ts",
     "./svg": "./src/svg.ts"
   },
-  "files": ["src/"],
+  "files": [
+    "src/"
+  ],
   "dependencies": {
-    "@repospec/core": "workspace:*"
+    "@repospec/plugin": "workspace:*",
+    "@repospec/plugin-studio": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
   }
 }

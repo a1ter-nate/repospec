@@ -1,0 +1,15 @@
+{
+  "name": "@repospec/plugin-lang-python",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Python AST language plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import yaml from "js-yaml";
 import ts from "typescript";
-import type { ExtractorPlugin } from "../../../../src/schema.ts";
+import type { ExtractorPlugin } from "@repospec/plugin";
 import { defineExtractor, type ScanToolkit } from "./toolkit.ts";
 
 export interface DeclarativeFactSpec {

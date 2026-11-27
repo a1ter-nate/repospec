@@ -1,0 +1,16 @@
+{
+  "name": "@repospec/plugin-studio",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Interactive Visual Studio HTML renderer, drilldown, commit diff, and server plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*",
+    "@repospec/flows": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}

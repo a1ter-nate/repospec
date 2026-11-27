@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { mergeFragments } from "../src/canonicalize.ts";
-import type { GraphFragment, SpecEdge, SpecNode } from "../src/schema.ts";
-import { extractFileCallGraph } from "../src/studio/fileSymbols.ts";
+import { mergeFragments } from "@repospec/core";
+import type { GraphFragment, SpecEdge, SpecNode } from "@repospec/plugin";
+import { extractFileCallGraph } from "@repospec/plugin-studio";
 
 function buildSyntheticWorkload(n: number): {
   fragment: GraphFragment;

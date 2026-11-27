@@ -4,7 +4,7 @@ import {
   type ReportCustomization,
   type ReportRenderContext,
   type ReportThemeTokens,
-} from "../../../src/render.ts";
+} from "@repospec/plugin-studio";
 
 export { renderVisualHtml };
 export type { CustomStudioTab, ReportCustomization, ReportRenderContext, ReportThemeTokens };

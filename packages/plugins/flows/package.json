@@ -1,0 +1,16 @@
+{
+  "name": "@repospec/plugin-flows",
+  "version": "5.0.1",
+  "type": "module",
+  "description": "Work flows, data hubs, state machines, and async handoffs plugin",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@repospec/plugin": "workspace:*",
+    "@repospec/flows": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test ./tests/"
+  }
+}
