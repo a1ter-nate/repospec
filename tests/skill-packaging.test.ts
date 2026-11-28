@@ -68,4 +68,23 @@ describe("Skill & README packaging integrity (R2) [REQ-HYGIENE-01]", () => {
       }
     }
   });
+
+  test("FeatLock agent harness hooks and guard docs remain wired", () => {
+    const hookFiles = [
+      ".claude/hooks/feature-guard.mjs",
+      ".claude/settings.local.json",
+      ".codex/hooks/feature-guard.mjs",
+      ".codex/hooks.json",
+      ".cursor/hooks/feature-guard.mjs",
+      ".cursor/hooks.json",
+      ".github/hooks/feature-guard.mjs",
+    ];
+    for (const rel of hookFiles) {
+      const abs = path.join(REPO_ROOT, rel);
+      expect(fs.existsSync(abs)).toBe(true);
+      expect(fs.readFileSync(abs, "utf8")).toContain("feature-guard.mjs".includes(path.basename(rel)) ? "featlock" : "feature-guard.mjs");
+    }
+    expect(fs.readFileSync(path.join(REPO_ROOT, "AGENTS.md"), "utf8")).toContain("<!-- featlock:start -->");
+    expect(fs.readFileSync(path.join(REPO_ROOT, ".github/copilot-instructions.md"), "utf8")).toContain("<!-- featlock:start -->");
+  });
 });

@@ -27,6 +27,7 @@ jobs:
       - run: bun run typecheck
       - run: bun test --coverage
       - run: bun test ./packages/
+      - run: bun run check:features
       - run: bunx vstack canary . --test-cmd "bun test --timeout 30000 ./tests/taxonomy.table.test.ts ./tests/canonicalize-and-sdk.test.ts ./packages/core/tests/ ./packages/plugin/tests/" --targets packages/core/src/state.ts,packages/plugin/src/specUtils.ts,packages/plugin/src/taxonomy/paths.ts --max-mutants 6 --min-kill-rate 0.75 --fail
       - run: bunx vstack run-rung all .
       - run: bun tools/synthetic-check.ts

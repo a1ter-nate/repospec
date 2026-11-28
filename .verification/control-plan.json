@@ -66,7 +66,7 @@
         "packages/plugin/src/schema/primitives.ts"
       ],
       "bounds": "Canonical RepoSpec v5.0.0 Draft 2020-12 JSON Schema contract",
-      "syncCommit": "9823825505e196e7e8d9da4afcf32a592841e6db"
+      "syncCommit": "4728d55d053efe6419d59bb78ef411afc8a76ae4"
     }
   ],
   "formalChecks": []

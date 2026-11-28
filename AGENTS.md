@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Hard Verification Gates
-1. Run `bun run check` before committing or pushing (`tsc --noEmit`, `bun test`, `oxlint` with `@interfere/landmines` + `anti-slop`, `lint:privacy`, `lint:ts-only`, `no-comments`, `state-machines`, `laws --verify`, `formal-sync`, `bench`, `perf:check` empirical Big-O, `vstack scan . --strict`, and `vstack doctor . --fail`).
+1. Run `bun run check` before committing or pushing (`tsc --noEmit`, `bun test`, `check:features` via `featlock check . --strict-drift`, `oxlint` with `@interfere/landmines` + `anti-slop`, `lint:privacy`, `lint:ts-only`, `no-comments`, `state-machines`, `laws --verify`, `formal-sync`, `bench`, `perf:check` empirical Big-O, `vstack scan . --strict`, and `vstack doctor . --fail`).
 2. Enforce **100% TypeScript** across `src/` and `tests/` (zero `.js`/`.mjs`/`.cjs` files, zero untyped browser JS embedded inside TS template strings).
 3. Enforce a **500-line hard file cap** (`max-lines <= 500`), **`<= 6` runtime exports per module**, and **`<= 15` entries per directory** (`wide-directory`). Split cohesive responsibilities into deep modules rather than padding or ratcheting debt.
 4. `tests/fixtures/`, `rules/`, and `skills/repospec/` are locked oracles; keep them passing without weakening assertions or deleting cases.
@@ -17,3 +17,10 @@
 12. **Repeat-to-rule promotion:** When a mistake happens twice, promote it into an automated check in `package.json`, `.oxlintrc.json`, or `lefthook.yml` the same day instead of relying on prose reminders.
 13. **Honest provenance:** Mark tool- or AI-generated PR outlines/summaries clearly and remind reviewers to verify **Special Things to Note** before posting.
 14. Follow `skill-craft` discipline when editing `skills/` or `AGENTS.md`: sharp context pointers, checkable completion criteria, positive steering, and zero duplicated rules.
+
+<!-- featlock:start -->
+## FeatLock Feature & Invariant Guard Rules
+- Before implementing any new capability, run `featlock query <topic>` and `featlock check-dup "<summary>"` so you do not duplicate an existing feature.
+- On every change that adds or improves product behavior, automatically record it with `featlock record-new` or `featlock record-improvement` in `features/registry.sql`.
+- NEVER delete an active feature, unlink its tests, or delete an active invariant without explicit human confirmation, an ADR reference, and `ALLOW_FEATURE_REMOVAL=1`.
+<!-- featlock:end -->
