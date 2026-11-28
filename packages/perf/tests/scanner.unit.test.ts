@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { analyzeComplexityProfile, analyzeSourcePerformance, perfPlugin } from "@repospec/perf";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { discoverRepo } from "@repospec/core";
+import { analyzeComplexityProfile, analyzeRepoPerformance, analyzeSourcePerformance, perfPlugin } from "@repospec/perf";
 
 const PERF_FIXTURE_CASES: ReadonlyArray<{
   readonly name: string;
@@ -199,5 +203,43 @@ export function fibNaive(n: number): number { return n <= 1 ? n : fibNaive(n - 1
     expect(byName.get("fibNaive")?.timeComplexity).toBe("O(2^n)");
     expect(byName.get("fibNaive")?.suggestedPrimitive).toBe("@repospec/perf/algorithms#memoize");
     expect(perfPlugin.id).toBe("repospec.perf");
+  });
+
+  test("skips docs/, minified single-line bundles, and classifies doubling radix-2 loops as logarithmic", () => {
+    const radixProfiles = analyzeComplexityProfile(
+      `export function radixStage(n: number) {
+        let acc = 0;
+        for (let size = 2; size <= n; size <<= 1) {
+          for (let i = 0; i < n; i += 1) acc += i;
+        }
+        return acc;
+      }`,
+      "src/dsp.ts",
+    );
+    expect(radixProfiles.find((p) => p.symbol === "radixStage")?.timeComplexity).toBe("O(n log n)");
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-perf-ignore-"));
+    try {
+      fs.mkdirSync(path.join(tmp, "docs/research"), { recursive: true });
+      fs.mkdirSync(path.join(tmp, "src"), { recursive: true });
+      fs.writeFileSync(path.join(tmp, "package.json"), JSON.stringify({ name: "ignore-demo", version: "1.0.0" }));
+      fs.writeFileSync(
+        path.join(tmp, "docs/research/exp.js"),
+        "export function x(a, b) { for (const i of a) { if (b.includes(i)) return true; } return false; }\n",
+      );
+      fs.writeFileSync(
+        path.join(tmp, "src/runtime.js"),
+        `export function m(a,b){for(const i of a){if(b.includes(i))return 1;}}const pad="${"x".repeat(4500)}";`,
+      );
+      fs.writeFileSync(
+        path.join(tmp, "src/clean.ts"),
+        "export function add(a: number, b: number): number { return a + b; }\n",
+      );
+      const bundle = analyzeRepoPerformance(discoverRepo(tmp, "artifact"));
+      expect(bundle.scannedFiles).toBe(1);
+      expect(bundle.findings).toHaveLength(0);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

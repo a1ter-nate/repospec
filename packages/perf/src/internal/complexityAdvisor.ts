@@ -20,12 +20,19 @@ function isLoopNode(node: ts.Node): boolean {
   );
 }
 
-function isHalvingUpdate(node: ts.Node): boolean {
+function isLogarithmicLoopStep(node: ts.Node): boolean {
   if (!ts.isBinaryExpression(node)) return false;
   const kind = node.operatorToken.kind;
-  if (kind === ts.SyntaxKind.SlashEqualsToken || kind === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken) return true;
-  if ((kind === ts.SyntaxKind.GreaterThanGreaterThanToken || kind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken) && ts.isNumericLiteral(node.right) && node.right.text === "1") return true;
-  return kind === ts.SyntaxKind.SlashToken && ts.isNumericLiteral(node.right) && node.right.text === "2";
+  if (
+    kind === ts.SyntaxKind.SlashEqualsToken ||
+    kind === ts.SyntaxKind.AsteriskEqualsToken ||
+    kind === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+    kind === ts.SyntaxKind.LessThanLessThanEqualsToken
+  ) {
+    return true;
+  }
+  if ((kind === ts.SyntaxKind.GreaterThanGreaterThanToken || kind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken || kind === ts.SyntaxKind.LessThanLessThanToken) && ts.isNumericLiteral(node.right) && node.right.text === "1") return true;
+  return (kind === ts.SyntaxKind.SlashToken || kind === ts.SyntaxKind.AsteriskToken) && ts.isNumericLiteral(node.right) && node.right.text === "2";
 }
 
 interface FunctionCandidate {
@@ -84,8 +91,8 @@ function classifyComplexity(metrics: ScanCounters): {
   let timeComplexity: BigOClass = "O(1)";
   if (metrics.selfCallCount >= 2 && !metrics.hasMemoRef) timeComplexity = "O(2^n)";
   else if (metrics.hasSortCall) timeComplexity = effectiveDepth >= 1 ? "O(n^2 log n)" : "O(n log n)";
-  else if (effectiveDepth >= 3) timeComplexity = "O(n^3)";
-  else if (effectiveDepth === 2) timeComplexity = "O(n^2)";
+  else if (effectiveDepth >= 3) timeComplexity = metrics.hasHalvingLoop ? "O(n^2 log n)" : "O(n^3)";
+  else if (effectiveDepth === 2) timeComplexity = metrics.hasHalvingLoop ? "O(n log n)" : "O(n^2)";
   else if (effectiveDepth === 1 || metrics.selfCallCount === 1) timeComplexity = metrics.hasHalvingLoop ? "O(log n)" : "O(n)";
 
   let spaceComplexity: BigOClass = "O(1)";
@@ -112,7 +119,7 @@ function classifyComplexity(metrics: ScanCounters): {
 function updateCountersForNode(node: ts.Node, depth: number, fnName: string, counters: ScanCounters): boolean {
   if (depth < 0) throw new Error("depth must be non-negative");
   if (depth > counters.loopDepthMax) counters.loopDepthMax = depth;
-  if (depth >= 1 && isHalvingUpdate(node)) counters.hasHalvingLoop = true;
+  if (depth >= 1 && isLogarithmicLoopStep(node)) counters.hasHalvingLoop = true;
   if (ts.isIdentifier(node) && /memo|cache|dp/i.test(node.text)) counters.hasMemoRef = true;
   if (ts.isNewExpression(node)) {
     const ctor = node.expression.getText();

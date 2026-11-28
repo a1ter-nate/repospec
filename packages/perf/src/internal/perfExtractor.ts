@@ -6,8 +6,20 @@ import { analyzeSourcePerformance } from "./perfAstScanner.ts";
 import type { ComplexityProfile, PerfAnalysisBundle, PerfAntiPatternFinding } from "./types.ts";
 
 const SOURCE_EXT_RE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|rs|py|cs)$/;
-const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|bench|benchmarks|dist|build|target|node_modules)\/|\.(?:test|spec|d)\.[a-z]+$|Tests?\.cs$/i;
+const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|bench|benchmarks|docs?|docs_src|vendor|dist|build|target|node_modules)\/|\.(?:test|spec|d|min|bundle)\.[a-z]+$|Tests?\.cs$/i;
 const QUADRATIC_CLASSES = new Set(["O(n^2)", "O(n^2 log n)", "O(n^3)", "O(2^n)"]);
+
+function isMinifiedSource(sourceText: string): boolean {
+  if (sourceText.length < 4_000) return false;
+  const lines = sourceText.split("\n");
+  if (lines.length === 0) return false;
+  if (sourceText.length / lines.length > 300) return true;
+  const sampleLimit = Math.min(lines.length, 32);
+  for (let i = 0; i < sampleLimit; i += 1) {
+    if ((lines[i]?.length ?? 0) > 2_000) return true;
+  }
+  return false;
+}
 
 function assertPerf(condition: boolean, message: string): void {
   if (!condition) throw new Error(`@repospec/perf extractor invariant failed: ${message}`);
@@ -43,7 +55,7 @@ export function analyzeRepoPerformance(ctx: RepoContext): PerfAnalysisBundle {
     } catch {
       continue;
     }
-    if (sourceText.length === 0 || sourceText.length > 512_000) continue;
+    if (sourceText.length === 0 || sourceText.length > 512_000 || isMinifiedSource(sourceText)) continue;
     scannedFiles += 1;
     findings.push(...analyzeSourcePerformance(sourceText, rel));
     profiles.push(...analyzeComplexityProfile(sourceText, rel));
