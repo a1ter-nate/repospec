@@ -2,29 +2,41 @@
 -- @name: High Fan-In Runtime Modules Must Have Test Reachability or Line Coverage
 -- @rung: R2
 -- @severity: warn
--- @statement: Non-barrel runtime production modules imported by >= 8 production files (excluding type-only imports and type-only modules) should have recorded line coverage or static test reachability within 1 import hop.
+-- @statement: Non-barrel runtime production modules imported by >= 8 production files (excluding type-only imports and type-only modules) should have recorded line coverage or static test reachability within 1 import hop (traversing re-export barrels at zero hop cost).
 -- @why: High fan-in runtime modules are blast-radius multipliers; untested hubs magnify regressions across dependent units.
 -- @fix: Add direct unit tests or cover an immediate caller in the test suite.
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM v_prod_files WHERE is_barrel = 0 AND runtime_exports_count > 0) = 0 THEN 'No non-barrel runtime production files indexed' ELSE NULL END
-WITH prod_fanin AS (
+WITH RECURSIVE prod_fanin AS (
   SELECT fi.to_file AS file, COUNT(DISTINCT fi.from_file) AS fanin
   FROM file_imports fi
   JOIN v_prod_files src ON src.file = fi.from_file
   WHERE fi.type_only = 0
   GROUP BY fi.to_file
 ),
-direct_tested AS (
+direct_tested(file) AS (
   SELECT DISTINCT fi.to_file AS file
   FROM file_imports fi
   JOIN files tf ON tf.file = fi.from_file AND tf.is_test = 1
   WHERE fi.type_only = 0
+  UNION
+  SELECT fi.to_file AS file
+  FROM file_imports fi
+  JOIN direct_tested dt ON dt.file = fi.from_file
+  JOIN files bf ON bf.file = dt.file AND bf.is_barrel = 1
+  WHERE fi.type_only = 0
 ),
-one_hop_tested AS (
+one_hop_tested(file) AS (
   SELECT file FROM direct_tested
   UNION
   SELECT DISTINCT fi.to_file AS file
   FROM file_imports fi
   JOIN direct_tested dt ON dt.file = fi.from_file
+  WHERE fi.type_only = 0
+  UNION
+  SELECT fi.to_file AS file
+  FROM file_imports fi
+  JOIN one_hop_tested ot ON ot.file = fi.from_file
+  JOIN files bf ON bf.file = ot.file AND bf.is_barrel = 1
   WHERE fi.type_only = 0
 )
 SELECT

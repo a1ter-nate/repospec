@@ -66,6 +66,9 @@ export function resolveFeatureOrLayerPath(
 ): { rawLayer: string; canonicalLayer: CanonicalLayer; inferredDomain: string | null } {
   const unitRel = unitDir !== "." && relFile.startsWith(`${unitDir}/`) ? relFile.slice(unitDir.length + 1) : relFile;
   const inRuntimeSourceRoot = /^(?:functions|src|app)\//.test(unitRel);
+  if (!inRuntimeSourceRoot && /(?:^|\/)(?:tools|scripts|rehearsal|rehearsals)\//.test(unitRel)) {
+    return { rawLayer: "ops", canonicalLayer: "ops_script", inferredDomain: null };
+  }
   const inner = unitRel.replace(/^(?:functions|src|app)\//, "");
   const parts = inner.split("/");
   if (parts.length <= 1) {

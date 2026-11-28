@@ -130,7 +130,9 @@ function detectEcosystemAndLanguages(allFiles: string[]): { ecosystem: Ecosystem
   if (scanFiles.some((f) => f.endsWith(".swift"))) languages.push("swift");
   if (scanFiles.some((f) => f.endsWith(".kt"))) languages.push("kotlin");
   if (scanFiles.some((f) => f.endsWith(".tf"))) languages.push("hcl");
-  if (scanFiles.some((f) => f.endsWith(".sql"))) languages.push("sql");
+  if (scanFiles.some((f) => f.endsWith(".sql") && /(?:^|\/)(?:migrations?|schema|db|sql)\//i.test(f))) {
+    languages.push("sql");
+  }
   if (scanFiles.some((f) => f.endsWith(".dfy") || f.endsWith(".qnt"))) languages.push("formal");
 
   const hasNode = hasTs || hasJs;
@@ -191,14 +193,15 @@ export function discoverRepo(rootDir: string, storageMode: StorageMode): RepoCon
   const { ecosystem, languages } = detectEcosystemAndLanguages(allFiles);
   const units = discoverUnits(resolved, allFiles);
 
-  let repoName = path.basename(resolved);
+  const remoteRepoName = remote ? remote.split("/").pop() ?? null : null;
+  let repoName = remoteRepoName ?? path.basename(resolved);
   const pkgPath = path.join(resolved, "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { name?: string };
       if (pkg.name) repoName = pkg.name;
     } catch {
-      repoName = path.basename(resolved);
+      repoName = remoteRepoName ?? path.basename(resolved);
     }
   } else {
     const pyName = readPyprojectName(resolved);

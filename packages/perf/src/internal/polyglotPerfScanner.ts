@@ -8,6 +8,8 @@ interface BraceBlockContext {
   readonly startDepth: number;
   loopDepthMax: number;
   selfCalls: number;
+  branchingSelfCall: boolean;
+  matchArmSelfCalls: number;
   hasSort: boolean;
   hasHalving: boolean;
   hasLinearInLoop: boolean;
@@ -50,7 +52,7 @@ const RUST_RULES: readonly LinePatternRule[] = [
   {
     requiresLoop: true,
     match: /\.(?:contains|position|find|any)\(/,
-    exclude: /\.contains\(\s*(?:"|'|r#")|\b(?:set|map|seen|visited|cache|index)\b/i,
+    exclude: /\.contains\(\s*(?:"|'|r#")|\.\.=?[^)]*\)\.contains\(|\.await\b|\b(?:store|repo|db|client|pool|tx|conn|service|registry|set|map|seen|visited|cache|index|btree|hash)\b/i,
     patternId: "linear-lookup-in-loop",
     severity: "high",
     currentComplexity: "O(n^2)",
@@ -96,6 +98,7 @@ const RUST_RULES: readonly LinePatternRule[] = [
   {
     requiresLoop: true,
     match: /\.await\b/,
+    exclude: /&mut\s+\*?tx\b|tx\.as_mut\(\)/,
     patternId: "serial-await-in-loop",
     severity: "medium",
     currentComplexity: "O(n)",
@@ -324,15 +327,32 @@ function applyLineRules(input: LineInspectInput, rules: readonly LinePatternRule
   return linearHit;
 }
 
+function countQualifiedSelfCalls(code: string, symbol: string): number {
+  const token = `${symbol}(`;
+  let count = 0;
+  let pos = code.indexOf(token);
+  while (pos >= 0) {
+    const before = code.slice(0, pos);
+    const trimmed = before.trimEnd();
+    const isPrevIdent = /[A-Za-z0-9_]$/.test(before);
+    const isDotOrColon = trimmed.endsWith(".") || trimmed.endsWith("::");
+    const isSelfQualified = /\b(?:self|this)\.$|\bSelf::$/.test(trimmed);
+    if (!isPrevIdent && (!isDotOrColon || isSelfQualified)) count += 1;
+    pos = code.indexOf(token, pos + token.length);
+  }
+  return count;
+}
+
 function classifyBraceProfile(block: BraceBlockContext, filePath: string, lang: PolyglotPerfLanguage): ComplexityProfile {
   if (block.symbol.length === 0) throw new Error("classifyBraceProfile requires symbol name");
   const effective = block.loopDepthMax + (block.hasLinearInLoop ? 1 : 0);
+  const isExponential = block.branchingSelfCall;
   let timeComplexity: BigOClass = "O(1)";
-  if (block.selfCalls >= 2) timeComplexity = "O(2^n)";
+  if (isExponential) timeComplexity = "O(2^n)";
   else if (block.hasSort) timeComplexity = effective >= 1 ? "O(n^2 log n)" : "O(n log n)";
-  else if (effective >= 3) timeComplexity = "O(n^3)";
-  else if (effective === 2) timeComplexity = "O(n^2)";
-  else if (effective === 1 || block.selfCalls === 1) timeComplexity = block.hasHalving ? "O(log n)" : "O(n)";
+  else if (effective >= 3) timeComplexity = block.hasHalving ? "O(n^2 log n)" : "O(n^3)";
+  else if (effective === 2) timeComplexity = block.hasHalving ? "O(n log n)" : "O(n^2)";
+  else if (effective === 1 || block.selfCalls >= 1) timeComplexity = block.hasHalving ? "O(log n)" : "O(n)";
 
   const spaceComplexity: BigOClass = block.hasAlloc || block.selfCalls >= 1 ? "O(n)" : "O(1)";
   const mapHint = lang === "rust" ? "HashMap/HashSet" : lang === "csharp" ? "Dictionary/HashSet" : "dict/set";
@@ -356,7 +376,7 @@ function classifyBraceProfile(block: BraceBlockContext, filePath: string, lang: 
     spaceComplexity,
     loopDepthMax: block.loopDepthMax,
     hasSelfRecursion: block.selfCalls >= 1,
-    hasBranchingRecursion: block.selfCalls >= 2,
+    hasBranchingRecursion: isExponential,
     hasSortCall: block.hasSort,
     hasLinearLookupInLoop: block.hasLinearInLoop,
     recommendation,
@@ -372,10 +392,9 @@ function updateActiveBlock(block: BraceBlockContext, code: string, curLoopDepth:
   if (/\b(?:Vec::new|Vec::with_capacity|HashMap::new|HashSet::new|new\s+List|new\s+Dictionary|new\s+HashSet|dict\(|set\(|list\()\b/.test(code)) {
     block.hasAlloc = true;
   }
-  const callToken = `${block.symbol}(`;
-  if (code.includes(callToken) && !code.includes(`.${callToken}`)) {
-    block.selfCalls += Math.max(0, code.split(callToken).length - 1);
-  }
+  const lineSelfCalls = countQualifiedSelfCalls(code, block.symbol);
+  if (lineSelfCalls >= 2) block.branchingSelfCall = true;
+  if (lineSelfCalls > 0) block.selfCalls += lineSelfCalls;
 }
 
 function scanBraceLanguage(
@@ -408,7 +427,7 @@ function scanBraceLanguage(
     if (!inCfgTest) {
       const fnMatch = code.match(fnRe);
       if (fnMatch?.[1] && !activeFn && !/^\s*(?:if|for|while|switch|catch|match)\b/.test(code)) {
-        activeFn = { line: lineNo, symbol: fnMatch[1], startDepth: braceDepth, loopDepthMax: 0, selfCalls: 0, hasSort: false, hasHalving: false, hasLinearInLoop: false, hasAlloc: false };
+        activeFn = { line: lineNo, symbol: fnMatch[1], startDepth: braceDepth, loopDepthMax: 0, selfCalls: 0, branchingSelfCall: false, matchArmSelfCalls: 0, hasSort: false, hasHalving: false, hasLinearInLoop: false, hasAlloc: false };
       }
       const entersLoop = loopRe.test(code);
       if (entersLoop && open > 0) loopEndDepths.push(braceDepth);
@@ -454,7 +473,7 @@ function scanPythonSource(
     }
     const fnMatch = code.match(PYTHON_FN_RE);
     if (fnMatch?.[2]) {
-      activeFn = { line: lineNo, symbol: fnMatch[2], startDepth: indent, loopDepthMax: 0, selfCalls: 0, hasSort: false, hasHalving: false, hasLinearInLoop: false, hasAlloc: false };
+      activeFn = { line: lineNo, symbol: fnMatch[2], startDepth: indent, loopDepthMax: 0, selfCalls: 0, branchingSelfCall: false, matchArmSelfCalls: 0, hasSort: false, hasHalving: false, hasLinearInLoop: false, hasAlloc: false };
       continue;
     }
     if (PYTHON_LOOP_RE.test(code)) loopIndents.push(indent);
@@ -466,12 +485,11 @@ function scanPythonSource(
   return { findings, profiles };
 }
 
-export function analyzePolyglotSource(
-  sourceText: string,
-  filePath: string,
-): { readonly findings: readonly PerfAntiPatternFinding[]; readonly profiles: readonly ComplexityProfile[] } {
+export function analyzePolyglotSource(sourceText: string, filePath: string): {
+  readonly findings: readonly PerfAntiPatternFinding[];
+  readonly profiles: readonly ComplexityProfile[];
+} {
   const lang = detectPolyglotLanguage(filePath);
   if (!lang || sourceText.length === 0) return { findings: [], profiles: [] };
-  if (lang === "python") return scanPythonSource(sourceText, filePath);
-  return scanBraceLanguage(sourceText, filePath, lang);
+  return lang === "python" ? scanPythonSource(sourceText, filePath) : scanBraceLanguage(sourceText, filePath, lang);
 }

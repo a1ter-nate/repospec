@@ -13,7 +13,7 @@ import type {
   UnitDescriptor,
 } from "@repospec/plugin";
 import { createEmptyAst } from "@repospec/plugin";
-import { classifyVendorPackage, resolveCanonicalLayer } from "@repospec/plugin";
+import { classifyVendorPackage, isSecretEnvName, resolveCanonicalLayer } from "@repospec/plugin";
 import { detectCapabilities, extractRustPublicSymbols, isExcludedCodePath } from "@repospec/plugin";
 import { emitRustGraph, extractRustMachinesAndLoops } from "./rustEmit.ts";
 import { RUST_AST_HELPERS } from "./rustHelpers.ts";
@@ -366,28 +366,38 @@ export const rustAstExtractor: ExtractorPlugin = {
             unit: unitName,
             file: rel,
             line: lineOf(prodText, em.index ?? 0),
-            isSecret: /SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL|DATABASE_URL/i.test(envName),
+            isSecret: isSecretEnvName(envName),
           });
         }
       }
 
-      for (const m of prodText.matchAll(/\b(?:FROM|INTO|UPDATE|JOIN)\s+(?:public\.)?"?([a-z][a-z0-9_]{2,})"?/gi)) {
-        const tbl = m[1]?.toLowerCase();
-        if (tbl && declaredTables.has(tbl)) {
-          const ln = lineOf(prodText, m.index ?? 0);
-          ast.entityAccesses.push({
-            datastore: "postgres",
-            entity: tbl,
-            file: rel,
-            unit: unitName,
-            layer: rawLayer,
-            canonicalLayer,
-            domainArea,
-            op: m[0].split(/\s+/)[0]?.toUpperCase() ?? "QUERY",
-            line: ln,
-            confidence: "observed",
-          });
-          crateTableRefs.set(unitId, (crateTableRefs.get(unitId) ?? 0) + 1);
+      const prodLines = prodText.split("\n");
+      for (let li = 0; li < prodLines.length; li += 1) {
+        const rawLine = prodLines[li] ?? "";
+        const commentIdx = rawLine.indexOf("//");
+        const codeLine = commentIdx >= 0 ? rawLine.slice(0, commentIdx) : rawLine;
+        if (!codeLine.trim()) continue;
+        const looksLikeSql =
+          /\b(?:SELECT|INSERT\s+INTO|UPDATE\s+[a-z_]|DELETE\s+FROM|LEFT\s+JOIN|INNER\s+JOIN|RIGHT\s+JOIN)\b/i.test(codeLine) ||
+          /sqlx::|query_as|query_scalar|\.execute\(/.test(codeLine);
+        if (!looksLikeSql) continue;
+        for (const m of codeLine.matchAll(/\b(?:FROM|INTO|UPDATE|JOIN)\s+(?:public\.)?"?([a-z][a-z0-9_]{2,})"?/gi)) {
+          const tbl = m[1]?.toLowerCase();
+          if (tbl && declaredTables.has(tbl)) {
+            ast.entityAccesses.push({
+              datastore: "postgres",
+              entity: tbl,
+              file: rel,
+              unit: unitName,
+              layer: rawLayer,
+              canonicalLayer,
+              domainArea,
+              op: m[0].split(/\s+/)[0]?.toUpperCase() ?? "QUERY",
+              line: li + 1,
+              confidence: "observed",
+            });
+            crateTableRefs.set(unitId, (crateTableRefs.get(unitId) ?? 0) + 1);
+          }
         }
       }
 

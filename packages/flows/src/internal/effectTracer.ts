@@ -10,7 +10,9 @@ import type {
 
 const ENTRY_PATH_RE =
   /(?:controller|controllers|route|routes|handler|handlers|endpoint|endpoints|api|functions|service\/device|jobs|workers|triggers)\//i;
-const TEST_FILE_RE = /(?:__tests__|\.test\.|\.spec\.|\/tests?\/|fixtures\/)/i;
+const TEST_FILE_RE = /(?:__tests__|\.test\.|\.spec\.|\/tests?\/|fixtures\/|_tests?\.rs$|Tests?\.cs$)/i;
+const FRONTEND_OR_SCRIPT_RE = /\.(?:tsx|jsx)$|(?:^|\/)(?:wwwroot|public|static|assets|client|components|pages|ui|browser|scripts|tools|cli|e2e)\//i;
+const REQ_BODY_PARSE_RE = /(?:^|\.)(?:readJson|parseJson|parseBody|json|text|formData|arrayBuffer)$/i;
 const WRITE_NAME_RE =
   /(?:^|\.)(update|save|create|insert|upsert|delete|remove|commit|write|set|patch|put|persist|capture|record|install|runInstall|backfill)/i;
 const READ_NAME_RE =
@@ -23,7 +25,9 @@ const ASYNC_ENQ_RE = /(?:enqueue|createTask|publish\b|publishMessage|addJob|disp
 const EXT_HTTP_RE =
   /(?:fetch\b|axios|got\b|geocode|timezone|setTimeZone|stripe|twilio|sendgrid|slack|github|openai|anthropic)/i;
 const NONCRITICAL_IO_RE = /(?:capture|timezone|geocode|analytics|telemetry|audit|diagnostic|metrics|logEvent)/i;
-const POLL_NAME_RE = /(?:getUpdates|poll|heartbeat|checkin|checkIn|syncStatus|fetchUpdates)/i;
+const POLL_NAME_RE = /\b(?:getUpdates|poll(?:er|ing|s)?|heartbeat|check_?in|syncStatus|fetchUpdates)\b/i;
+const WRITE_HANDLER_PREFIX_RE =
+  /^(?:set|put|post|patch|update|create|save|write|delete|remove|configure|record|upsert|register|enable|disable|clear|reset|ack|close|cancel|submit|approve|reject)(?:[_-]|[A-Z])/;
 
 function lineOf(sf: ts.SourceFile, node: ts.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
@@ -52,6 +56,7 @@ function classifyCall(fnName: string, callExpr: ts.CallExpression): { op: FlowEf
   if (ASYNC_ENQ_RE.test(txt)) return { op: "async_enqueue", lane: "async_push" };
   if (TX_NAME_RE.test(txt)) return { op: "tx_commit", lane: "datastore" };
   if (EXT_HTTP_RE.test(txt)) return { op: "external_http", lane: "external" };
+  if (REQ_BODY_PARSE_RE.test(txt)) return { op: "call", lane: "handler" };
   if (WRITE_NAME_RE.test(txt)) return { op: "db_write", lane: "datastore" };
   if (READ_NAME_RE.test(txt)) return { op: "db_read", lane: "datastore" };
   return { op: "call", lane: "handler" };
@@ -114,6 +119,15 @@ function collectFunctionSteps(
 
   const visit = (node: ts.Node, inCatchTry: boolean, parallelGroup?: number): void => {
     if (ts.isFunctionLike(node) && node !== body) {
+      return;
+    }
+
+    if (ts.isIfStatement(node)) {
+      const hasEarlyExit = /\b(?:return|throw)\b/.test(node.thenStatement.getText(sf));
+      ts.forEachChild(node, (child) => visit(child, inCatchTry, parallelGroup));
+      if (hasEarlyExit) {
+        pushStep("guard:early-return", "call", "handler", lineOf(sf, node), false, parallelGroup);
+      }
       return;
     }
 
@@ -236,6 +250,14 @@ export function detectFlowHazards(
     }
   }
 
+  const parallelIdiom = relFile.endsWith(".rs")
+    ? "tokio::join!/try_join!"
+    : relFile.endsWith(".cs")
+      ? "Task.WhenAll"
+      : relFile.endsWith(".py")
+        ? "asyncio.gather"
+        : "Promise.all/allSettled";
+
   let runStart: FlowStep | null = null;
   let runIndexes: number[] = [];
   const flushRun = (): void => {
@@ -246,7 +268,7 @@ export function detectFlowHazards(
         file: relFile,
         line: runStart.line,
         subject: `${flowName} (${runIndexes.length} serial ${runStart.op})`,
-        summary: `${runIndexes.length} consecutive serial ${runStart.op} steps starting at ${runStart.fn} (line ${runStart.line}) can be parallelized with Promise.all/allSettled.`,
+        summary: `${runIndexes.length} consecutive serial ${runStart.op} steps starting at ${runStart.fn} (line ${runStart.line}) can be parallelized with ${parallelIdiom}.`,
         stepIndexes: [...runIndexes],
       });
     }
@@ -269,7 +291,7 @@ export function detectFlowHazards(
   }
   flushRun();
 
-  if (responseIdx !== null) {
+  if (responseIdx !== null && !FRONTEND_OR_SCRIPT_RE.test(relFile)) {
     const blockingNonCritical = steps.filter(
       (s) =>
         s.index < responseIdx &&
@@ -288,7 +310,7 @@ export function detectFlowHazards(
     }
   }
 
-  if (POLL_NAME_RE.test(flowName)) {
+  if (POLL_NAME_RE.test(flowName) && !WRITE_HANDLER_PREFIX_RE.test(flowName.trim())) {
     const pollWrites = steps.filter(
       (s) => (s.op === "db_write" || s.op === "tx_commit") && !s.afterResponse && !/install/i.test(s.fn),
     );

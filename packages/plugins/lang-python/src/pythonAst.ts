@@ -16,6 +16,7 @@ import { createEmptyAst } from "@repospec/plugin";
 import {
   classifyExternalPackage,
   classifyVendorPackage,
+  isSecretEnvName,
   resolveFeatureOrLayerPath,
   resolveLayerSemantics,
 } from "@repospec/plugin";
@@ -346,7 +347,7 @@ export const pythonAstExtractor: ExtractorPlugin = {
             unit: unitName,
             file: rel,
             line: lineOf(text, em.index ?? 0),
-            isSecret: /SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL|DATABASE_URL/i.test(envName),
+            isSecret: isSecretEnvName(envName),
           });
         }
       }

@@ -249,7 +249,20 @@ export function extractBunServeEndpoints(
     });
   }
   for (const root of fetchRoots) {
+    const startIdx = out.length;
     collectRoutesFromBody(root, sf, unitName, relFile, out, seen);
+    const rootText = root.getText(sf);
+    const hasInlineBearerGuard =
+      /headers\.get\(\s*["']authorization["']\s*\)/i.test(rootText) &&
+      /(?:timingSafeEqual|equalToken|bearer|401|Unauthorized)/i.test(rootText);
+    if (hasInlineBearerGuard) {
+      for (let i = startIdx; i < out.length; i += 1) {
+        const ep = out[i];
+        if (ep && !ep.authGuard && !/^\/(?:health|healthz|ready|readyz|live|livez|metrics|ping)\b/i.test(ep.path)) {
+          ep.authGuard = "authorization";
+        }
+      }
+    }
   }
   return out;
 }

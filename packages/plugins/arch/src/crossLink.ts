@@ -54,7 +54,7 @@ export function buildCrossDomainLinks(
     if (e.kind !== "depends_on") continue;
     const fromU = unitById.get(e.from);
     const toU = unitById.get(e.to);
-    if (fromU?.kind === "test_package" && toU && (toU.kind === "app" || toU.kind === "package")) {
+    if (fromU?.kind === "test_package" && toU && (toU.kind === "app" || toU.kind === "package" || toU.kind === "analyzer")) {
       const list = testPkgToTargets.get(fromU.id) ?? [];
       list.push(toU);
       testPkgToTargets.set(fromU.id, list);
@@ -88,6 +88,7 @@ export function buildCrossDomainLinks(
       name,
       scriptPath: typeof n.meta.scriptPath === "string" ? n.meta.scriptPath : null,
       commandHint: typeof n.meta.commandHint === "string" ? n.meta.commandHint : "",
+      rung: typeof n.meta.rung === "string" ? n.meta.rung : undefined,
     };
   });
 
@@ -241,6 +242,7 @@ export function buildCrossDomainLinks(
       prCheckMap,
       allScripts,
       compositeActionTexts,
+      wfFile,
     );
     for (const gateName of invokedGates) {
       const gateNode = gateNodeByName.get(gateName);

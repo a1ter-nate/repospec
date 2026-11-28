@@ -14,7 +14,7 @@ import type {
   UnitDescriptor,
 } from "@repospec/plugin";
 import { createEmptyAst } from "@repospec/plugin";
-import { classifyVendorPackage } from "@repospec/plugin";
+import { classifyVendorPackage, isSecretEnvName } from "@repospec/plugin";
 import { detectCapabilities, isExcludedCodePath } from "@repospec/plugin";
 
 import { classifyCsharpLayer, emitCsharpGraph, lineOf, walkCsFilesInDir } from "./csharpHelpers.ts";
@@ -156,34 +156,43 @@ export const csharpAstExtractor: ExtractorPlugin = {
       }
 
       const identTokens = new Set<string>(text.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? []);
+      const seenTargets = new Set<string>();
+      const pushCsImport = (targetRel: string, ln: number): void => {
+        if (targetRel === rel || seenTargets.has(targetRel)) return;
+        seenTargets.add(targetRel);
+        const targetItem = parsedByRel.get(targetRel);
+        ast.fileImports.push({
+          fromFile: rel,
+          toFile: targetRel,
+          fromUnit: unitName,
+          toUnit: targetItem?.unitName ?? unitName,
+          fromLayer: rawLayer,
+          toLayer: targetItem?.rawLayer ?? "domain",
+          fromCanonicalLayer: canonicalLayer,
+          toCanonicalLayer: targetItem?.canonicalLayer ?? "domain",
+          fromDomain: null,
+          toDomain: null,
+          line: ln,
+          typeOnly: false,
+        });
+      };
 
       for (const m of text.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?([A-Za-z0-9_.]+)\s*;/gm)) {
         const targetNs = m[1];
         if (!targetNs) continue;
         const ln = lineOf(text, m.index ?? 0);
-        const targetEntries = nsToFiles.get(targetNs);
-        if (targetEntries && targetEntries.length > 0) {
-          const matched = targetEntries.filter((te) => {
-            if (te.rel === rel) return false;
-            return te.symbols.some((sym) => identTokens.has(sym));
-          });
-          const resolved = matched.length > 0 ? matched : targetEntries.filter((te) => te.rel !== rel);
+        const exactEntries = nsToFiles.get(targetNs);
+        const prefixEntries =
+          exactEntries && exactEntries.length > 0
+            ? exactEntries
+            : Array.from(nsToFiles.entries())
+                .filter(([nsKey]) => nsKey.startsWith(`${targetNs}.`))
+                .flatMap(([, entries]) => entries);
+        if (prefixEntries.length > 0) {
+          const matched = prefixEntries.filter((te) => te.rel !== rel && te.symbols.some((sym) => identTokens.has(sym)));
+          const resolved = matched.length > 0 ? matched : (exactEntries ?? []).filter((te) => te.rel !== rel);
           for (const te of resolved) {
-            const targetItem = parsedByRel.get(te.rel);
-            ast.fileImports.push({
-              fromFile: rel,
-              toFile: te.rel,
-              fromUnit: unitName,
-              toUnit: targetItem?.unitName ?? unitName,
-              fromLayer: rawLayer,
-              toLayer: targetItem?.rawLayer ?? "domain",
-              fromCanonicalLayer: canonicalLayer,
-              toCanonicalLayer: targetItem?.canonicalLayer ?? "domain",
-              fromDomain: null,
-              toDomain: null,
-              line: ln,
-              typeOnly: false,
-            });
+            pushCsImport(te.rel, ln);
           }
         } else {
           ast.pkgImports.push({
@@ -196,6 +205,21 @@ export const csharpAstExtractor: ExtractorPlugin = {
             line: ln,
             typeOnly: false,
           });
+        }
+      }
+
+      if (item.ns) {
+        const nsParts = item.ns.split(".");
+        for (let depth = nsParts.length; depth >= 1; depth -= 1) {
+          const scopeNs = nsParts.slice(0, depth).join(".");
+          const scopeEntries = nsToFiles.get(scopeNs);
+          if (!scopeEntries) continue;
+          for (const te of scopeEntries) {
+            if (te.rel === rel || seenTargets.has(te.rel)) continue;
+            if (te.symbols.some((sym) => sym.length >= 3 && identTokens.has(sym))) {
+              pushCsImport(te.rel, 1);
+            }
+          }
         }
       }
 
@@ -289,7 +313,7 @@ export const csharpAstExtractor: ExtractorPlugin = {
               unit: unitName,
               file: rel,
               line: lineOf(text, em.index ?? 0),
-              isSecret: /SECRET|TOKEN|KEY|PASSWORD|CONNECTIONSTRING/i.test(envName),
+              isSecret: isSecretEnvName(envName),
             });
           }
         }

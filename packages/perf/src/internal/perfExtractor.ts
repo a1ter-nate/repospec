@@ -6,7 +6,7 @@ import { analyzeSourcePerformance } from "./perfAstScanner.ts";
 import type { ComplexityProfile, PerfAnalysisBundle, PerfAntiPatternFinding } from "./types.ts";
 
 const SOURCE_EXT_RE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|rs|py|cs)$/;
-const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|bench|benchmarks|docs?|docs_src|vendor|dist|build|target|node_modules)\/|\.(?:test|spec|d|min|bundle)\.[a-z]+$|Tests?\.cs$/i;
+const IGNORED_PATH_RE = /(?:^|\/)(?:tests?|__tests__|fixtures?|examples?|bench|benchmarks|docs?|docs_src|vendor|dist|build|target|node_modules)\/|\.(?:test|spec|d|min|bundle)\.[a-z]+$|_tests?\.rs$|_test\.py$|(?:^|\/)test_[^/]+\.py$|Tests?\.cs$/i;
 const QUADRATIC_CLASSES = new Set(["O(n^2)", "O(n^2 log n)", "O(n^3)", "O(2^n)"]);
 
 function isMinifiedSource(sourceText: string): boolean {

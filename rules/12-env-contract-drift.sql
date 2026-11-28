@@ -13,7 +13,27 @@ reads AS (
   SELECT env_name, MIN(file) AS sample_file, MIN(line) AS sample_line, GROUP_CONCAT(DISTINCT unit) AS units
   FROM env_bindings
   WHERE source_kind = 'code_read'
-    AND env_name NOT IN ('NODE_ENV', 'CI', 'PORT', 'HOST', 'HOME', 'PATH', 'PWD', 'TERM', 'USER', 'DEBUG', 'TZ', 'RUST_LOG', 'RUST_BACKTRACE')
+    AND env_name NOT IN (
+      'NODE_ENV', 'CI', 'PORT', 'HOST', 'HOME', 'PATH', 'PWD', 'TERM', 'USER', 'DEBUG', 'TZ',
+      'RUST_LOG', 'RUST_BACKTRACE', 'OUT_DIR', 'TARGET', 'PROFILE', 'OPT_LEVEL', 'NUM_JOBS',
+      'RUSTC', 'RUSTDOC', 'MANIFEST_DIR', 'K_SERVICE', 'K_REVISION', 'K_CONFIGURATION',
+      'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'TMPDIR', 'TEMP', 'TMP',
+      'HOSTNAME', 'SHELL', 'LANG', 'LC_ALL', 'NO_COLOR', 'FORCE_COLOR', 'COLORTERM'
+    )
+    AND env_name NOT LIKE 'CARGO_%'
+    AND env_name NOT LIKE 'GITHUB_%'
+    AND env_name NOT LIKE 'RUNNER_%'
+    AND env_name NOT LIKE 'SYSTEM_%'
+    AND env_name NOT LIKE 'BUILD_%'
+    AND env_name NOT LIKE 'AGENT_%'
+    AND env_name NOT LIKE 'AZURE_%'
+    AND env_name NOT LIKE 'CLOUD_RUN_%'
+    AND env_name NOT LIKE 'WEBSITE_%'
+    AND env_name NOT LIKE 'FLY_%'
+    AND env_name NOT LIKE 'VERCEL_%'
+    AND env_name NOT LIKE 'RAILWAY_%'
+    AND env_name NOT LIKE 'NPM_%'
+    AND env_name NOT LIKE 'BUN_%'
   GROUP BY env_name
 )
 SELECT

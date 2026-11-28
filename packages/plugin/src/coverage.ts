@@ -138,6 +138,7 @@ function parseCoberturaXml(text: string, repoRoot: string, reportFile: string): 
 function findNestedCobertura(rootDir: string, depthMax = 4): string | null {
   const skip = new Set([".git", "node_modules", "dist", "target", ".next"]);
   const queue: Array<{ rel: string; depth: number }> = [{ rel: "", depth: 0 }];
+  const matches: Array<{ rel: string; mtimeMs: number }> = [];
   let head = 0;
   while (head < queue.length) {
     const cur = queue[head];
@@ -155,14 +156,22 @@ function findNestedCobertura(rootDir: string, depthMax = 4): string | null {
       if (entry.isSymbolicLink()) continue;
       const rel = cur.rel ? `${cur.rel}/${entry.name}` : entry.name;
       if (entry.isFile() && /^coverage\.cobertura\.xml$|^cobertura-coverage\.xml$/i.test(entry.name)) {
-        return rel;
+        let mtimeMs = 0;
+        try {
+          mtimeMs = fs.statSync(path.join(rootDir, rel)).mtimeMs;
+        } catch {
+          mtimeMs = 0;
+        }
+        matches.push({ rel, mtimeMs });
       }
       if (entry.isDirectory() && cur.depth < depthMax && !skip.has(entry.name)) {
         queue.push({ rel, depth: cur.depth + 1 });
       }
     }
   }
-  return null;
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => b.mtimeMs - a.mtimeMs || a.rel.localeCompare(b.rel));
+  return matches[0]?.rel ?? null;
 }
 
 export function discoverRealCoverageReport(repoRoot: string): RealCoverageReport | null {

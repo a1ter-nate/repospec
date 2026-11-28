@@ -26,10 +26,11 @@ const checkCmd = Command.make(
   "check",
   {
     repoDir: Argument.withDefault(Argument.String("repoDir"), "."),
-    spec: Flag.optional(Flag.String("spec")),
-    allowFail: Flag.withDefault(Flag.Boolean("allow-fail"), false),
-    plugin: Flag.optional(Flag.String("plugin")),
-    disablePlugin: Flag.optional(Flag.String("disable-plugin")),
+    spec: Flag.optional(Flag.String("spec")).pipe(Flag.withDescription("Path to committed repospec.json for SHA-256 drift comparison")),
+    allowFail: Flag.withDefault(Flag.Boolean("allow-fail"), false).pipe(Flag.withDescription("Exit 0 even when invariants or CI gates fail")),
+    json: Flag.withDefault(Flag.Boolean("json"), true).pipe(Flag.withDescription("Emit machine-readable JSON output (default: true)")),
+    plugin: Flag.optional(Flag.String("plugin")).pipe(Flag.withDescription("Comma-separated plugin specifiers or paths to load")),
+    disablePlugin: Flag.optional(Flag.String("disable-plugin")).pipe(Flag.withDescription("Comma-separated built-in plugin IDs or selectors to disable")),
   },
   (cfg) =>
     Effect.gen(function* () {

@@ -242,4 +242,44 @@ export function fibNaive(n: number): number { return n <= 1 ? n : fibNaive(n - 1
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  test("rejects Rust unqualified type calls, disjoint match tree walkers, ranges, sets, and async store finds", () => {
+    const rustCode = `
+pub fn parse(raw: &str) -> Result<String, ()> {
+  let a = ExternalId::parse(raw)?;
+  let b = OtherId::parse(raw)?;
+  Ok(format!("{a}:{b}"))
+}
+
+pub fn scrub_value(v: &mut Value) {
+  match v {
+    Value::Array(arr) => for x in arr { scrub_value(x); },
+    Value::Object(map) => for (_, x) in map { scrub_value(x); },
+    _ => {}
+  }
+}
+
+pub fn bind(q: Query) -> Query {
+  q.bind(1).bind(2)
+}
+
+pub async fn check_items(items: &[i32], seen: &HashSet<i32>, store: &Store, tx: &mut Tx) {
+  for x in items {
+    if (1..=100).contains(x) && seen.contains(x) {
+      let _ = store.find(x).await;
+      let _ = tx_run(&mut *tx).await;
+    }
+  }
+}
+`;
+    const profiles = analyzeComplexityProfile(rustCode, "crates/core/src/service.rs");
+    const byName = new Map(profiles.map((p) => [p.symbol, p]));
+    expect(byName.get("parse")?.timeComplexity).not.toBe("O(2^n)");
+    expect(byName.get("scrub_value")?.timeComplexity).toBe("O(n)");
+    expect(byName.get("bind")?.timeComplexity).not.toBe("O(2^n)");
+    const hits = analyzeSourcePerformance(rustCode, "crates/core/src/service.rs");
+    expect(hits.some((h) => h.patternId === "linear-lookup-in-loop")).toBe(false);
+    const txRunLine = rustCode.split("\n").findIndex((l) => l.includes("tx_run")) + 1;
+    expect(hits.some((h) => h.patternId === "serial-await-in-loop" && h.line === txRunLine)).toBe(false);
+  });
 });

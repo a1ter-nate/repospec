@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ExtractorPlugin, GraphFragment, RepoContext, Rung, SpecEdge, SpecNode, SpecRule } from "@repospec/plugin";
+import type { ExtractorPlugin, GraphFragment, RepoContext, Rung, SpecEdge, SpecNode, SpecRule, UnitDescriptor } from "@repospec/plugin";
+import { extractQualityGatesAndRungs, type RungPathOverride } from "./gateManifests.ts";
 
 interface TurboBoundariesJson {
   boundaries?: {
@@ -22,7 +23,21 @@ function readTextSafe(absPath: string): string | null {
   }
 }
 
-function classifyTestRung(relPath: string, text?: string): { tier: string; rung: Rung } {
+function classifyTestRung(
+  relPath: string,
+  text?: string,
+  rungOverrides: RungPathOverride[] = [],
+): { tier: string; rung: Rung } {
+  for (const ov of rungOverrides) {
+    if (
+      relPath === ov.pattern ||
+      relPath.startsWith(`${ov.pattern}/`) ||
+      relPath.toLowerCase().includes(`/${ov.pattern.toLowerCase()}/`) ||
+      relPath.toLowerCase().endsWith(`/${ov.pattern.toLowerCase()}`)
+    ) {
+      return { tier: ov.tier, rung: ov.rung };
+    }
+  }
   const lower = relPath.toLowerCase();
   if (
     lower.endsWith(".dfy") ||
@@ -69,7 +84,15 @@ function classifyTestRung(relPath: string, text?: string): { tier: string; rung:
   return { tier: "unit_pure", rung: "R2" };
 }
 
-function workspacePrefixOf(relFile: string): string {
+function workspacePrefixOf(relFile: string, units: UnitDescriptor[]): string {
+  let bestUnitDir = "";
+  for (const u of units) {
+    if (!u.dir || u.dir === ".") continue;
+    if (relFile === u.dir || relFile.startsWith(`${u.dir}/`)) {
+      if (u.dir.length > bestUnitDir.length) bestUnitDir = u.dir;
+    }
+  }
+  if (bestUnitDir) return bestUnitDir;
   const parts = relFile.split("/");
   if (parts.length >= 2 && ["apps", "packages", "tests", "crates"].includes(parts[0] ?? "")) {
     return `${parts[0]}/${parts[1]}`;
@@ -88,6 +111,9 @@ export const testingAndRulesExtractor: ExtractorPlugin = {
     const nodes: SpecNode[] = [];
     const edges: SpecEdge[] = [];
     const rules: SpecRule[] = [];
+    const gateManifest = extractQualityGatesAndRungs(ctx);
+    nodes.push(...gateManifest.nodes);
+    rules.push(...gateManifest.rules);
 
     const suiteBuckets = new Map<
       string,
@@ -95,8 +121,8 @@ export const testingAndRulesExtractor: ExtractorPlugin = {
     >();
 
     const addTestFile = (rel: string, text?: string): void => {
-      const workspaceDir = workspacePrefixOf(rel);
-      const { tier, rung } = classifyTestRung(rel, text);
+      const workspaceDir = workspacePrefixOf(rel, ctx.units);
+      const { tier, rung } = classifyTestRung(rel, text, gateManifest.rungOverrides);
       const key = `${workspaceDir}::${tier}`;
       const existing = suiteBuckets.get(key);
       if (existing) existing.files.push(rel);
@@ -216,62 +242,6 @@ export const testingAndRulesExtractor: ExtractorPlugin = {
           targets: ["turbo.json"],
           provenance: { file: "turbo.json" },
         });
-      }
-    }
-
-    const verifyGatesPath = path.join(ctx.rootDir, "tools/verify-gates.mjs");
-    const verifyGatesText = readTextSafe(verifyGatesPath);
-    if (verifyGatesText) {
-      const gatesMatch = verifyGatesText.match(/export\s+const\s+GATES\s*=\s*\[([\s\S]*?)\n\];/);
-      if (gatesMatch && gatesMatch[1]) {
-        const block = gatesMatch[1];
-        const entryRegex = /\{\s*name:\s*["']([^"']+)["'][\s\S]*?command:\s*([^\n}]+)/g;
-        let match: RegExpExecArray | null = entryRegex.exec(block);
-        while (match !== null) {
-          const gateName = match[1];
-          const cmdRaw = (match[2] ?? "").trim();
-          const scriptMatch = cmdRaw.match(/["']([^"']+\.(?:mjs|js|sh|py))["']/);
-          const scriptPath = scriptMatch?.[1] ?? null;
-          if (gateName) {
-            const gateId = `rule:gate:${gateName}`;
-            const rung: Rung =
-              gateName.includes("comment") || gateName.includes("explicit-any") || gateName.includes("suppression")
-                ? "R0"
-                : gateName.includes("floor") || gateName.includes("property") || gateName.includes("determinism")
-                  ? "R2"
-                  : gateName.includes("stryker")
-                    ? "R5"
-                    : "R1";
-
-            nodes.push({
-              id: gateId,
-              domain: "rules",
-              kind: "quality_gate",
-              label: gateName,
-              group: "quality_gate",
-              provenance: { file: "tools/verify-gates.mjs" },
-              tags: [rung, "gate"],
-              meta: {
-                gateName,
-                rung,
-                scriptPath,
-                commandHint: cmdRaw.slice(0, 120),
-              },
-            });
-
-            rules.push({
-              id: gateId,
-              name: gateName,
-              category: "quality_gate",
-              enforcement: "ci_gate",
-              rung,
-              statement: `Registered quality gate "${gateName}" enforced via tools/verify-gates.mjs`,
-              targets: [],
-              provenance: { file: "tools/verify-gates.mjs" },
-            });
-          }
-          match = entryRegex.exec(block);
-        }
       }
     }
 

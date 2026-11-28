@@ -52,11 +52,79 @@ function stringLiteralArray(expr: ts.Expression): string[] {
   return out;
 }
 
-function inferEntityName(relFile: string, callText: string): string {
+const GENERIC_DIR_ENTITIES = new Set([
+  "src",
+  "scripts",
+  "script",
+  "lib",
+  "internal",
+  "utils",
+  "util",
+  "helpers",
+  "common",
+  "shared",
+  "tools",
+  "cli",
+  "bin",
+  "app",
+  "web",
+  "api",
+  "store",
+  "stores",
+  "db",
+  "data",
+  "core",
+  "entity",
+]);
+
+const GENERIC_NON_ENTITY_FIELDS = new Set([
+  "flag",
+  "flags",
+  "option",
+  "options",
+  "opts",
+  "arg",
+  "args",
+  "config",
+  "params",
+  "query",
+  "body",
+  "path",
+  "url",
+  "name",
+  "value",
+  "type",
+  "kind",
+  "id",
+  "key",
+  "index",
+  "count",
+  "length",
+  "size",
+  "message",
+  "error",
+  "ok",
+  "result",
+  "data",
+]);
+
+function inferEntityName(relFile: string, callText: string): string | null {
   const m = callText.match(/(?:device|cartridge|property|company|user|order|shipment|session|capture|measurement)/i);
   if (m?.[0]) return `${m[0].toLowerCase()}s`;
-  const seg = relFile.split("/").slice(-2, -1)[0] ?? "entity";
-  return seg.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase() || "entity";
+  const seg = relFile.split("/").slice(-2, -1)[0] ?? "";
+  const cleaned = seg.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase();
+  if (!cleaned || GENERIC_DIR_ENTITIES.has(cleaned)) return null;
+  return cleaned;
+}
+
+function ownerModuleOf(relFile: string): string {
+  const norm = relFile.replace(/\\/g, "/");
+  const crateStore = norm.match(/^(crates\/[^/]+\/src\/[^/]+)\//);
+  if (crateStore?.[1]) return crateStore[1];
+  const pkgDir = norm.match(/^((?:packages|apps)\/[^/]+)\//);
+  if (pkgDir?.[1]) return pkgDir[1];
+  const parts = norm.split("/");
+  return parts.length >= 2 ? parts.slice(0, -1).join("/") : norm;
 }
 
 function enclosingFnName(node: ts.Node): string {
@@ -98,6 +166,7 @@ export function extractFieldEventsFromSource(
         (hasReceiver || EXPLICIT_BARE_MUTATION_RE.test(exprText));
       if (isDbMutation) {
         const entity = inferEntityName(relFile, exprText);
+        if (!entity) return;
         const fn = enclosingFnName(node);
         const isTx = /commit|transaction/i.test(exprText);
         for (const arg of node.arguments) {
@@ -112,7 +181,7 @@ export function extractFieldEventsFromSource(
           for (const prop of arg.properties) {
             if (!ts.isPropertyAssignment(prop)) continue;
             const field = propKeyText(prop.name);
-            if (!field || field.length > 48 || WRITE_OPTION_KEYS.has(field)) continue;
+            if (!field || field.length > 48 || WRITE_OPTION_KEYS.has(field) || GENERIC_NON_ENTITY_FIELDS.has(field)) continue;
             const valText = prop.initializer.getText(sf);
             const isDelete = /FieldValue\.delete\(\)|deleteField\(\)/.test(valText);
             events.push({
@@ -133,6 +202,7 @@ export function extractFieldEventsFromSource(
     if (ts.isFunctionDeclaration(node) && node.name && DERIVE_FN_RE.test(node.name.text)) {
       const fnName = node.name.text;
       const entity = inferEntityName(relFile, fnName);
+      if (!entity) return;
       const bodyText = node.body ? node.body.getText(sf) : "";
       const seen = new Set<string>();
       for (const m of bodyText.matchAll(/\b(?:device|doc|record|facts|status)\.([a-zA-Z0-9_.]{2,36})/g)) {
@@ -184,10 +254,12 @@ export function buildEntityLifecycles(
   const hazards: FlowHazard[] = [];
 
   for (const entry of byKey.values()) {
-    const distinctFiles = new Set(entry.writers.filter((w) => w.mode !== "delete").map((w) => w.file));
+    const activeWriters = entry.writers.filter((w) => w.mode !== "delete");
+    const distinctFiles = new Set(activeWriters.map((w) => w.file));
+    const distinctOwners = new Set(activeWriters.map((w) => ownerModuleOf(w.file)));
     const hasTxOnly = entry.writers.length > 0 && entry.writers.every((w) => w.mode === "tx" || w.mode === "delete");
     const derivedOnRead = entry.readers.some((r) => r.derived);
-    const multiWriterRisk = distinctFiles.size >= 3 && !hasTxOnly;
+    const multiWriterRisk = distinctFiles.size >= 3 && distinctOwners.size >= 2 && !hasTxOnly;
 
     if (entry.writers.length + entry.readers.length < 2) continue;
 

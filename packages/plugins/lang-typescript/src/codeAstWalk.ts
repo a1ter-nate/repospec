@@ -12,6 +12,7 @@ import type {
 import { classifyExternalPackage, classifyVendorPackage } from "@repospec/plugin";
 import { detectCapabilities } from "@repospec/plugin";
 import { CODE_AST_HELPERS } from "./codeAstHelpers.ts";
+import { collectTsEnvRead } from "./envReads.ts";
 import { extractBunServeEndpoints } from "./httpRoutes.ts";
 
 const {
@@ -233,25 +234,7 @@ export function analyzeTsFiles(params: {
           }
         }
 
-        if (
-          ts.isPropertyAccessExpression(node) &&
-          ts.isPropertyAccessExpression(node.expression) &&
-          node.expression.expression.getText(sf) === "process" &&
-          node.expression.name.text === "env" &&
-          !fm.isTest
-        ) {
-          const envName = node.name.text;
-          if (/^[A-Z][A-Z0-9_]{2,}$/.test(envName)) {
-            ast.envBindings.push({
-              envName,
-              sourceKind: "code_read",
-              unit: fm.unitName,
-              file: rel,
-              line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-              isSecret: /SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL/i.test(envName),
-            });
-          }
-        }
+        collectTsEnvRead({ node, sf, rel, unitName: fm.unitName, isTest: fm.isTest, ast });
 
         if (ts.isCallExpression(node)) {
           const calleeText = node.expression.getText(sf);

@@ -7,8 +7,7 @@ import type {
   GraphFragment,
   RepoContext,
 } from "@repospec/plugin";
-import { createEmptyAst } from "@repospec/plugin";
-import { resolveUnitForFile } from "@repospec/plugin";
+import { createEmptyAst, isSecretEnvName, resolveUnitForFile } from "@repospec/plugin";
 
 function readTextSafe(absPath: string): string | null {
   try {
@@ -124,7 +123,7 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
               unit: unitName,
               file: rel,
               line: i + 1,
-              isSecret: /SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL|DATABASE_URL/i.test(m[1]),
+              isSecret: isSecretEnvName(m[1]),
             });
           }
         }
@@ -137,7 +136,7 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
           const body = m[1] ?? "";
           const nameMatch = body.match(/\bname\s*=\s*"([A-Z][A-Z0-9_]{2,})"/);
           if (nameMatch?.[1]) {
-            const isSecret = /secret_key_ref|value_source/i.test(body) || /SECRET|TOKEN|KEY|PASSWORD/i.test(nameMatch[1]);
+            const isSecret = /secret_key_ref|value_source/i.test(body) || isSecretEnvName(nameMatch[1]);
             ast.envBindings.push({
               envName: nameMatch[1],
               sourceKind: isSecret ? "iac_secret" : "iac_env",
@@ -163,7 +162,7 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
                   unit: ctx.repoName,
                   file: rel,
                   line: 1,
-                  isSecret: /SECRET|TOKEN|KEY|PASSWORD/i.test(envName),
+                  isSecret: isSecretEnvName(envName),
                 });
               }
             }
@@ -176,7 +175,7 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
                     unit: ctx.repoName,
                     file: rel,
                     line: 1,
-                    isSecret: /SECRET|TOKEN|KEY|PASSWORD/i.test(envName),
+                    isSecret: isSecretEnvName(envName),
                   });
                 }
               }
@@ -309,10 +308,14 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
           ) {
             continue;
           }
+          const docRelative = path.resolve(path.dirname(doc.absPath), refPath);
+          const suffixNeedle = `/${refPath}`;
           const existsInRepo =
             fileSet.has(refPath) ||
             fs.existsSync(path.join(ctx.rootDir, refPath)) ||
-            fs.existsSync(path.join(ctx.scopeRoot, refPath));
+            fs.existsSync(path.join(ctx.scopeRoot, refPath)) ||
+            fs.existsSync(docRelative) ||
+            ctx.allFiles.some((f) => f.endsWith(suffixNeedle));
           ast.docPathRefs.push({
             docFile: doc.relLabel,
             line: i + 1,
@@ -358,6 +361,7 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
       const coRel = path.relative(ctx.rootDir, codeownersAbs).replace(/\\/g, "/");
       if (coText) {
         const lines = coText.split("\n");
+        const effectiveByPattern = new Map<string, { pattern: string; scopePrefix: string; owners: string[]; line: number }>();
         for (let i = 0; i < lines.length; i += 1) {
           const line = (lines[i] ?? "").trim();
           if (!line || line.startsWith("#")) continue;
@@ -366,15 +370,29 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
           const owners = parts.slice(1);
           if (!pattern || owners.length === 0) continue;
           const scopePrefix = pattern.replace(/^\/+/, "").replace(/\/\*+$/, "").replace(/\*+$/, "");
+          if (
+            scopePrefix &&
+            !pattern.includes("*") &&
+            !fs.existsSync(path.join(ctx.rootDir, scopePrefix)) &&
+            !fs.existsSync(path.join(ctx.scopeRoot, scopePrefix))
+          ) {
+            continue;
+          }
+          effectiveByPattern.set(scopePrefix || pattern, { pattern, scopePrefix, owners, line: i + 1 });
+        }
+        const usesAdoOnly =
+          ctx.allFiles.some((f) => /azure-pipelines\.ya?ml$/i.test(f)) &&
+          !ctx.allFiles.some((f) => f.startsWith(".github/workflows/"));
+        for (const entry of effectiveByPattern.values()) {
           ast.govRules.push({
-            id: `gov:owner:${i + 1}`,
+            id: `gov:owner:${entry.line}`,
             kind: "owner",
-            scopePrefix,
-            symbol: owners.join(" "),
-            text: `${pattern} owned by ${owners.join(", ")}`,
-            rationale: null,
+            scopePrefix: entry.scopePrefix,
+            symbol: entry.owners.join(" "),
+            text: `${entry.pattern} owned by ${entry.owners.join(", ")}`,
+            rationale: usesAdoOnly ? "Advisory: Azure DevOps does not natively enforce GitHub CODEOWNERS." : null,
             file: coRel,
-            line: i + 1,
+            line: entry.line,
           });
         }
       }

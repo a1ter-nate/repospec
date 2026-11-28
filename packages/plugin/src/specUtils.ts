@@ -55,3 +55,15 @@ export function diffFactSets(
   }
   return { kind, added, removed, unchangedCount };
 }
+
+const NON_SECRET_ENV_SUFFIX_RE =
+  /(?:_PORT|_SERVICE|_URL|_URI|_HOST|_HOSTNAME|_ADDR|_ADDRESS|_DIR|_PATH|_FILE|_ENABLED|_DISABLE|_DISABLED|_TIMEOUT|_TIMEOUT_MS|_TTL|_MODE|_ENV|_REGION|_PROJECT|_BUCKET|_NAMESPACE|_PREFIX|_VERSION|_COUNT|_MAX|_MIN|_LIMIT|_INTERVAL)$/i;
+const SECRET_ENV_TOKEN_RE =
+  /(?:SECRET|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|SIGNING_?KEY|ENCRYPTION_?KEY|PASSWORD|PASSWD|CREDENTIAL|CONNECTION_?STRING|DATABASE_URL|AUTH_?KEY|CLIENT_SECRET|MASTER_KEY|JWT_KEY|HMAC_KEY)$/i;
+
+export function isSecretEnvName(envName: string): boolean {
+  const name = envName.trim();
+  if (/^(?:DATABASE_URL|CONNECTION_?STRING|PGPASSWORD|REDIS_URL|MONGO_?URI)$/i.test(name)) return true;
+  if (NON_SECRET_ENV_SUFFIX_RE.test(name)) return false;
+  return SECRET_ENV_TOKEN_RE.test(name);
+}

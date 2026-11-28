@@ -56,26 +56,70 @@ function expandShellScriptsOneHop(rootDir: string, text: string): string {
 
 function expandPackageScriptsOneHop(rootDir: string, text: string, allScripts: Map<string, string>): string {
   let out = text;
-  for (const [name, cmd] of allScripts) {
-    if (name.includes("::")) continue;
-    if (
-      out.includes(`run ${name}`) ||
-      out.includes(`pnpm ${name}`) ||
-      out.includes(`turbo run ${name}`)
-    ) {
-      out += `\n${cmd}`;
+  const expandedNames = new Set<string>();
+  for (let pass = 0; pass < 2; pass += 1) {
+    let added = false;
+    for (const [name, cmd] of allScripts) {
+      if (name.includes("::") || expandedNames.has(name)) continue;
+      if (
+        out.includes(`run ${name}`) ||
+        out.includes(`bun ${name}`) ||
+        out.includes(`pnpm ${name}`) ||
+        out.includes(`yarn ${name}`) ||
+        out.includes(`turbo run ${name}`)
+      ) {
+        out += `\n${cmd}`;
+        expandedNames.add(name);
+        added = true;
+      }
     }
+    if (!added) break;
   }
   return expandShellScriptsOneHop(rootDir, out);
 }
 
+function expandAzureTemplates(rootDir: string, wfFile: string, text: string): string {
+  let out = text;
+  const seen = new Set<string>();
+  let frontier: Array<{ relDir: string; content: string }> = [
+    { relDir: path.posix.dirname(wfFile), content: text },
+  ];
+  for (let depth = 0; depth < 2 && frontier.length > 0; depth += 1) {
+    const nextFrontier: Array<{ relDir: string; content: string }> = [];
+    for (const item of frontier) {
+      for (const m of item.content.matchAll(/\btemplate:\s*["']?([^\s"'@#]+\.ya?ml)["']?/gi)) {
+        const rawRef = (m[1] ?? "").replace(/^\.\//, "");
+        if (!rawRef) continue;
+        const candidates = [
+          path.posix.normalize(item.relDir === "." ? rawRef : `${item.relDir}/${rawRef}`),
+          path.posix.normalize(rawRef),
+        ];
+        for (const cand of candidates) {
+          if (cand.startsWith("..") || seen.has(cand)) continue;
+          const body = readTextSafe(path.join(rootDir, cand));
+          if (body) {
+            seen.add(cand);
+            out += `\n${body}`;
+            nextFrontier.push({ relDir: path.posix.dirname(cand), content: body });
+            break;
+          }
+        }
+      }
+    }
+    frontier = nextFrontier;
+  }
+  return out;
+}
+
 function buildPrChecksExpansionMap(
   rootDir: string,
-  allGateInfos: Array<{ name: string; scriptPath: string | null; commandHint: string }>,
+  allGateInfos: Array<{ name: string; scriptPath: string | null; commandHint: string; rung?: string }>,
   allScripts: Map<string, string>,
 ): Map<string, string[]> {
   const map = new Map<string, string[]>();
-  const vgText = readTextSafe(path.join(rootDir, "tools/verify-gates.mjs"));
+  const vgText =
+    readTextSafe(path.join(rootDir, "tools/verify-gates.ts")) ||
+    readTextSafe(path.join(rootDir, "tools/verify-gates.mjs"));
   if (!vgText) return map;
   const prIdx = vgText.indexOf("export const PR_CHECKS");
   if (prIdx < 0) return map;
@@ -110,14 +154,15 @@ function buildPrChecksExpansionMap(
 function resolveInvokedGatesInWorkflow(
   rootDir: string,
   wfContent: string,
-  allGateInfos: Array<{ name: string; scriptPath: string | null; commandHint: string }>,
+  allGateInfos: Array<{ name: string; scriptPath: string | null; commandHint: string; rung?: string }>,
   prCheckMap: Map<string, string[]>,
   allScripts: Map<string, string>,
   compositeActionTexts: Map<string, string>,
+  wfFile = "",
 ): string[] {
-  let expanded = wfContent;
+  let expanded = wfFile ? expandAzureTemplates(rootDir, wfFile, wfContent) : wfContent;
   for (const [actionRel, actionText] of compositeActionTexts) {
-    if (wfContent.includes(actionRel)) {
+    if (expanded.includes(actionRel)) {
       expanded += `\n${actionText}`;
     }
   }
@@ -143,23 +188,54 @@ function resolveInvokedGatesInWorkflow(
       const skipped = new Set(
         skipMatch?.[1] ? skipMatch[1].split(",").map((s) => s.trim()).filter(Boolean) : [],
       );
-      if (/verify-gates\.mjs(?:\s|$|"|')/.test(line) || line.includes("verify:gates")) {
+      if (/verify-gates\.(?:mjs|ts)(?:\s|$|"|')/.test(line) || line.includes("verify:gates")) {
         for (const g of allNames) {
           if (!skipped.has(g)) matched.add(g);
+        }
+      }
+    }
+
+    const runRungMatch = line.match(/\brun-rung\s+([a-zA-Z0-9_,-]+)/i);
+    if (runRungMatch?.[1]) {
+      const arg = runRungMatch[1].trim().toLowerCase();
+      if (arg === "all") {
+        for (const g of allGateInfos) {
+          if (g.name.startsWith("rung-") || g.rung) matched.add(g.name);
+        }
+      } else {
+        const requested = new Set(arg.split(",").map((s) => s.trim().toUpperCase()));
+        for (const g of allGateInfos) {
+          if (g.rung && requested.has(g.rung.toUpperCase())) matched.add(g.name);
         }
       }
     }
   }
 
   for (const g of allGateInfos) {
+    if (
+      expanded.includes(`run ${g.name}`) ||
+      expanded.includes(`bun ${g.name}`) ||
+      expanded.includes(`pnpm ${g.name}`) ||
+      expanded.includes(`yarn ${g.name}`)
+    ) {
+      matched.add(g.name);
+      continue;
+    }
     if (g.scriptPath && expanded.includes(g.scriptPath)) {
       matched.add(g.name);
       continue;
     }
     const hintToken = g.commandHint.trim();
-    if (hintToken && hintToken.length >= 4 && expanded.includes(hintToken)) {
-      matched.add(g.name);
-      continue;
+    if (hintToken && hintToken.length >= 4) {
+      if (expanded.includes(hintToken)) {
+        matched.add(g.name);
+        continue;
+      }
+      const parts = hintToken.split("&&").map((p) => p.trim()).filter((p) => p.length >= 6);
+      if (parts.length >= 2 && parts.every((p) => expanded.includes(p))) {
+        matched.add(g.name);
+        continue;
+      }
     }
     if (g.name === "clones" && (expanded.includes("clone:check") || expanded.includes("jscpd"))) {
       matched.add(g.name);
