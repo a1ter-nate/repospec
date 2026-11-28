@@ -5,8 +5,8 @@ import { renderSurfacesCss } from "../render/surfacesClient.ts";
 export function renderStudioCss(inline: boolean): string {
   const outerCss = inline
     ? `
-    html, body { margin: 0; padding: 0; background: transparent; color: var(--text-2); font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, sans-serif); font-size: 16px; line-height: 1.55; }
-    .app { width: 100%; max-width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--text-2); font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, sans-serif); font-size: 16px; line-height: 1.55; }
+    .app { width: 100%; max-width: 100%; display: flex; flex-direction: column; gap: 8px; background: var(--bg-0); }
     .workspace { display: flex; flex-direction: column; gap: 8px; }
     .canvas-shell { height: 540px; border-radius: var(--r-3); border: 1px solid var(--line-2); }
     .drawer { max-height: 480px; border-radius: var(--r-3); border: 1px solid var(--line-2); }`
@@ -85,7 +85,7 @@ export function renderStudioCss(inline: boolean): string {
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
   ${outerCss}
 
-  .studio-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: ${inline ? "4px 2px 6px" : "0 14px"}; height: ${inline ? "auto" : "var(--h-bar)"}; min-height: ${inline ? "auto" : "var(--h-bar)"}; flex-wrap: ${inline ? "wrap" : "nowrap"}; background: ${inline ? "transparent" : "var(--bg-1)"}; border-bottom: 1px solid var(--line-1); flex-shrink: 0; z-index: 30; }
+  .studio-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: ${inline ? "6px 14px" : "0 14px"}; height: ${inline ? "auto" : "var(--h-bar)"}; min-height: var(--h-bar); flex-wrap: ${inline ? "wrap" : "nowrap"}; background: var(--bg-1); border-bottom: 1px solid var(--line-1); flex-shrink: 0; z-index: 30; }
   .bar-left { display: flex; align-items: center; gap: 14px; min-width: 0; height: 100%; }
   .brand { display: flex; align-items: center; gap: 9px; font-size: var(--fs-13); font-weight: 600; color: var(--text-1); letter-spacing: -0.01em; white-space: nowrap; }
   .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }

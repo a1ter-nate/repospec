@@ -107,7 +107,6 @@ const diffViewCmd = Command.make(
     repoDir: Argument.String("repoDir"),
     range: Argument.optional(Argument.String("range")),
     out: Flag.optional(Flag.String("out")),
-    inline: Flag.withDefault(Flag.Boolean("inline"), false),
   },
   (cfg) =>
     Effect.tryPromise({
@@ -118,7 +117,6 @@ const diffViewCmd = Command.make(
           outDir:
             Option.getOrUndefined(cfg.out) ??
             path.join(process.cwd(), "out", `${path.basename(path.resolve(cfg.repoDir))}-diff`),
-          writeInline: cfg.inline,
           generateFn: (dir, dbPath) => runGenerateRepoSpec(dir, "artifact", dbPath),
           renderHtmlFn: renderVisualHtml,
         }),
@@ -176,7 +174,6 @@ const timelineCmd = Command.make(
     repoDir: Argument.String("repoDir"),
     commits: Flag.withDefault(Flag.Int("commits"), 8),
     out: Flag.optional(Flag.String("out")),
-    inline: Flag.withDefault(Flag.Boolean("inline"), false),
   },
   (cfg) =>
     Effect.tryPromise({
@@ -187,7 +184,6 @@ const timelineCmd = Command.make(
           outDir:
             Option.getOrUndefined(cfg.out) ??
             path.join(process.cwd(), "out", `${path.basename(path.resolve(cfg.repoDir))}-timeline`),
-          writeInline: cfg.inline,
           generateFn: (dir, dbPath) => runGenerateRepoSpec(dir, "artifact", dbPath),
           renderHtmlFn: renderVisualHtml,
         }),
@@ -202,7 +198,6 @@ const aggregateCmd = Command.make(
     out: Flag.optional(Flag.String("out")),
     name: Flag.optional(Flag.String("name")),
     links: Flag.optional(Flag.String("links")),
-    inline: Flag.withDefault(Flag.Boolean("inline"), false),
   },
   (cfg) =>
     Effect.gen(function* () {
@@ -216,7 +211,6 @@ const aggregateCmd = Command.make(
             outDir: Option.getOrUndefined(cfg.out) ?? path.join(process.cwd(), "out", "distributed-system"),
             name: Option.getOrUndefined(cfg.name),
             linksPath: Option.getOrUndefined(cfg.links),
-            writeInline: cfg.inline,
             renderHtmlFn: renderVisualHtml,
           }),
         catch: (err) => new CliUsageError({ message: err instanceof Error ? err.message : String(err) }),
@@ -251,7 +245,6 @@ const generateCmd = Command.make(
     out: Flag.optional(Flag.String("out")),
     mode: Flag.withDefault(Flag.String("mode"), "artifact"),
     inPlace: Flag.withDefault(Flag.Boolean("in-place"), false),
-    inline: Flag.withDefault(Flag.Boolean("inline"), false),
     diff: Flag.optional(Flag.String("diff")),
     timeline: Flag.optional(Flag.Int("timeline")),
     plugin: Flag.optional(Flag.String("plugin")),
@@ -280,7 +273,6 @@ const generateCmd = Command.make(
       let commitDiff: CommitArchDiff | undefined;
       let timeline: ArchTimelineData | undefined;
       let htmlOutput = "";
-      let inlineHtmlOutput: string | undefined;
       let genSpec;
       let genDigest = "";
       let genIds = "";
@@ -293,8 +285,7 @@ const generateCmd = Command.make(
             try {
               const scanRes = await host.scan(cfg.repoDir, { dbPath: sqliteOut, storageMode });
               const rendered = host.renderStudio({ ...scanRes, inline: false });
-              const renderedInline = cfg.inline ? host.renderStudio({ ...scanRes, inline: true }) : undefined;
-              return { scanRes, rendered, renderedInline };
+              return { scanRes, rendered };
             } finally {
               await host.dispose();
             }
@@ -306,7 +297,6 @@ const generateCmd = Command.make(
         genIds = res.scanRes.idsModule;
         genSdk = res.scanRes.sdkModule;
         htmlOutput = res.rendered;
-        inlineHtmlOutput = res.renderedInline;
       } else {
         let genRes;
         if (diffRange) {
@@ -351,15 +341,6 @@ const generateCmd = Command.make(
           timeline,
           ui: reportUi,
         });
-        if (cfg.inline) {
-          inlineHtmlOutput = renderVisualHtml(genSpec, genDigest, {
-            inline: true,
-            drilldown: genRes.drilldown,
-            commitDiff,
-            timeline,
-            ui: reportUi,
-          });
-        }
       }
 
       const specOut = path.join(outDir, "repospec.json");
@@ -378,12 +359,6 @@ const generateCmd = Command.make(
         ],
         { concurrency: 4 },
       );
-
-      let inlineOut: string | undefined;
-      if (inlineHtmlOutput) {
-        inlineOut = path.join(outDir, "repospec.inline.html");
-        yield* repoFs.writeText(inlineOut, inlineHtmlOutput);
-      }
 
       yield* printJson({
         repo: genSpec.repo.name,
@@ -404,7 +379,6 @@ const generateCmd = Command.make(
           ids: path.resolve(idsOut),
           sdk: path.resolve(sdkOut),
           html: path.resolve(htmlOut),
-          inlineHtml: inlineOut ? path.resolve(inlineOut) : undefined,
         },
       });
     }),

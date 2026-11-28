@@ -57,7 +57,7 @@ RepoSpec replaces stale architectural prose with one compiled, queryable **Index
 | **Canonical IR & Schema** | `repospec.json`, `repospec.schema.json` | Strict Zod + JSON Schema contract with SHA-256 drift checks and structural PR diffs (`repospec diff`) |
 | **Relational Graph DB** | `repospec.sqlite` | SQLite index of files, imports, exported symbols, IO capabilities, levelized `module_cards`, canonical layer **Axis**/**Rank**, domains, datastores, Postgres FKs, reconciled HTTP **Contracts**, env bindings, state machines, loops, and doc-path drift |
 | **13 Polyglot SQL Invariants** | `rules/*.sql` | Executable architectural gates (layer inversions, datastore bypasses, vendor leaks, domain cycles, workspace cycles, untested high-fan-in modules, env drift, doc drift) projected directly onto graph nodes & edges |
-| **Interactive Visual Studio** | `repospec.html` (`--inline` embed) | Adaptive **Levelized Module Atlas** (Tarjan SCC tangle detection + Kahn `L0 Entry → Ln Foundation` lanes + subsystem drill-down + 3-sentence Architecture Story), **Module Anatomy Inspector** (Public API symbols, IO capability pills, Ousterhout depth), fixed-rank layer swimlanes, 1-hop hover ego-graphs, **Design Structure Matrix (DSM)** (`M`), and Bow-Tie Focus (`F`) |
+| **Interactive Visual Studio** | `repospec.html` | Adaptive **Levelized Module Atlas** (Tarjan SCC tangle detection + Kahn `L0 Entry → Ln Foundation` lanes + subsystem drill-down + 3-sentence Architecture Story), **Module Anatomy Inspector** (Public API symbols, IO capability pills, Ousterhout depth), fixed-rank layer swimlanes, 1-hop hover ego-graphs, **Design Structure Matrix (DSM)** (`M`), and Bow-Tie Focus (`F`) |
 | **Slim Typed SDK** | `repospec.ids.ts`, `repospec.sdk.ts` | Closed union node IDs + typed query helpers backed directly by `bun:sqlite` |
 | **Active Shepherding CLI** | `explain`, `impact`, `precedents` | Grounded file/unit **Passports**, git-range PR blast-radius briefs, and verified **Precedent** placement checks (refuses with `destination: null` when ungrounded) |
 
@@ -69,9 +69,9 @@ Requires [Bun](https://bun.sh) `>= 1.2.0`.
 
 ```bash
 # Run directly from npm via bunx (or install globally with: bun add -g repospec)
-bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --inline --timeline 8
+bunx repospec generate /path/to/repo --out ./out/my-repo --mode artifact --timeline 8
 bunx repospec serve ./out/my-repo --port 4173 --watch /path/to/repo
-bunx repospec diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff --inline
+bunx repospec diff-view /path/to/repo HEAD~1..HEAD --out ./out/my-repo-diff
 bunx repospec timeline /path/to/repo --commits 12 --out ./out/my-repo-timeline
 bunx repospec aggregate ./out/web-app ./out/orders-svc ./out/billing-svc --name "platform-mesh" --out ./out/distributed-system
 

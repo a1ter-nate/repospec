@@ -39,4 +39,4 @@ Keep `persistence` and `integration` at peer rank `3` so every clean hexagonal f
 - **Edge tiers (`tier`):** violations are always `"violation"`; dense graphs (`> 20` edges) and foundation links split into `"spine"` (drawn at rest) vs `"detail"` (revealed on 1-hop node hover, click, or `All wires` toggle).
 - **Zero box-crossings:** primary lanes stay single-column; multi-lane skips and backward arcs route through rounded orthogonal top/bottom corridors.
 - **Matrix (DSM):** press `M` or click `Matrix (DSM)` on dense `layers:*` or `domain_coupling` views to inspect every $N \times N$ import weight and red violation/cycle cell with zero overlapping arrows.
-- **Inline T3 embeds (`--inline`):** omit `vh` units and `height: 100%` on `html`/`body`, keep transparent outer background, and stay under the 750 KB payload budget.
+- **Standalone HTML (`repospec.html`):** always renders with a standard opaque background (`var(--bg-0)` / `var(--bg-1)`) so direct browser viewing never produces a transparent canvas.

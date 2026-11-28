@@ -98,7 +98,6 @@ export async function runDiffViewCommand(params: {
   repoDir: string;
   rangeArg?: string;
   outDir: string;
-  writeInline: boolean;
   generateFn: (dir: string, sqlitePath: string) => Promise<GeneratedBundle>;
   renderHtmlFn: RenderVisualHtmlFn;
 }): Promise<void> {
@@ -118,15 +117,6 @@ export async function runDiffViewCommand(params: {
     params.renderHtmlFn(head.spec, head.digest, { inline: false, drilldown: head.drilldown, commitDiff }),
     "utf8",
   );
-  let inlineOut: string | null = null;
-  if (params.writeInline) {
-    inlineOut = path.join(params.outDir, "repospec.inline.html");
-    fs.writeFileSync(
-      inlineOut,
-      params.renderHtmlFn(head.spec, head.digest, { inline: true, drilldown: head.drilldown, commitDiff }),
-      "utf8",
-    );
-  }
   console.log(
     JSON.stringify(
       {
@@ -140,7 +130,6 @@ export async function runDiffViewCommand(params: {
         artifacts: {
           html: path.resolve(htmlOut),
           diffJson: path.resolve(diffJsonOut),
-          inlineHtml: inlineOut ? path.resolve(inlineOut) : undefined,
         },
       },
       null,
@@ -153,7 +142,6 @@ export async function runTimelineCommand(params: {
   repoDir: string;
   commits: number;
   outDir: string;
-  writeInline: boolean;
   generateFn: (dir: string, sqlitePath: string) => Promise<GeneratedBundle>;
   renderHtmlFn: RenderVisualHtmlFn;
 }): Promise<ArchTimelineData> {
@@ -173,13 +161,6 @@ export async function runTimelineCommand(params: {
     params.renderHtmlFn(head.spec, head.digest, { inline: false, drilldown: head.drilldown, timeline }),
     "utf8",
   );
-  if (params.writeInline) {
-    fs.writeFileSync(
-      path.join(params.outDir, "repospec.inline.html"),
-      params.renderHtmlFn(head.spec, head.digest, { inline: true, drilldown: head.drilldown, timeline }),
-      "utf8",
-    );
-  }
   console.log(
     JSON.stringify(
       {
@@ -205,7 +186,6 @@ export function runAggregateCommand(params: {
   outDir: string;
   name?: string;
   linksPath?: string;
-  writeInline: boolean;
   renderHtmlFn: RenderVisualHtmlFn;
 }): void {
   const inputs = loadFederationInputs(params.inputPaths);
@@ -231,15 +211,6 @@ export function runAggregateCommand(params: {
     diffOut = path.join(params.outDir, "repospec.diff.json");
     fs.writeFileSync(diffOut, `${JSON.stringify(agg.commitDiff, null, 2)}\n`, "utf8");
   }
-  let inlineOut: string | null = null;
-  if (params.writeInline) {
-    inlineOut = path.join(params.outDir, "repospec.inline.html");
-    fs.writeFileSync(
-      inlineOut,
-      params.renderHtmlFn(agg.spec, agg.digest, { inline: true, commitDiff: agg.commitDiff }),
-      "utf8",
-    );
-  }
   console.log(
     JSON.stringify(
       {
@@ -252,7 +223,6 @@ export function runAggregateCommand(params: {
           schema: path.resolve(schemaOut),
           html: path.resolve(htmlOut),
           diffJson: diffOut ? path.resolve(diffOut) : undefined,
-          inlineHtml: inlineOut ? path.resolve(inlineOut) : undefined,
         },
       },
       null,

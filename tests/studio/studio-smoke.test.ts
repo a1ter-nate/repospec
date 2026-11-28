@@ -194,6 +194,9 @@ describe("Studio HTML runtime smoke suite", () => {
     assertValidStudioHtml(standaloneHtml);
     assertValidStudioHtml(inlineHtml);
     expect(inlineHtml).not.toContain("100vh");
+    expect(inlineHtml).not.toContain("html, body { margin: 0; padding: 0; background: transparent;");
+    expect(inlineHtml).toContain("html, body { margin: 0; padding: 0; background: var(--bg-0);");
+    expect(standaloneHtml).toContain("html, body { margin: 0; padding: 0; background: var(--bg-0);");
     expect(standaloneHtml).toContain("buildShowMeVisualPrMarkdown");
     expect(standaloneHtml).toContain("Generated deterministically by RepoSpec");
     expect(standaloneHtml).toContain("2 entities");
