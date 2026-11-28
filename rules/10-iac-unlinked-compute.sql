@@ -1,10 +1,12 @@
 -- @id: sql:iac-unlinked-compute
--- @name: IaC Compute Services Must Link to an App or Deployment Workflow
+-- @name: Cloud Compute Service Not Linked to Any App or Deploy Pipeline
 -- @rung: R4
 -- @severity: info
--- @statement: Declared IaC compute resources should link to a deployed app unit or CI release workflow.
--- @why: Orphan IaC compute resources indicate stale infrastructure or unmapped deployment paths.
--- @fix: Link the compute resource to its owning unit/workflow or decommission unused IaC.
+-- @statement: A Terraform/OpenTofu compute service (like a Cloud Run service, Lambda, or Container App) has no matching app unit or deployment workflow in this repository.
+-- @why: Unlinked cloud services are often forgotten leftovers still burning cloud spend, or production workloads whose deployment path is undocumented and risky to touch.
+-- @fix: Connect the Terraform resource to its owning app and CI deploy workflow, or decommission it if the service is no longer used.
+-- @benefit: Keeps your cloud footprint accurate, reduces wasted infrastructure spend, and makes every service's deploy path transparent.
+-- @source: Morris (2020) — Infrastructure as Code (Traceable Service Ownership) | https://www.oreilly.com/library/view/infrastructure-as-code/9781098114664/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM nodes WHERE kind = 'iac_resource' AND grp = 'compute') = 0 THEN 'No cloud compute IaC resources indexed' ELSE NULL END
 SELECT
   n.id AS subject,

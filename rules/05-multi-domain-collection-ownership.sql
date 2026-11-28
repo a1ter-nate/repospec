@@ -1,10 +1,13 @@
 -- @id: sql:multi-domain-entity-ownership
--- @name: Undeclared Multi-Domain Datastore Entity Sharing
+-- @name: Database Table Accessed Directly by 3+ Different Domains
 -- @rung: R1
 -- @severity: warn
--- @statement: A datastore entity not declared as an authorized shared contract should not be accessed directly across 3+ domains.
--- @why: Shared datastore writes without an explicit ownership contract cause silent schema and lifecycle drift.
--- @fix: Consolidate writes into one owning domain or explicitly declare the entity in shared entity contracts.
+-- @statement: Three or more business domains directly query or modify the same database table/collection without an explicitly declared shared ownership contract.
+-- @why: When multiple teams directly read and write the same raw table, changing a column or status field becomes dangerous because no one knows every consumer's assumptions.
+-- @fix: Give one domain ownership of all writes to this table (exposing a narrow service API to others), or explicitly declare it as an authorized shared contract.
+-- @benefit: Makes schema evolution safe and prevents silent data corruption across teams.
+-- @source: Evans (2003) — Domain-Driven Design (Bounded Context Data Ownership) | https://www.domainlanguage.com/ddd/
+-- @source: Newman (2021) — Building Microservices (Avoid Shared Databases) | https://samnewman.io/books/building_microservices_2nd_edition/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM entity_access) = 0 THEN 'No datastore entity accesses indexed' WHEN (SELECT COUNT(DISTINCT domain_area) FROM v_prod_files WHERE domain_area IS NOT NULL) < 3 THEN 'Fewer than 3 business domains indexed' ELSE NULL END
 WITH stats AS (
   SELECT

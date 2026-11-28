@@ -1,10 +1,13 @@
 -- @id: sql:vendor-leak-outside-client
--- @name: Third-Party Runtime SDKs Isolated in Integration Layer
+-- @name: Third-Party Vendor SDK Used Outside Adapter Layer
 -- @rung: R1
 -- @severity: warn
--- @statement: Third-party vendor SDKs and external HTTP calls must stay inside a unit's integration layer when that boundary exists.
--- @why: Isolating external vendor SDKs and HTTP calls keeps retries, auth headers, and mocks in one adapter boundary.
--- @fix: Wrap the vendor SDK or external HTTP call behind an adapter in the integration layer.
+-- @statement: Business or endpoint code directly imports a third-party vendor SDK instead of calling through this service's dedicated integration/client adapter layer.
+-- @why: Calling vendor SDKs directly from business logic spreads API keys, retry policies, timeouts, and vendor-specific error handling across the codebase, making tests slow and migrations painful.
+-- @fix: Wrap the vendor SDK call behind a small adapter in the integration/clients layer and import that adapter from business code.
+-- @benefit: Keeps timeouts, retries, auth headers, and test mocks in one clean place and makes swapping or upgrading vendors safe.
+-- @source: Cockburn (2005) — Hexagonal Architecture (Ports and Adapters) | https://alistair.cockburn.us/hexagonal-architecture/
+-- @source: Parnas (1972) — On the Criteria To Be Used in Decomposing Systems into Modules | https://dl.acm.org/doi/10.1145/361598.361623
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM units WHERE has_integration_layer = 1) = 0 THEN 'No units declare a dedicated integration layer boundary' ELSE NULL END
 SELECT
   p.unit || ':' || p.layer || ':' || p.pkg AS subject,

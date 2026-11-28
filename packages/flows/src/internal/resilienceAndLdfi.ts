@@ -30,7 +30,7 @@ export function detectGunawiResilienceHazards(relFile: string, text: string): Fl
       file: relFile,
       line: lineAt(text, idx + Math.max(0, callPos)),
       subject: `${relFile}: ${callTok.replace(/\($/, "")}`,
-      summary: `External/provider IO (${callTok.replace(/\($/, "")}) invoked inside DB transaction scope; move outside transaction or use transactional outbox.`,
+      summary: `Calls external service "${callTok.replace(/\($/, "")}" while holding an open database transaction — move it outside the transaction or use a post-commit outbox so slow networks cannot lock DB connections.`,
       stepIndexes: [],
     });
   }
@@ -44,7 +44,7 @@ export function detectGunawiResilienceHazards(relFile: string, text: string): Fl
       file: relFile,
       line: lineAt(text, m.index ?? 0),
       subject: `${relFile}: ${m[1] ?? "retry"}`,
-      summary: `Retry loop around side-effecting operation "${m[1] ?? "write"}" without visible idempotency key or dedupe guard.`,
+      summary: `Retries "${m[1] ?? "write"}" without an idempotency key or dedupe check — a network timeout could cause duplicate charges, emails, or records.`,
       stepIndexes: [],
     });
   }
@@ -58,7 +58,7 @@ export function detectGunawiResilienceHazards(relFile: string, text: string): Fl
       file: relFile,
       line: lineAt(text, m.index ?? 0),
       subject: `${relFile}: ${m[1] ?? "query"}`,
-      summary: `Unbounded collection query "${m[1] ?? "query"}" without explicit LIMIT/pageSize/cursor bound.`,
+      summary: `Fetches all records via "${m[1] ?? "query"}" without a LIMIT, cursor, or page size — this can slow down or run out of memory as data grows.`,
       stepIndexes: [],
     });
   }
@@ -80,7 +80,7 @@ export function detectDerivedStateSyncHazards(lifecycles: readonly EntityFieldLi
       file: first.file,
       line: first.line,
       subject: `${lc.entity}.${lc.field} (${distinctFiles.size} sync sites)`,
-      summary: `Derived/shadow field "${lc.entity}.${lc.field}" is imperatively synchronized across ${distinctFiles.size} files; prefer computing on read or single-owner projection.`,
+      summary: `Summary/cached field "${lc.entity}.${lc.field}" is manually kept in sync across ${distinctFiles.size} separate files — compute it on read or update it from one single owner so it cannot drift.`,
       stepIndexes: [],
     });
   }

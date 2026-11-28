@@ -1,10 +1,13 @@
 -- @id: sql:untested-high-fanin-modules
--- @name: High Fan-In Runtime Modules Must Have Test Reachability or Line Coverage
+-- @name: Heavily Imported Core File Has No Test Coverage
 -- @rung: R2
 -- @severity: warn
--- @statement: Non-barrel runtime production modules imported by >= 8 production files (excluding type-only imports and type-only modules) should have recorded line coverage or static test reachability within 1 import hop (traversing re-export barrels at zero hop cost).
--- @why: High fan-in runtime modules are blast-radius multipliers; untested hubs magnify regressions across dependent units.
--- @fix: Add direct unit tests or cover an immediate caller in the test suite.
+-- @statement: A production runtime file imported by 8 or more other files has no recorded test coverage and is not imported by any test within one hop.
+-- @why: Heavily shared files have the largest blast radius in the repo — a subtle bug here silently breaks dozens of features at once without CI catching it.
+-- @fix: Add a focused unit test file covering this module's core behavior and edge cases.
+-- @benefit: Protects the highest-leverage code in your system so refactoring stays fast and safe.
+-- @source: Nagappan, Ball & Zeller (2006) — Mining Metrics to Predict Component Failures | https://dl.acm.org/doi/10.1145/1134285.1134349
+-- @source: Martin (1994) — OO Design Quality Metrics (Stable Dependencies Principle) | https://fi.ort.edu.uy/innovaportal/file/2032/1/design_principles.pdf
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM v_prod_files WHERE is_barrel = 0 AND runtime_exports_count > 0) = 0 THEN 'No non-barrel runtime production files indexed' ELSE NULL END
 WITH RECURSIVE prod_fanin AS (
   SELECT fi.to_file AS file, COUNT(DISTINCT fi.from_file) AS fanin

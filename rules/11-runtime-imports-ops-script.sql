@@ -1,10 +1,12 @@
 -- @id: sql:runtime-imports-ops-script
--- @name: Production Runtime Code Must Not Import Operational Scripts
+-- @name: Production App Imports a Developer or Ops Script
 -- @rung: R1
 -- @severity: error
--- @statement: Runtime production modules must not import files from scripts/, tools/, bin/, or examples/ operational directories.
--- @why: Operational scripts bypass runtime guards and pull CLI-only dependencies into production bundles.
--- @fix: Move shared logic into a production library or domain module and import it from both runtime and scripts.
+-- @statement: Production application code imports a file from a scripts/, tools/, bin/, or examples/ folder meant only for one-off developer or operational tasks.
+-- @why: Dev/ops scripts skip production safety guards, often pull in dev-only packages, and can crash production builds or bundles unexpectedly.
+-- @fix: Move the shared helper function into a proper production library module and import it from both the app and the script.
+-- @benefit: Keeps production bundles lean, predictable, and free of fragile CLI or dev-only dependencies.
+-- @source: Parnas (1972) — On the Criteria To Be Used in Decomposing Systems into Modules | https://dl.acm.org/doi/10.1145/361598.361623
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM files WHERE canonical_layer = 'ops_script') = 0 THEN 'No operational script files indexed' ELSE NULL END
 SELECT
   fi.from_file || ' -> ' || fi.to_file AS subject,

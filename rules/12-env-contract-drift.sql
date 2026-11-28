@@ -1,10 +1,12 @@
 -- @id: sql:env-contract-drift
--- @name: Runtime Environment Variable Contract Visibility
+-- @name: Environment Variables Read in Code Are Not Documented
 -- @rung: R4
 -- @severity: info
--- @statement: Environment variables read in runtime code should be documented in .env.example or provisioned in IaC/CI configuration.
--- @why: Undocumented environment variables cause silent boot failures for new developers and staging environments.
--- @fix: Document the variable key (without secret values) in .env.example or verify its IaC secret/env binding.
+-- @statement: Production code reads an environment variable that is missing from .env.example, CI pipelines, and infrastructure configs.
+-- @why: Undocumented environment variables cause confusing startup crashes for new teammates, staging deploys, and fresh CI environments.
+-- @fix: Add the variable name (with a safe placeholder, never real secrets) to .env.example or bind it explicitly in your IaC/CI configuration.
+-- @benefit: Makes local setup and new environment deployments work on the first try without tribal knowledge.
+-- @source: The Twelve-Factor App — III. Config | https://12factor.net/config
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM env_bindings WHERE source_kind = 'code_read') = 0 THEN 'No runtime environment variable reads indexed' WHEN (SELECT COUNT(*) FROM env_bindings WHERE source_kind != 'code_read') = 0 THEN 'No .env.example or IaC env declarations indexed' ELSE NULL END
 WITH declared AS (
   SELECT DISTINCT env_name FROM env_bindings WHERE source_kind != 'code_read'

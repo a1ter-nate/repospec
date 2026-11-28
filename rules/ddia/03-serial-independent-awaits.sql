@@ -1,10 +1,13 @@
 -- @id: ddia:serial-independent-awaits
--- @name: Consecutive Serial Awaits on Hot Path
+-- @name: Independent Network or Database Calls Run One After Another
 -- @rung: R2
 -- @severity: warn
--- @statement: Consecutive independent reads or notifications on the critical path should execute concurrently via Promise.all or Promise.allSettled.
--- @why: Serializing independent IO hops compounds tail latency across every request.
--- @fix: Group independent reads or notification pushes with Promise.all / Promise.allSettled or offload them to an async queue.
+-- @statement: Two or more independent reads or notifications wait for each other one by one instead of running at the same time.
+-- @why: Running independent waits sequentially adds their latencies together on every request, making pages and API endpoints noticeably slower for users.
+-- @fix: Run independent calls concurrently using Promise.all / Promise.allSettled (JS/TS), tokio::join! (Rust), Task.WhenAll (C#), or asyncio.gather (Python).
+-- @benefit: Cuts end-to-end request latency to the slowest single call instead of the sum of all of them, speeding up user-facing paths with minimal code change.
+-- @source: Dean & Barroso (2013) — The Tail at Scale (Communications of the ACM) | https://research.google/pubs/the-tail-at-scale/
+-- @source: Kleppmann (2017) — Designing Data-Intensive Applications (Ch. 1: Latency & Tail Percentiles) | https://dataintensive.net/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM facts WHERE kind = 'work_flow') = 0 THEN 'No work flows extracted.' ELSE '' END;
 
 SELECT

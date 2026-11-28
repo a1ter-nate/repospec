@@ -1,10 +1,13 @@
 -- @id: sql:disjoint-caller-cohesion
--- @name: Sarkar Disjoint-Caller Cohesion — No Kitchen-Sink Modules
+-- @name: Grab-Bag File Serving Unrelated Callers
 -- @rung: R1
 -- @severity: warn
--- @statement: Non-barrel production modules should serve a cohesive caller set rather than splitting into 3+ completely disjoint symbol-caller clusters.
--- @why: Sarkar et al. (2007) demonstrated that modules whose exported symbols partition into unrelated caller clusters are braided god/utils modules that amplify rebuilds and conflicts.
--- @fix: Split disjoint symbol groups into focused, single-secret modules aligned with their caller groups.
+-- @statement: This file exports multiple unrelated functions or constants to four or more different callers that never share a single imported symbol.
+-- @why: Grab-bag "utils" files quietly become magnets for unrelated code, causing unnecessary merge conflicts, bloated bundles, and unclear ownership.
+-- @fix: Split this file into smaller, focused modules where each file groups only the functions used by the same feature or caller group.
+-- @benefit: Each module becomes easier to name, navigate, test, and delete safely without dragging unrelated features along.
+-- @source: Sarkar, Rama & Kak (2007) — API-Based and Information-Theoretic Metrics for Measuring the Quality of Software Modularization | https://ieeexplore.ieee.org/document/4023978
+-- @source: Rich Hickey (2011) — Simple Made Easy | https://www.infoq.com/presentations/Simple-Made-Easy/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM symbol_imports) = 0 THEN 'No symbol-level import edges indexed' ELSE NULL END
 
 WITH prod_sym_imports AS (
@@ -14,11 +17,6 @@ WITH prod_sym_imports AS (
   JOIN files ff ON ff.file = si.from_file AND ff.is_test = 0
   WHERE si.symbol_name != '*'
     AND si.to_file NOT LIKE '%/index.%'
-),
-sym_callers AS (
-  SELECT to_file, symbol_name, COUNT(DISTINCT from_file) AS caller_cnt
-  FROM prod_sym_imports
-  GROUP BY to_file, symbol_name
 ),
 caller_pairs AS (
   SELECT
@@ -42,7 +40,7 @@ overlap_pairs AS (
 )
 SELECT
   cp.to_file AS subject,
-  'Kitchen-sink module: ' || cp.total_callers || ' callers import ' || cp.total_symbols || ' symbols with zero overlapping symbol usage across callers.' AS detail,
+  cp.total_callers || ' different callers each import completely separate exports (' || cp.total_symbols || ' total) from this file with zero overlap — a strong sign it bundles unrelated concerns.' AS detail,
   cp.to_file AS file,
   1 AS line
 FROM caller_pairs cp

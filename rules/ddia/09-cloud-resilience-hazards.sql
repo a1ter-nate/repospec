@@ -1,10 +1,13 @@
 -- @id: ddia:cloud-resilience-hazards
--- @name: Gunawi Cloud Resilience — Idempotent Retries & Bounded Pagination
+-- @name: Retries Without Duplicate Protection or Unbounded List Queries
 -- @rung: R2
 -- @severity: warn
--- @statement: Retried write operations must carry an idempotency/dedupe guard, and collection queries should specify an explicit pagination or LIMIT bound.
--- @why: Gunawi et al. (2014) found non-idempotent retries and unbounded list queries are leading causes of duplicate side effects and OOM/latency cascades in cloud systems.
--- @fix: Pass a stable idempotency key or UPSERT guard into retried writes, and add an explicit LIMIT/pageSize/cursor to collection queries.
+-- @statement: A write operation is retried without an idempotency/dedupe key, or a list query fetches all rows without a limit or page size.
+-- @why: Retrying a payment, email, or insert without duplicate protection can double-charge or double-create records on network timeouts; unbounded queries can exhaust server memory as tables grow.
+-- @fix: Pass a stable idempotency key or UPSERT check into retried writes, and add an explicit page size, cursor, or LIMIT to every list query.
+-- @benefit: Makes retries safe under real-world network blips and keeps memory and database load bounded no matter how large customer tables grow.
+-- @source: Gunawi et al. (2014) — What Bugs Live in the Cloud? (ACM SoCC) | https://dl.acm.org/doi/10.1145/2670979.2670986
+-- @source: Brandur Leach — Implementing Stripe-Like Idempotency Keys in Postgres | https://brandur.org/idempotency-keys
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM files WHERE is_test = 0) = 0 THEN 'No production files indexed.' ELSE '' END;
 
 SELECT

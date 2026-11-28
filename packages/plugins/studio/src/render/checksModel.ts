@@ -52,6 +52,8 @@ export interface CheckItemModel {
   statement: string;
   why: string;
   fix: string;
+  benefit: string;
+  sources: Array<{ label: string; url: string }>;
   applicabilityReason: string | null;
   wherePreview: string;
   unitSummary: string;
@@ -121,26 +123,42 @@ const SHORT_CHECK_META: ReadonlyArray<{
   title: string;
   icon: CheckIconKind;
 }> = [
-  { match: "layer-inversion", title: "Layer inversion", icon: "layers" },
-  { match: "layer-bypass-datastore", title: "Datastore bypass", icon: "db" },
-  { match: "vendor-leak", title: "Vendor SDK leak", icon: "plug" },
-  { match: "notify-before-commit", title: "Notify before commit", icon: "bolt" },
-  { match: "invalidate-before-write", title: "Cache before write", icon: "bolt" },
-  { match: "write-on-poll", title: "Write on poll", icon: "db" },
-  { match: "blocking-noncritical-io", title: "Blocking I/O", icon: "clock" },
-  { match: "serial-independent-awaits", title: "Serial awaits", icon: "clock" },
-  { match: "multi-writer", title: "Multi-writer fields", icon: "db" },
-  { match: "multi-domain-entity", title: "Shared entity leak", icon: "db" },
-  { match: "bidirectional-domain", title: "Domain cycles", icon: "cycle" },
-  { match: "module-tangle", title: "Module tangles", icon: "cycle" },
-  { match: "workspace-cycles", title: "Workspace cycles", icon: "cycle" },
-  { match: "untested-high-fanin", title: "Untested hubs", icon: "shield" },
-  { match: "duplicate-state-enums", title: "Duplicate enums", icon: "state" },
-  { match: "env-contract-drift", title: "Undeclared env vars", icon: "key" },
-  { match: "doc-path-drift", title: "Stale doc paths", icon: "doc" },
-  { match: "runtime-imports-ops", title: "Ops script import", icon: "plug" },
-  { match: "iac-unlinked", title: "Unlinked IaC", icon: "plug" },
-  { match: "unwired-quality-gates", title: "Unwired CI gates", icon: "shield" },
+  { match: "layer-inversion", title: "Wrong layer direction", icon: "layers" },
+  { match: "layer-bypass-datastore", title: "Direct database bypass", icon: "db" },
+  { match: "vendor-leak", title: "Vendor SDK outside adapter", icon: "plug" },
+  { match: "notify-before-commit", title: "Alert sent before save", icon: "bolt" },
+  { match: "invalidate-before-write", title: "Cache cleared before save", icon: "bolt" },
+  { match: "write-on-poll", title: "Database write on every poll", icon: "db" },
+  { match: "blocking-noncritical-io", title: "Slow call blocking response", icon: "clock" },
+  { match: "serial-independent-awaits", title: "Slow sequential waits", icon: "clock" },
+  { match: "multi-writer", title: "Shared field without owner", icon: "db" },
+  { match: "derived-state-sync", title: "Manually synced summary field", icon: "db" },
+  { match: "io-inside-transaction", title: "External call inside DB lock", icon: "bolt" },
+  { match: "cloud-resilience", title: "Unsafe retries or open queries", icon: "shield" },
+  { match: "multi-domain-entity", title: "Shared table across teams", icon: "db" },
+  { match: "bidirectional-domain", title: "Two-way domain loop", icon: "cycle" },
+  { match: "module-tangle", title: "Circular module tangle", icon: "cycle" },
+  { match: "workspace-cycles", title: "Circular package loop", icon: "cycle" },
+  { match: "untested-high-fanin", title: "Untested core file", icon: "shield" },
+  { match: "duplicate-state-enums", title: "Duplicate status lists", icon: "state" },
+  { match: "env-contract-drift", title: "Undocumented env vars", icon: "key" },
+  { match: "doc-path-drift", title: "Broken doc file links", icon: "doc" },
+  { match: "runtime-imports-ops", title: "App imports dev script", icon: "plug" },
+  { match: "iac-unlinked", title: "Unlinked cloud service", icon: "plug" },
+  { match: "iac-undeclared-deploy-input", title: "Hidden deploy config flag", icon: "key" },
+  { match: "unwired-quality-gates", title: "Check missing from CI", icon: "shield" },
+  { match: "parnas-secret-leak", title: "Internal DB/SDK types leaked", icon: "key" },
+  { match: "disjoint-caller-cohesion", title: "Grab-bag file for unrelated callers", icon: "layers" },
+  { match: "invisible-coupling", title: "Hidden co-changing files", icon: "cycle" },
+  { match: "unstable-interface", title: "Frequently changing core API", icon: "bolt" },
+  { match: "crossing-hub", title: "Overloaded central hub file", icon: "cycle" },
+  { match: "unhealthy-hierarchy", title: "Deep inheritance chain", icon: "layers" },
+  { match: "near-duplicate-types", title: "Duplicate data shapes & mappers", icon: "doc" },
+  { match: "passthrough-wrapper", title: "Empty pass-through wrapper", icon: "plug" },
+  { match: "projection-authority-leak", title: "View formatter mutates data", icon: "db" },
+  { match: "paved-path-and-retiring", title: "Duplicate libs or retired code", icon: "plug" },
+  { match: "quadratic-hotspots", title: "Slow nested loop work", icon: "clock" },
+  { match: "exponential-recursion", title: "Runaway recursive branching", icon: "bolt" },
 ];
 
 function resolveShortCheckMeta(id: string, name: string): { shortTitle: string; iconKind: CheckIconKind } {
@@ -322,6 +340,8 @@ export function buildChecksModel(
       statement: inv.statement,
       why: inv.why ?? "",
       fix: inv.fix ?? "",
+      benefit: inv.benefit ?? "",
+      sources: inv.sources ?? [],
       applicabilityReason: inv.applicabilityReason ?? null,
       wherePreview: buildWherePreview(inv.evidence),
       unitSummary,

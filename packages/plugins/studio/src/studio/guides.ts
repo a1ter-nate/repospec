@@ -270,10 +270,14 @@ export function renderGuidesClientScript(): string {
     const total = inv.violationCount || ev.length;
     const lines = [
       "### " + inv.name + " (" + inv.id + " · " + inv.rung + " · " + inv.status.toUpperCase() + ")",
-      "- **Rule:** " + inv.statement,
+      "- **What is wrong:** " + inv.statement,
     ];
     if (inv.why) lines.push("- **Why it matters:** " + inv.why);
-    if (inv.fix) lines.push("- **Fix:** " + inv.fix);
+    if (inv.fix) lines.push("- **What change fixes it:** " + inv.fix);
+    if (inv.benefit) lines.push("- **Why this change is good:** " + inv.benefit);
+    if (Array.isArray(inv.sources) && inv.sources.length > 0) {
+      lines.push("- **Sources:** " + inv.sources.map((s) => "[" + s.label + "](" + s.url + ")").join(", "));
+    }
     lines.push("- **Evidence (" + ev.length + " of " + total + " included):**");
     const byFile = new Map();
     for (const item of ev) {

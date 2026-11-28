@@ -18,15 +18,29 @@ interface SqlRuleFrontMatter {
   statement: string;
   why: string;
   fix: string;
+  benefit?: string;
+  sources?: Array<{ label: string; url: string }>;
   applicabilitySql: string | null;
 }
 
 function parseSqlFrontMatter(sqlText: string, fileName: string): SqlRuleFrontMatter | null {
   const fields: Record<string, string> = {};
+  const sources: Array<{ label: string; url: string }> = [];
   for (const line of sqlText.split("\n")) {
     const m = line.match(/^--\s*@([a-zA-Z_]+):\s*(.+)$/);
     if (m?.[1] && m[2]) {
-      fields[m[1].toLowerCase()] = m[2].trim();
+      const key = m[1].toLowerCase();
+      const val = m[2].trim();
+      if (key === "source") {
+        const sepIdx = val.indexOf("|");
+        if (sepIdx > 0) {
+          const label = val.slice(0, sepIdx).trim();
+          const url = val.slice(sepIdx + 1).trim();
+          if (label && url) sources.push({ label, url });
+        }
+      } else {
+        fields[key] = val;
+      }
     } else if (line.trim() && !line.trim().startsWith("--")) {
       break;
     }
@@ -42,8 +56,10 @@ function parseSqlFrontMatter(sqlText: string, fileName: string): SqlRuleFrontMat
     rung,
     severity,
     statement: fields.statement,
-    why: fields.why ?? `Architectural invariant defined in rules/${fileName}`,
-    fix: fields.fix ?? "Resolve the reported structural violation.",
+    why: fields.why ?? `Architectural rule defined in rules/${fileName}`,
+    fix: fields.fix ?? "Resolve the reported structural issue.",
+    benefit: fields.benefit,
+    sources: sources.length > 0 ? sources : undefined,
     applicabilitySql: fields.applicability ?? null,
   };
 }
@@ -105,7 +121,7 @@ export function runSqlInvariants(
         const firstVal = appRow ? Object.values(appRow)[0] : null;
         if (typeof firstVal === "string" && firstVal.trim().length > 0) {
           insertInvRes.run(meta.id, meta.name, meta.rung, meta.severity, "na", firstVal, meta.statement, 0);
-          results.push({
+          const naRes: SqlInvariantResult = {
             id: meta.id,
             name: meta.name,
             rung: meta.rung,
@@ -118,7 +134,10 @@ export function runSqlInvariants(
             fix: meta.fix,
             violationCount: 0,
             evidence: [],
-          });
+          };
+          if (meta.benefit) naRes.benefit = meta.benefit;
+          if (meta.sources) naRes.sources = meta.sources;
+          results.push(naRes);
           continue;
         }
       } catch (err) {
@@ -181,7 +200,7 @@ export function runSqlInvariants(
       }
     })();
 
-    results.push({
+    const evalRes: SqlInvariantResult = {
       id: meta.id,
       name: meta.name,
       rung: meta.rung,
@@ -193,7 +212,10 @@ export function runSqlInvariants(
       fix: meta.fix,
       violationCount: allEvidence.length,
       evidence: allEvidence.slice(0, 30),
-    });
+    };
+    if (meta.benefit) evalRes.benefit = meta.benefit;
+    if (meta.sources) evalRes.sources = meta.sources;
+    results.push(evalRes);
   }
 
   return results;

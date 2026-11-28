@@ -1,10 +1,13 @@
 -- @id: sql:bidirectional-domain-coupling
--- @name: Acyclic Domain-to-Domain Dependencies
+-- @name: Two Business Domains Depend on Each Other Both Ways
 -- @rung: R1
 -- @severity: warn
--- @statement: Two business domains should not mutually import each other at runtime (>= 2 imports in each direction).
--- @why: Mutual runtime imports blur bounded-context ownership and turn local changes into cross-domain ripple effects.
--- @fix: Promote shared contracts to a shared kernel or introduce a one-way service interface between domains.
+-- @statement: Two separate business domains both import each other at runtime, forming a two-way dependency loop between features.
+-- @why: When two domains depend on each other both ways, they can no longer evolve, deploy, or be tested independently — a small edit in one domain often breaks the other.
+-- @fix: Extract the shared types into a neutral foundation module or make one domain call the other through a single one-way interface or event.
+-- @benefit: Restores clear ownership boundaries so each domain can change and ship safely without cascading surprises.
+-- @source: Evans (2003) — Domain-Driven Design (Bounded Contexts & Context Mapping) | https://www.domainlanguage.com/ddd/
+-- @source: Baldwin & Clark (2000) — Design Rules: The Power of Modularity | https://mitpress.mit.edu/9780262024662/design-rules/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(DISTINCT domain_area) FROM v_prod_files WHERE domain_area IS NOT NULL) < 2 THEN 'Fewer than 2 business domains indexed' ELSE NULL END
 WITH pairs AS (
   SELECT from_domain, to_domain, COUNT(*) AS cnt, MIN(from_file) AS sample_file, MIN(line) AS sample_line

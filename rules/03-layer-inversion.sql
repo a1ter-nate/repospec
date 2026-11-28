@@ -1,10 +1,13 @@
 -- @id: sql:layer-inversion
--- @name: Strict Architectural Layer Direction
+-- @name: Lower Layer Imports Higher Layer (Wrong Dependency Direction)
 -- @rung: R1
 -- @severity: error
--- @statement: Lower architectural layers must not import upper layers (both intra-unit and cross-project Clean Architecture).
--- @why: Upward layer imports create cycles that break testability, isolate-build caching, and clean request boundaries.
--- @fix: Extract shared contracts into a domain/support module or invert the dependency via an interface.
+-- @statement: A lower foundation or data-layer file imports code from an upper layer (like an HTTP controller or orchestration service), reversing the intended one-way architecture.
+-- @why: Upward imports create hidden circular dependencies between layers, breaking isolated testing, slowing incremental builds, and letting HTTP/UI details leak into core logic.
+-- @fix: Move the shared type or helper down into a shared domain/support module, or pass a small callback/interface from the upper layer down.
+-- @benefit: Keeps dependencies flowing cleanly in one direction so core logic can be tested and reused without pulling in HTTP routes or frameworks.
+-- @source: Martin (2012) — The Clean Architecture (The Dependency Rule) | https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html
+-- @source: Lakos (1996) — Large-Scale C++ Software Design (Levelization & Acyclic Dependencies) | https://en.wikipedia.org/wiki/Large-Scale_C%2B%2B_Software_Design
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM units WHERE layer_policy IN ('layered_backend', 'layered_clean_arch')) = 0 THEN 'No units declare an explicit layer policy (layered_backend or layered_clean_arch); Studio L0-L4 lanes are inferred topological tiers, not enforced layer boundaries' ELSE NULL END
 SELECT
   fi.from_unit || ':' || fi.from_layer || '->' || fi.to_unit || ':' || fi.to_layer AS subject,

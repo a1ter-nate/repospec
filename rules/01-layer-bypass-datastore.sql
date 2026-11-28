@@ -1,10 +1,13 @@
 -- @id: sql:layer-bypass-datastore
--- @name: No Direct Datastore Access Outside Persistence Layer
+-- @name: Direct Database Access Bypassing the Data Layer
 -- @rung: R1
 -- @severity: error
--- @statement: Production layers must not bypass a unit's dedicated persistence layer to read or write datastore entities directly.
--- @why: Direct datastore calls outside the persistence layer scatter schema assumptions, tenancy checks, and transaction boundaries.
--- @fix: Route datastore reads and writes through the unit's persistence layer.
+-- @statement: A controller, service, or UI file reads or writes the database directly instead of going through this service's dedicated data/repository layer.
+-- @why: Bypassing the data layer scatters raw database queries, tenant/permission checks, and transaction handling across unrelated files — making security bugs and schema breakage far more likely.
+-- @fix: Move the database query into a function inside this service's data/persistence layer and call that helper instead.
+-- @benefit: Centralizes authorization checks, query optimization, and schema migrations in one auditable boundary.
+-- @source: Parnas (1972) — On the Criteria To Be Used in Decomposing Systems into Modules | https://dl.acm.org/doi/10.1145/361598.361623
+-- @source: Fowler (2002) — Patterns of Enterprise Application Architecture (Repository Pattern) | https://martinfowler.com/eaaCatalog/repository.html
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM entity_access) = 0 THEN 'No datastore entity accesses indexed' WHEN (SELECT COUNT(*) FROM units WHERE has_persistence_layer = 1) = 0 THEN 'No units declare a dedicated persistence layer boundary' ELSE NULL END
 SELECT
   ea.unit || ':' || ea.layer || ':' || ea.entity AS subject,

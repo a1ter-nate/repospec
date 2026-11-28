@@ -16,11 +16,19 @@ export function renderInspectorClientScript(): string {
         (inv.violationCount > shownEv.length ? '<div class="ev-more">Showing ' + shownEv.length + " of " + inv.violationCount + " hits</div>" : "") +
         "</div>"
       : "";
-    const summaryText = inv.why || inv.statement;
+    const summaryText = inv.statement || inv.why;
+    const sourcesHtml = Array.isArray(inv.sources) && inv.sources.length > 0
+      ? '<div class="finding-note" style="margin-top:6px"><strong>Sources:</strong> ' +
+        inv.sources.map((s) => '<a class="ext-link" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.label) + " ↗</a>").join(" · ") +
+        "</div>"
+      : "";
     const bodyHtml =
-      (summaryText ? '<div class="finding-note">' + esc(summaryText) + "</div>" : "") +
+      (summaryText ? '<div class="finding-note"><strong>What is wrong:</strong> ' + esc(summaryText) + "</div>" : "") +
+      (inv.why ? '<div class="finding-note"><strong>Why it matters:</strong> ' + esc(inv.why) + "</div>" : "") +
       evRows +
-      (inv.fix ? '<div class="finding-fix"><strong>Fix:</strong> ' + esc(inv.fix) + "</div>" : "") +
+      (inv.fix ? '<div class="finding-fix"><strong>How to fix it:</strong> ' + esc(inv.fix) + "</div>" : "") +
+      (inv.benefit ? '<div class="finding-note"><strong>Why this helps:</strong> ' + esc(inv.benefit) + "</div>" : "") +
+      sourcesHtml +
       '<div class="finding-actions">' +
       (hasAnchor ? '<button class="tbtn tbtn-accent" data-show-inv="' + esc(inv.id) + '" title="Jump to this violation on the architecture map">Highlight on map</button>' : "") +
       '<button class="tbtn" data-copy-inv="' + esc(inv.id) + '" title="Copy rule, evidence, and fix instructions as Markdown">Copy Fix Brief</button>' +

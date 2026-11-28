@@ -1,10 +1,12 @@
 -- @id: sql:unwired-quality-gates
--- @name: Registered Quality Gates Must Be Enforced in CI
+-- @name: Registered Quality Check Is Not Running in CI
 -- @rung: R0
 -- @severity: error
--- @statement: Every registered quality gate must be invoked by at least one CI workflow or composite action.
--- @why: Unwired quality gates give false confidence because regressions only fail if developers remember to run them locally.
--- @fix: Wire the gate into a required CI workflow job or remove the obsolete gate definition.
+-- @statement: A verification check or quality gate is defined in the repo, but no CI workflow actually executes it on pull requests.
+-- @why: Checks that only run manually on a developer's laptop get forgotten under deadline pressure, giving a false sense of safety while regressions slip into main.
+-- @fix: Add a step to your PR-blocking CI workflow to run this check automatically, or delete the gate if it is genuinely obsolete.
+-- @benefit: Ensures every pull request is verified automatically and consistently without relying on memory.
+-- @source: Humble & Farley (2010) — Continuous Delivery (Automated Deployment Pipeline Gates) | https://continuousdelivery.com/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM nodes WHERE kind = 'quality_gate') = 0 THEN 'No quality gates registered' ELSE NULL END
 SELECT
   n.label AS subject,

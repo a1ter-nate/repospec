@@ -295,6 +295,11 @@ const InvariantEvidenceSchema = Schema.Struct({
 });
 export type InvariantEvidence = DeepMutable<typeof InvariantEvidenceSchema.Type>;
 
+const InvariantSourceSchema = Schema.Struct({
+  label: Schema.NonEmptyString,
+  url: Schema.NonEmptyString,
+});
+
 const SqlInvariantResultSchema = Schema.Struct({
   id: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
@@ -306,6 +311,8 @@ const SqlInvariantResultSchema = Schema.Struct({
   statement: Schema.NonEmptyString,
   why: Schema.NonEmptyString,
   fix: Schema.NonEmptyString,
+  benefit: Schema.optional(Schema.String),
+  sources: Schema.optional(Schema.Array(InvariantSourceSchema)),
   violationCount: NonNegInt,
   evidence: Schema.Array(InvariantEvidenceSchema),
 });

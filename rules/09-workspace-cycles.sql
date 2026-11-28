@@ -1,10 +1,13 @@
 -- @id: sql:workspace-cycles
--- @name: Acyclic Workspace Unit Dependency Graph
+-- @name: Packages Depend on Each Other in a Circle
 -- @rung: R1
 -- @severity: error
--- @statement: Workspace apps, packages, crates, and .NET projects must form a strict DAG with zero dependency cycles of any length.
--- @why: Cyclic package dependencies break incremental builds, deterministic bundling, and clean modular boundaries.
--- @fix: Extract shared contracts into a lower-level library unit so dependency arrows point strictly one way.
+-- @statement: Two or more workspace packages, apps, crates, or .NET projects form a circular dependency chain where A depends on B and B depends back on A.
+-- @why: Circular package dependencies break incremental builds, confuse bundlers and TypeScript project references, and make it impossible to test or version packages independently.
+-- @fix: Move the shared types or utilities into a small lower-level foundation package that both packages depend on, breaking the loop.
+-- @benefit: Restores fast cached builds, clean release ordering, and independent testing for every package.
+-- @source: Martin (1994) — OO Design Quality Metrics (Acyclic Dependencies Principle) | https://fi.ort.edu.uy/innovaportal/file/2032/1/design_principles.pdf
+-- @source: Lakos (1996) — Large-Scale C++ Software Design (Levelization & Acyclic Dependencies) | https://en.wikipedia.org/wiki/Large-Scale_C%2B%2B_Software_Design
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM edges WHERE kind = 'depends_on') = 0 THEN 'No unit dependency edges indexed' ELSE NULL END
 WITH RECURSIVE dep_edges AS (
   SELECT e.from_id, e.to_id, COALESCE(e.file, '.') AS file, COALESCE(e.line, 1) AS line

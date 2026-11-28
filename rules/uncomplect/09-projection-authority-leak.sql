@@ -1,15 +1,18 @@
 -- @id: sql:projection-authority-leak
--- @name: Uncomplect — Read-Model / Projection Authority Leak
+-- @name: View Formatter or Projection Mutates Saved Data
 -- @rung: R1
 -- @severity: warn
--- @statement: Read-model projections, presenters, formatters, and view-model mappers (to-*.ts, presenter*, projection*) must remain read-only and never mutate authoritative datastore state.
--- @why: Mutating authoritative state inside projection/presentation glue complects read views with write authority and breaks predictable state transitions.
--- @fix: Keep projection/formatter modules pure and route all state mutations through the authoritative write owner.
+-- @statement: A file named as a presenter, formatter, view model, or read projection (such as to-*.ts) directly writes to or modifies saved application state.
+-- @why: People and tests expect view formatters and projections to be safe, read-only transforms; hidden database writes inside them cause surprising side effects and race conditions.
+-- @fix: Remove the write call from the formatter/projection and trigger state changes exclusively through the owning command or service handler.
+-- @benefit: Read views stay pure, predictable, and effortless to test, while all state mutations remain easy to audit in one place.
+-- @source: Fowler (2011) — CQRS (Command Query Responsibility Segregation) | https://martinfowler.com/bliki/CQRS.html
+-- @source: Joel Hooks — Uncomplect Skill (Read-Model Authority Boundaries) | https://github.com/joelhooks/skills
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM files WHERE is_test = 0) = 0 THEN 'No production files indexed' ELSE NULL END
 
 SELECT
   file AS subject,
-  'Projection/read-model module invokes state mutation (' || COALESCE(json_extract(payload_json, '$.token'), '') || ').' AS detail,
+  'Read-only presenter/projection file "' || file || '" performs a state write (' || COALESCE(json_extract(payload_json, '$.token'), '') || ').' AS detail,
   file,
   line
 FROM facts

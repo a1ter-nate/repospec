@@ -1,10 +1,13 @@
 -- @id: sql:duplicate-state-enums
--- @name: Single Source of Truth for Lifecycle State Enums
+-- @name: Same Status List Copied Across Multiple Files
 -- @rung: R1
 -- @severity: warn
--- @statement: The same lifecycle state value set (>= 3 states) should not be redefined independently across unrelated source files.
--- @why: Duplicated state enums silently diverge during feature evolution, causing invalid transitions or dropped states.
--- @fix: Export one canonical state union/schema and derive DTO/UI types from it.
+-- @statement: The same list of 3 or more lifecycle statuses (like order or device states) is redefined independently in separate files instead of being imported from one shared source.
+-- @why: When a new status is added later, one copy inevitably gets missed — causing broken switch statements, rejected payloads, or stuck UI states.
+-- @fix: Export one single canonical status union/enum from a shared domain file and import it everywhere else (including UI and API validators).
+-- @benefit: Guarantees the whole stack agrees on every valid status, with the compiler catching any unhandled state immediately.
+-- @source: Hunt & Thomas (1999) — The Pragmatic Programmer (DRY / Single Source of Truth) | https://pragprog.com/titles/tpp20/the-pragmatic-programmer-20th-anniversary-edition/
+-- @source: Wlaschin (2018) — Domain Modeling Made Functional (Making Illegal States Unrepresentable) | https://pragprog.com/titles/swdddf/domain-modeling-made-functional/
 -- @applicability: SELECT CASE WHEN (SELECT COUNT(*) FROM state_enums) < 2 THEN 'Fewer than 2 state enums indexed' ELSE NULL END
 WITH normalized AS (
   SELECT

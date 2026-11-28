@@ -73,8 +73,10 @@ export function renderChecksCss(): string {
   .chk-acts .tbtn { background: #151c2c; border-color: var(--rs-border-hi); color: var(--text-1); }
   .chk-acts .tbtn:hover { background: #1d263b; border-color: var(--accent); }
   .chk-meta-foot { font-size: 11.5px; color: var(--text-4); font-family: var(--font-mono, monospace); padding-top: 8px; border-top: 1px solid #161e30; }
+  .chk-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .chk-guide-card { background: var(--bg-0); border: 1px solid var(--line-1); border-radius: var(--r-3); padding: 11px 13px; display: flex; flex-direction: column; gap: 5px; } .chk-guide-k { font-size: var(--fs-11); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); } .chk-guide-card.is-good { border-color: rgba(74, 222, 128, 0.24); background: rgba(74, 222, 128, 0.04); } .chk-guide-card.is-good .chk-guide-k { color: var(--ok); }
+  .chk-sources { display: flex; flex-wrap: wrap; gap: 6px; } .chk-src-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent); background: var(--bg-0); border: 1px solid var(--line-1); border-radius: var(--r-2); padding: 4px 9px; text-decoration: none; } .chk-src-link:hover { border-color: var(--accent); background: var(--bg-2); }
   .chk-shell button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  @media (max-width: 1100px) { .chk-split { grid-template-columns: 1fr; } .chk-left { max-height: 46vh; border-right: 0; border-bottom: 1px solid #161e30; } }`;
+  @media (max-width: 1100px) { .chk-split { grid-template-columns: 1fr; } .chk-left { max-height: 46vh; border-right: 0; border-bottom: 1px solid #161e30; } .chk-guide-grid { grid-template-columns: 1fr; } }`;
 }
 
 export function renderChecksClientScript(): string {
@@ -189,10 +191,10 @@ export function renderChecksClientScript(): string {
           const rk = item.id + "::fg::" + fi + "::" + ii;
           const isExp = state.checkExpEv === rk;
           const hasSrc = ddIdxByPath.has(fg.file);
-          const lbl = it.subject || it.detail;
+          const lbl = it.detail || it.subject;
           return (
             '<div class="chk-grp-item">' +
-            '<span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(lbl) + "</span>" +
+            '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(lbl) + '">' + esc(lbl) + "</span>" +
             (hasSrc ? '<button class="chk-loc-btn" data-chk-toggle-ev="' + esc(rk) + '">:' + (it.line || 1) + "</button>" : '<span class="mono muted">:' + (it.line || 1) + "</span>") +
             "</div>" +
             (isExp ? renderCheckExcerpt(fg.file, it.line) : "")
@@ -212,13 +214,24 @@ export function renderChecksClientScript(): string {
       else if (jt.kind === "matrix") jumpBtn = '<button class="tbtn" data-chk-jump="matrix">Open matrix</button>';
     }
 
+    const sourcesList = Array.isArray(item.sources) && item.sources.length > 0 ? item.sources : (Array.isArray(inv.sources) ? inv.sources : []);
+    const sourcesHtml = sourcesList.length > 0
+      ? '<div class="chk-sec"><div class="surf-sec-k">Research &amp; Sources</div><div class="chk-sources">' + sourcesList.map((s) => '<a class="chk-src-link" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.label) + " ↗</a>").join("") + "</div></div>"
+      : "";
+    const benefitText = item.benefit || inv.benefit || "";
+    const explainGridHtml = '<div class="chk-guide-grid"><div class="chk-guide-card"><div class="chk-guide-k">What is wrong</div><div class="chk-det-prose">' + esc(item.statement || item.name) + '</div></div><div class="chk-guide-card"><div class="chk-guide-k">Why it matters</div><div class="chk-det-prose">' + esc(item.why || item.statement) + "</div></div></div>";
+    const fixGridHtml = item.fix || benefitText
+      ? '<div class="chk-sec"><div class="chk-guide-grid">' + (item.fix ? '<div class="chk-guide-card"><div class="chk-guide-k">What change fixes it</div><div class="chk-det-prose">' + esc(item.fix) + "</div></div>" : "") + (benefitText ? '<div class="chk-guide-card is-good"><div class="chk-guide-k">Why this change is good</div><div class="chk-det-prose">' + esc(benefitText) + "</div></div>" : "") + "</div></div>"
+      : "";
+
     return (
       '<div class="chk-det-head"><span class="chk-ico ' + icoTone + '">' + checkIconSvg(item.iconKind) + '</span><div><div class="chk-det-title">' + esc(item.shortTitle || item.name) + '</div><div class="chk-det-sub">' + esc(item.name) + "</div></div></div>" +
-      '<div class="chk-det-prose">' + esc(item.why || item.statement) + "</div>" +
-      '<div class="chk-sec"><div class="chk-sec-head"><span class="surf-sec-k">Where</span><span class="mono muted" style="font-size:12px">' + esc(whereMeta) + "</span></div>" + evHtml + "</div>" +
-      (item.fix ? '<div class="chk-sec"><div class="surf-sec-k">Fix</div><div class="chk-det-prose">' + esc(item.fix) + "</div></div>" : "") +
+      explainGridHtml +
+      fixGridHtml +
+      '<div class="chk-sec"><div class="chk-sec-head"><span class="surf-sec-k">Where this happens</span><span class="mono muted" style="font-size:12px">' + esc(whereMeta) + "</span></div>" + evHtml + "</div>" +
+      sourcesHtml +
       '<div class="chk-acts">' +
-      '<button class="tbtn tbtn-accent" data-copy-inv="' + esc(item.id) + '" title="Copy rule, grouped evidence, and fix instructions (c)">Copy brief</button>' +
+      '<button class="tbtn tbtn-accent" data-copy-inv="' + esc(item.id) + '" title="Copy plain-English brief, evidence, fix, and sources (c)">Copy brief</button>' +
       jumpBtn +
       "</div>" +
       '<div class="chk-meta-foot">' + esc(item.id + " · " + item.rung) + "</div>"
