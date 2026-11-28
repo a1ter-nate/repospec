@@ -14,7 +14,7 @@ export type PrArchetype =
   | "no_structure";
 
 export interface AttentionItem {
-  kind: "violation" | "contract" | "sensitive" | "untested" | "tangle" | "external";
+  kind: "violation" | "contract" | "sensitive" | "untested" | "tangle" | "external" | "spread";
   title: string;
   detail: string;
 }
@@ -28,6 +28,8 @@ export interface TriageResult {
   iacDelta: IacBlockDelta;
   testedInPrCount: number;
   testsAddedLoc: number;
+  kameiEntropy: number;
+  subsystemSpread: number;
 }
 
 function summarizeWiringHeadline(diagram: RankedDiagram): string {
@@ -175,6 +177,32 @@ export function triageCommitDiff(params: {
     });
   }
 
+  const changedLocList = commitDiff.changedFiles.map((f) => Math.max(1, f.insertions + f.deletions));
+  const totalChangedLoc = changedLocList.reduce((s, v) => s + v, 0);
+  let kameiEntropy = 0;
+  if (changedLocList.length >= 2 && totalChangedLoc > 0) {
+    for (const v of changedLocList) {
+      const p = v / totalChangedLoc;
+      if (p > 0) kameiEntropy -= p * Math.log2(p);
+    }
+    kameiEntropy = Math.round((kameiEntropy / Math.log2(changedLocList.length)) * 1000) / 1000;
+  }
+  const subsystemDirs = new Set(
+    commitDiff.changedFiles.map((f) => {
+      const segs = f.path.split("/");
+      return segs.length >= 2 ? `${segs[0]}/${segs[1]}` : (segs[0] ?? ".");
+    }),
+  );
+  const subsystemSpread = subsystemDirs.size;
+
+  if (kameiEntropy >= 0.85 && subsystemSpread >= 4 && totalChangedLoc >= 80 && attentionItems.length < 3) {
+    attentionItems.push({
+      kind: "spread",
+      title: "High change entropy across subsystems",
+      detail: `Edits spread evenly across **${subsystemSpread} subsystems** (Kamei entropy ${kameiEntropy}). Check for tangled concerns.`,
+    });
+  }
+
   let level: ReviewLevel = "skim";
   if (errorFindings.length > 0 || surfaceRemovals > 0 || touchedTangles || iacDelta.mutatingSensitiveBlocks.length > 0) {
     level = "scrutinize";
@@ -267,5 +295,7 @@ export function triageCommitDiff(params: {
     iacDelta,
     testedInPrCount,
     testsAddedLoc,
+    kameiEntropy,
+    subsystemSpread,
   };
 }

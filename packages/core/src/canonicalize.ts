@@ -259,6 +259,18 @@ export function buildCanonicalSpec(params: {
     })),
   ].sort((a, b) => a.id.localeCompare(b.id));
 
+  const soundinessEntries = facts
+    .filter((f) => f.kind === "soundiness")
+    .map((f) => ({
+      category: String(f.payload.category ?? "dynamic"),
+      file: f.file,
+      line: f.line,
+      detail: String(f.payload.detail ?? f.key),
+    }))
+    .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.category.localeCompare(b.category));
+  const soundinessByCat: Record<string, number> = {};
+  for (const se of soundinessEntries) soundinessByCat[se.category] = (soundinessByCat[se.category] ?? 0) + 1;
+
   const spec: RepoSpecV4 = {
     schemaVersion: "5.0.0",
     specKind: "repospec.canonical",
@@ -286,6 +298,11 @@ export function buildCanonicalSpec(params: {
     surfaces: { endpoints: surfaces.endpoints, foreignKeys: surfaces.foreignKeys, envBindings: surfaces.envBindings, govRules: surfaces.govRules },
     diagrams,
     verification,
+    soundiness: {
+      totalApproximations: soundinessEntries.length,
+      byCategory: sortRecordKeys(soundinessByCat),
+      entries: soundinessEntries.slice(0, 120),
+    },
     diagnostics,
     extensions: { facts, factEdges, metrics },
     summary: {

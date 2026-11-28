@@ -18,6 +18,11 @@ import {
 } from "./asyncStitcher.ts";
 import { buildEntityLifecycles } from "./dataLifecycle.ts";
 import { BUILTIN_FLOW_LANGUAGES, loadRepoFlowLanguages } from "./languageRegistry.ts";
+import {
+  computeLdfiMinimalCutSets,
+  detectDerivedStateSyncHazards,
+  detectGunawiResilienceHazards,
+} from "./resilienceAndLdfi.ts";
 import type { FlowLanguagePlugin, RawAsyncEndpoint, RawFieldEvent } from "./languageTypes.ts";
 import type {
   AsyncHandoff,
@@ -104,6 +109,7 @@ export function extractFlowBundle(
   const rawFieldEvents: RawFieldEvent[] = [];
   const stateMachines: ExtractedStateMachine[] = [];
   const extraAsyncEndpoints: RawAsyncEndpoint[] = [];
+  const gunawiHazards: FlowHazard[] = [];
 
   for (const rel of relFiles) {
     const ext = path.extname(rel).toLowerCase();
@@ -127,6 +133,7 @@ export function extractFlowBundle(
       if (pl.extractStateMachines) stateMachines.push(...pl.extractStateMachines(fileCtx));
       if (pl.extractAsyncEndpoints) extraAsyncEndpoints.push(...pl.extractAsyncEndpoints(fileCtx));
     }
+    gunawiHazards.push(...detectGunawiResilienceHazards(rel, text));
   }
 
   workFlows.sort(
@@ -143,10 +150,14 @@ export function extractFlowBundle(
     : cappedFlows;
 
   const { lifecycles, hazards: dataHazards } = buildEntityLifecycles(rawFieldEvents);
+  const derivedSyncHazards = detectDerivedStateSyncHazards(lifecycles);
   const asyncHandoffs = extractAsyncHandoffs(repoDir, relFiles, extraAsyncEndpoints);
+  const ldfiCutSets = computeLdfiMinimalCutSets(finalFlows);
   const allHazards: FlowHazard[] = [
     ...finalFlows.flatMap((f) => f.hazards),
     ...dataHazards,
+    ...derivedSyncHazards,
+    ...gunawiHazards,
   ].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind));
 
   return {
@@ -155,6 +166,7 @@ export function extractFlowBundle(
     stateMachines: stateMachines.slice(0, 40),
     asyncHandoffs,
     hazards: allHazards,
+    ldfiCutSets,
   };
 }
 
@@ -410,10 +422,30 @@ export const flowExtractorPlugin: ExtractorPlugin = {
       });
     }
 
+    for (const cs of bundle.ldfiCutSets ?? []) {
+      facts.push({
+        extractorId: EXTRACTOR_ID,
+        kind: "ldfi_cut_set",
+        key: cs.flowId,
+        file: cs.file,
+        line: 1,
+        unit: cs.unit,
+        symbol: cs.flowName,
+        severity: cs.cutSets.some((c) => c.size === 1) ? "warn" : "info",
+        payload: {
+          flowId: cs.flowId,
+          flowName: cs.flowName,
+          spofCount: cs.cutSets.filter((c) => c.size === 1).length,
+          cutSets: cs.cutSets,
+        },
+      });
+    }
+
     metrics.push(
       { extractorId: EXTRACTOR_ID, scopeKind: "repo", scopeId: "repo", name: "work_flows_count", valueNum: bundle.workFlows.length },
       { extractorId: EXTRACTOR_ID, scopeKind: "repo", scopeId: "repo", name: "ddia_hazards_count", valueNum: bundle.hazards.length },
       { extractorId: EXTRACTOR_ID, scopeKind: "repo", scopeId: "repo", name: "async_handoffs_count", valueNum: bundle.asyncHandoffs.length },
+      { extractorId: EXTRACTOR_ID, scopeKind: "repo", scopeId: "repo", name: "ldfi_cut_sets_count", valueNum: (bundle.ldfiCutSets ?? []).length },
     );
 
     return {

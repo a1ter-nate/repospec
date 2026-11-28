@@ -61,6 +61,7 @@ export interface PluginCheckResult {
     readonly items: readonly string[];
   }[];
   readonly scopeSummary: ReturnType<typeof buildVerificationScopeSummary>;
+  readonly soundiness?: RepoSpecV4["soundiness"];
   readonly verification: RepoSpecV4["verification"];
 }
 

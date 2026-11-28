@@ -1,10 +1,56 @@
 import ts from "typescript";
-import type { AstIndexData } from "@repospec/plugin";
+import type { AstIndexData, FactEdgeRecord } from "@repospec/plugin";
 import { isSecretEnvName } from "@repospec/plugin";
 
 function isEnvObjectExpr(expr: ts.Expression, sf: ts.SourceFile): boolean {
   const t = expr.getText(sf);
   return t === "process.env" || t === "Bun.env" || t === "import.meta.env";
+}
+
+export function collectTsSymbolImports(params: {
+  node: ts.ImportDeclaration | ts.ExportDeclaration;
+  fromFile: string;
+  toFile: string;
+  line: number;
+  factEdges: FactEdgeRecord[];
+}): void {
+  const { node, fromFile, toFile, line, factEdges } = params;
+  const pushSym = (symbol: string): void => {
+    factEdges.push({
+      extractorId: "arch.code-ast.v5",
+      kind: "imports_symbol",
+      fromRef: fromFile,
+      toRef: toFile,
+      file: fromFile,
+      line,
+      payload: { symbol },
+    });
+  };
+  if (ts.isImportDeclaration(node)) {
+    const clause = node.importClause;
+    if (!clause) return;
+    if (clause.name) pushSym("default");
+    const bindings = clause.namedBindings;
+    if (!bindings) return;
+    if (ts.isNamespaceImport(bindings)) {
+      pushSym("*");
+    } else if (ts.isNamedImports(bindings)) {
+      for (const el of bindings.elements) {
+        pushSym(el.propertyName ? el.propertyName.text : el.name.text);
+      }
+    }
+    return;
+  }
+  const expClause = node.exportClause;
+  if (!expClause) {
+    pushSym("*");
+  } else if (ts.isNamespaceExport(expClause)) {
+    pushSym("*");
+  } else if (ts.isNamedExports(expClause)) {
+    for (const el of expClause.elements) {
+      pushSym(el.propertyName ? el.propertyName.text : el.name.text);
+    }
+  }
 }
 
 export function collectTsEnvRead(params: {

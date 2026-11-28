@@ -63,6 +63,14 @@ const ModuleCardSchema = Schema.Struct({
   capabilities: Schema.Array(CapabilityTagSchema),
   topExports: Schema.Array(ExportedSymbolSchema),
   files: Schema.Array(ModuleFileEntrySchema),
+  cd: Schema.optional(NonNegInt),
+  instability: Schema.optional(Schema.Finite),
+  abstractness: Schema.optional(Schema.Finite),
+  mainSeqDistance: Schema.optional(Schema.Finite),
+  corePeriphery: Schema.optional(Schema.Literals(["core", "periphery", "isolated"])),
+  relativeChurn: Schema.optional(Schema.Finite),
+  hotspotScore: Schema.optional(Schema.Finite),
+  contractionBlastRadius: Schema.optional(NonNegInt),
 });
 export type ModuleCard = DeepMutable<typeof ModuleCardSchema.Type>;
 

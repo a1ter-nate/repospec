@@ -207,9 +207,10 @@ export async function scanWithDomains(
   const targetDbPath =
     opts?.dbPath ?? path.join(os.tmpdir(), `repospec-${process.pid}-${ctx.repoName.replace(/[^a-zA-Z0-9_-]/g, "_")}.sqlite`);
   const atlas = domains.diagram.get().find((d) => typeof d.buildModuleArchitecture === "function");
-  const moduleArch: { readonly modules: ModuleCard[]; readonly diagrams: DiagramLayout[] } = atlas?.buildModuleArchitecture
+  const moduleArch: { readonly modules: ModuleCard[]; readonly diagrams: DiagramLayout[]; readonly metrics?: typeof merged.metrics } = atlas?.buildModuleArchitecture
     ? atlas.buildModuleArchitecture({ units: ctx.units, ast: merged.ast })
     : { modules: [], diagrams: [] };
+  if (moduleArch.metrics && moduleArch.metrics.length > 0) merged.metrics.push(...moduleArch.metrics);
   const realCoverage = overrides?.discoverCoverage ? await overrides.discoverCoverage(ctx.rootDir) : discoverRealCoverageReport(ctx.rootDir);
   const dbEval = evaluateIndexDb({ domains, targetDbPath, ctx, merged, modules: moduleArch.modules, realCoverage, repoExtraRulesDirs: repoExtensions.extraRulesDirs });
 
@@ -295,6 +296,7 @@ export async function checkWithDomains(
       failedInvariants: failedInvariants.map((i) => ({ id: i.id, name: i.name, count: i.violationCount })),
       customGates,
       scopeSummary: buildVerificationScopeSummary(scanRes.spec.verification),
+      soundiness: scanRes.spec.soundiness,
       verification: scanRes.spec.verification,
     };
   } finally {

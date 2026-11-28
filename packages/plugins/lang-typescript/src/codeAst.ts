@@ -5,6 +5,7 @@ import type {
   CanonicalLayer,
   EdgeEvidenceItem,
   ExtractorPlugin,
+  FactEdgeRecord,
   GraphFragment,
   LoopRecord,
   RepoContext,
@@ -40,6 +41,7 @@ export const codeAstExtractor: ExtractorPlugin = {
     const loops: LoopRecord[] = [];
     const nodes: SpecNode[] = [];
     const edges: SpecEdge[] = [];
+    const factEdges: FactEdgeRecord[] = [];
 
     const validUnitIds = new Set(ctx.units.map((u) => u.id));
     const tsUnits = ctx.units.filter((u) => u.ecosystem === "typescript" || u.ecosystem === "javascript");
@@ -216,6 +218,7 @@ export const codeAstExtractor: ExtractorPlugin = {
       unitDatastoreEvidence,
       unitExternalEvidence,
       layerExternalEvidence,
+      factEdges,
     });
 
     emitCodeAstGraph({
@@ -243,6 +246,7 @@ export const codeAstExtractor: ExtractorPlugin = {
       loops,
       diagnostics,
       ast,
+      factEdges,
     };
   },
 };

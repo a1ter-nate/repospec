@@ -56,6 +56,22 @@ Run `bunx repospec generate <repoDir> --out <dir> --mode artifact` (or `bunx rep
 
 - **Done when:** `repospec check` exits `0` (or every remaining warning is explicitly documented with rationale) and the impact brief lists every affected unit, entity, and invariant delta.
 
+### Optional Mode: Uncomplect / First-Principles Architectural Replacement Pass
+
+When asked to audit, simplify, or **uncomplect** a subsystem or repository (Parnas 1972/1979 + Rich Hickey + Greg Young), ground every judgment in `repospec.sqlite` instead of gut feel:
+
+1. **Pull the structural & evolutionary evidence first:**
+   - Economics (`PC%`, `DL%`, `NCCD`, `pure_core_ratio_pct`): `SELECT scope_kind, scope_id, name, value_num FROM metrics WHERE name IN ('dsm_propagation_cost_pct','drh_decoupling_level_pct','lakos_nccd','pure_core_ratio_pct');`
+   - Hotspots & Main Sequence (`module_cards`): `SELECT unit_slug, name, cd, instability, abstractness, main_seq_distance, core_periphery, relative_churn, hotspot_score, contraction_blast_radius FROM module_cards ORDER BY hotspot_score DESC LIMIT 20;`
+   - Invisible coupling & smells: `SELECT * FROM co_changes WHERE co_commits >= 4 AND confidence >= 0.6 ORDER BY confidence DESC LIMIT 20;` and `SELECT rule_id, subject, detail, file, line FROM invariant_evidence WHERE rule_id IN ('sql:parnas-secret-leak','sql:disjoint-caller-cohesion','sql:invisible-coupling','sql:unstable-interface','sql:crossing-hub','sql:near-duplicate-types','sql:passthrough-wrapper','sql:projection-authority-leak','sql:paved-path-and-retiring');`
+   - Cartridge deletability: run `bunx repospec contraction <target> --db <repospec.sqlite>` on candidate subsystems.
+2. **Produce the Uncomplect Replacement Report with these exact sections:**
+   - **Binary Verdict:** State verbatim either **`More complicated locally, simpler overall`** OR **`More machinery, no net simplification`**, backed by `PC%`, `DL%`, `NCCD`, and `contraction` blast-radius deltas.
+   - **Complection & Secrets Table:** Module | Hidden Decision (Parnas) | Leaked Secret / Braided Concerns | `core_periphery` / `hotspot_score` | Fence Status (`Enforced by <rule>` or **`No fence yet`**).
+   - **Compensating-Code Redesigns:** Near-duplicate types, field-copy adapters, and derived-state sync sites replaced by a single canonical representation or read-time derivation.
+   - **Deletion List:** Zero-value pass-through wrappers, retiring interfaces (`.repospec/retiring.json`), and cartridge subsystems ranked by `deletabilityScore`.
+   - **Fence Backlog:** Explicitly tag every unguarded invariant or boundary with **`No fence yet`** plus the concrete SQL rule or test rung needed to prevent backsliding.
+
 ## Hard Guardrails
 
 - Query `repospec.sqlite` instead of trusting prose `AGENTS.md` or wiki diagrams; fix or report any `v_doc_drift` hit you uncover.

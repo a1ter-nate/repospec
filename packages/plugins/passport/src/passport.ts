@@ -1,5 +1,15 @@
 import { execFileSync } from "node:child_process";
 import type { Database } from "bun:sqlite";
+import {
+  buildChangeRiskSummary,
+  buildContractionReport,
+  buildSecretsSummary,
+  buildSymbolSlice,
+  type ChangeRiskSummary,
+  type ContractionReport,
+  type SecretsSummary,
+  type SymbolSliceSummary,
+} from "./intelligence.ts";
 
 export type AdvisoryTier = "observed" | "constrained" | "refuse";
 
@@ -32,6 +42,9 @@ export interface FilePassport {
     violations: Array<{ ruleId: string; severity: string; detail: string; line: number }>;
   };
   rules: Array<{ id: string; kind: string; symbol: string | null; text: string; rationale: string | null; file: string }>;
+  secrets: SecretsSummary;
+  contraction: ContractionReport;
+  ownership: { commits: number; relativeChurn: number; bugFixCommits: number; majorAuthor: string | null; majorOwnerPct: number; minorAuthors: number } | null;
   advice: string | null;
 }
 
@@ -59,6 +72,8 @@ export interface UnitPassport {
   verifiedBy: string[];
   rules: Array<{ id: string; kind: string; symbol: string | null; text: string; file: string }>;
   violations: Array<{ ruleId: string; severity: string; subject: string; file: string; line: number }>;
+  secrets: SecretsSummary;
+  contraction: ContractionReport;
 }
 
 export interface ImpactReport {
@@ -79,6 +94,8 @@ export interface ImpactReport {
   ciWorkflows: string[];
   activeViolations: Array<{ ruleId: string; severity: string; file: string; line: number; detail: string }>;
   docDrift: Array<{ docFile: string; line: number; referencedPath: string }>;
+  symbolSlice: SymbolSliceSummary;
+  changeRisk: ChangeRiskSummary;
   refusals: string[];
 }
 
@@ -220,6 +237,17 @@ export function buildFilePassport(db: Database, relFile: string): FilePassport |
       ? null
       : `${row.unit} (${row.canonical_layer}) — ${tests.length} direct test(s), ${violations.length} active violation(s), ${rules.length} scoped rule(s).`;
 
+  const churnRow = db
+    .query("SELECT commits, relative_churn, bug_fix_commits, major_author, major_owner_pct, minor_authors FROM file_churn WHERE file = ?")
+    .get(relFile) as {
+    commits: number;
+    relative_churn: number;
+    bug_fix_commits: number;
+    major_author: string | null;
+    major_owner_pct: number;
+    minor_authors: number;
+  } | null;
+
   return {
     schema: "repospec.passport/v1",
     kind: "file",
@@ -254,6 +282,18 @@ export function buildFilePassport(db: Database, relFile: string): FilePassport |
       violations,
     },
     rules,
+    secrets: buildSecretsSummary(db, [row.file]),
+    contraction: buildContractionReport(db, row.file),
+    ownership: churnRow
+      ? {
+          commits: churnRow.commits,
+          relativeChurn: churnRow.relative_churn,
+          bugFixCommits: churnRow.bug_fix_commits,
+          majorAuthor: churnRow.major_author,
+          majorOwnerPct: churnRow.major_owner_pct,
+          minorAuthors: churnRow.minor_authors,
+        }
+      : null,
     advice,
   };
 }
@@ -330,6 +370,10 @@ export function buildUnitPassport(
     )
     .all(row.name) as Array<{ ruleId: string; severity: string; subject: string; file: string; line: number }>;
 
+  const unitProdFiles = (
+    db.query("SELECT file FROM files WHERE unit = ? AND is_test = 0 ORDER BY file ASC").all(row.name) as Array<{ file: string }>
+  ).map((r) => r.file);
+
   return {
     schema: "repospec.passport/v1",
     kind: "unit",
@@ -354,6 +398,8 @@ export function buildUnitPassport(
     verifiedBy,
     rules,
     violations,
+    secrets: buildSecretsSummary(db, unitProdFiles),
+    contraction: buildContractionReport(db, row.name),
   };
 }
 
@@ -419,6 +465,9 @@ export function buildImpactReport(db: Database, repoDir: string, range: string):
     .query("SELECT doc_file AS docFile, line, referenced_path AS referencedPath FROM v_doc_drift LIMIT 20")
     .all() as Array<{ docFile: string; line: number; referencedPath: string }>;
 
+  const symbolSlice = buildSymbolSlice(db, repoDir, range, diffFiles);
+  const changeRisk = buildChangeRiskSummary(db, repoDir, range, diffFiles);
+
   return {
     schema: "repospec.passport/v1",
     kind: "impact",
@@ -437,8 +486,11 @@ export function buildImpactReport(db: Database, repoDir: string, range: string):
     ciWorkflows: Array.from(ciWorkflows).sort(),
     activeViolations,
     docDrift,
+    symbolSlice,
+    changeRisk,
     refusals,
   };
 }
 
+export { buildContractionReport } from "./intelligence.ts";
 export { buildPrecedentsReport, formatImpactAsGithubMarkdown } from "./reports.ts";

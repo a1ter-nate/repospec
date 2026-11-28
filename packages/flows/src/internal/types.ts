@@ -25,7 +25,23 @@ export type FlowHazardKind =
   | "serial_independent_awaits"
   | "blocking_noncritical_io"
   | "write_on_poll"
-  | "multi_writer_unowned_field";
+  | "multi_writer_unowned_field"
+  | "derived_state_sync"
+  | "io_inside_transaction"
+  | "non_idempotent_retry"
+  | "unbounded_pagination";
+
+export interface LdfiCutSetRecord {
+  flowId: string;
+  flowName: string;
+  file: string;
+  unit: string;
+  cutSets: Array<{
+    size: number;
+    kind: "single_point_of_failure" | "redundant_group";
+    steps: Array<{ index: number; fn: string; op: FlowEffectKind; lane: FlowLane; line: number }>;
+  }>;
+}
 
 export interface FlowStep {
   index: number;
@@ -153,4 +169,5 @@ export interface FlowAnalysisBundle {
   stateMachines: ExtractedStateMachine[];
   asyncHandoffs: AsyncHandoff[];
   hazards: FlowHazard[];
+  ldfiCutSets?: LdfiCutSetRecord[];
 }

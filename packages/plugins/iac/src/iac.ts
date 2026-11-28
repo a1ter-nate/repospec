@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ExtractorPlugin, GraphFragment, IacPlane, LoopRecord, RepoContext, SpecEdge, SpecNode, SpecRule } from "@repospec/plugin";
+import type { ExtractorPlugin, FactRecord, GraphFragment, IacPlane, LoopRecord, RepoContext, SpecEdge, SpecNode, SpecRule } from "@repospec/plugin";
 
 const DEPLOYABLE_COMPUTE_EXACT = new Set([
   "azurerm_container_app",
@@ -222,9 +222,23 @@ export const iacExtractor: ExtractorPlugin = {
     const edges: SpecEdge[] = [];
     const rules: SpecRule[] = [];
     const loops: LoopRecord[] = [];
+    const facts: FactRecord[] = [];
+
+    const declaredEnvNames = new Set<string>();
+    for (const rel of ctx.allFiles) {
+      if (!/(?:^|\/)\.env(?:\.example|\.schema|\.template|\.sample)?$/i.test(rel)) continue;
+      try {
+        const txt = fs.readFileSync(path.join(ctx.rootDir, rel), "utf8");
+        for (const m of txt.matchAll(/^\s*([A-Z][A-Z0-9_]{2,})\s*=/gm)) {
+          if (m[1]) declaredEnvNames.add(m[1]);
+        }
+      } catch {
+        continue;
+      }
+    }
 
     const tfFiles = ctx.allFiles.filter((f) => f.endsWith(".tf")).sort();
-    const tfBodies: Array<{ id: string; relFile: string; body: string }> = [];
+    const tfBodies: Array<{ id: string; relFile: string; line: number; body: string }> = [];
     const tfAddressToId = new Map<string, string>();
 
     for (const relFile of tfFiles) {
@@ -297,7 +311,32 @@ export const iacExtractor: ExtractorPlugin = {
           });
 
           tfAddressToId.set(address, id);
-          tfBodies.push({ id, relFile, body });
+          tfBodies.push({ id, relFile, line, body });
+
+          if (declaredEnvNames.size > 0) {
+            const condInputs = new Set<string>();
+            for (const cm of body.matchAll(/(?:count|for_each)\s*=[^\n]*\bvar\.([a-zA-Z0-9_]+)/g)) {
+              if (cm[1]) condInputs.add(cm[1].toUpperCase());
+            }
+            for (const em of body.matchAll(/\b(?:TF_VAR_|env\.)([A-Z][A-Z0-9_]{2,})/g)) {
+              if (em[1]) condInputs.add(em[1]);
+            }
+            for (const envKey of condInputs) {
+              if (!declaredEnvNames.has(envKey) && !declaredEnvNames.has(`TF_VAR_${envKey}`)) {
+                facts.push({
+                  extractorId: "iac.terraform-docker-firebase.v4",
+                  kind: "iac_undeclared_deploy_input",
+                  key: `${address}:${envKey}`,
+                  file: relFile,
+                  line,
+                  unit: fileBase,
+                  symbol: address,
+                  severity: "warn",
+                  payload: { address, inputName: envKey },
+                });
+              }
+            }
+          }
         }
         match = resRegex.exec(text);
       }
@@ -402,6 +441,6 @@ export const iacExtractor: ExtractorPlugin = {
       });
     }
 
-    return { nodes, edges, rules, loops };
+    return { nodes, edges, rules, loops, facts };
   },
 };

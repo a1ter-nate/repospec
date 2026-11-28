@@ -256,6 +256,20 @@ const MetricRecordSchema = Schema.Struct({
   valueText: Schema.optional(Schema.String),
 });
 
+const SoundinessEntrySchema = Schema.Struct({
+  category: Schema.NonEmptyString,
+  file: Schema.NonEmptyString,
+  line: NonNegInt,
+  detail: Schema.NonEmptyString,
+});
+
+const SoundinessLedgerSchema = Schema.Struct({
+  totalApproximations: NonNegInt,
+  byCategory: Schema.Record(Schema.String, NonNegInt),
+  entries: Schema.Array(SoundinessEntrySchema),
+});
+export type SoundinessLedger = DeepMutable<typeof SoundinessLedgerSchema.Type>;
+
 const SpecExtensionsSchema = Schema.Struct({
   facts: Schema.Array(FactRecordSchema).pipe(
     Schema.withDecodingDefaultKey(Effect.sync(() => [] as readonly (typeof FactRecordSchema.Encoded)[])),
@@ -302,6 +316,7 @@ export const RepoSpecV4Schema = Schema.Struct({
   }),
   diagrams: Schema.Array(DiagramLayoutSchema),
   verification: VerificationCoverageSchema,
+  soundiness: Schema.optional(SoundinessLedgerSchema),
   diagnostics: Schema.Array(DiagnosticSchema),
   summary: SpecSummarySchema,
   extensions: SpecExtensionsSchema.pipe(

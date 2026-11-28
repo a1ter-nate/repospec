@@ -6,9 +6,11 @@ import type {
   AstIndexData,
   DiagramLayout,
   EdgeEvidenceItem,
+  MetricRecord,
   ModuleCard,
   UnitDescriptor,
 } from "@repospec/plugin";
+import { computeStructuralEconomics } from "./structuralEconomics.ts";
 import {
   buildLanesForLevels,
   computeTopologicalLevels,
@@ -170,12 +172,12 @@ function buildSubsystemDiagram(params: {
 export function buildModuleArchitecture(params: {
   units: UnitDescriptor[];
   ast: AstIndexData;
-}): { modules: ModuleCard[]; diagrams: DiagramLayout[] } {
+}): { modules: ModuleCard[]; diagrams: DiagramLayout[]; metrics: MetricRecord[] } {
   const { units, ast } = params;
   const prodFiles = ast.files.filter(
     (f) => !f.isTest && f.canonicalLayer !== "ops_script" && !isExcludedCodePath(f.file),
   );
-  if (prodFiles.length === 0) return { modules: [], diagrams: [] };
+  if (prodFiles.length === 0) return { modules: [], diagrams: [], metrics: [] };
 
   const filesByUnit = new Map<string, AstFileFact[]>();
   for (const f of prodFiles) {
@@ -192,6 +194,7 @@ export function buildModuleArchitecture(params: {
   }
 
   const allModules: ModuleCard[] = [];
+  const allUnitEdges: Array<{ unitSlug: string; from: string; to: string }> = [];
   const moduleDiagrams: DiagramLayout[] = [];
   const subsystemCandidates: Array<{ fileCount: number; diagram: DiagramLayout }> = [];
 
@@ -262,6 +265,9 @@ export function buildModuleArchitecture(params: {
         const [from, to] = k.split(">");
         return { from: from ?? "", to: to ?? "" };
       });
+    for (const ep of edgePairs) {
+      allUnitEdges.push({ unitSlug: unit.slug, from: ep.from, to: ep.to });
+    }
 
     const topo = computeTopologicalLevels(modIds, edgePairs);
     const fanInMap = new Map<string, number>();
@@ -446,11 +452,13 @@ export function buildModuleArchitecture(params: {
     }
   }
 
+  const metrics = computeStructuralEconomics({ modules: allModules, unitEdges: allUnitEdges });
   allModules.sort((a, b) => a.unitSlug.localeCompare(b.unitSlug) || a.level - b.level || a.name.localeCompare(b.name));
   moduleDiagrams.sort((a, b) => b.nodes.length - a.nodes.length || a.id.localeCompare(b.id));
 
   return {
     modules: allModules,
     diagrams: [...moduleDiagrams, ...keptSubsystems],
+    metrics,
   };
 }

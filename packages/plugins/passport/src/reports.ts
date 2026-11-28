@@ -32,6 +32,16 @@ export function formatImpactAsGithubMarkdown(report: ImpactReport): string {
   if (report.ciWorkflows.length > 0) {
     lines.push(`- **CI Workflows:** ${report.ciWorkflows.map((w) => `\`${w}\``).join(", ")}`);
   }
+  if (report.symbolSlice && (report.symbolSlice.changedSymbols.length > 0 || report.symbolSlice.impactedConsumers.length > 0)) {
+    lines.push(
+      `- **Symbol Slice:** ${report.symbolSlice.changedSymbols.length} symbol(s) changed → ${report.symbolSlice.impactedConsumers.length} transitive consumer(s) (vs ${report.symbolSlice.coarseFileConsumers} file-level, ${report.symbolSlice.precisionGainPct}% narrowed)`,
+    );
+  }
+  if (report.changeRisk) {
+    lines.push(
+      `- **Change Risk (Kamei / Bird):** entropy=${report.changeRisk.kameiEntropy}, prior bug-fix touches=${report.changeRisk.priorBugFixTouches}, low-ownership files=${report.changeRisk.lowOwnershipFiles.length}`,
+    );
+  }
   if (report.activeViolations.length > 0) {
     lines.push("", "### Active Invariant Violations on Touched Files");
     for (const v of report.activeViolations.slice(0, 10)) {

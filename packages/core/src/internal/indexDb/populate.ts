@@ -95,10 +95,38 @@ function insertFilesAndModules(db: Database, p: PopulateParams): void {
     }
   }
   const insertModuleCard = db.prepare(
-    "INSERT OR REPLACE INTO module_cards (id, unit_id, unit_name, unit_slug, name, kind, rel_path, language, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, tangle_id, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO module_cards (id, unit_id, unit_name, unit_slug, name, kind, rel_path, language, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, tangle_id, capabilities, cd, instability, abstractness, main_seq_distance, core_periphery, relative_churn, hotspot_score, contraction_blast_radius) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   for (const m of p.modules ?? []) {
-    insertModuleCard.run(m.id, m.unitId, m.unitName, m.unitSlug, m.name, m.kind, m.relPath, m.language, m.level, m.role, m.depth, m.fileCount, m.lines, m.exportCount, m.fanIn, m.fanOut, m.inTangle ? 1 : 0, m.tangleId, m.capabilities.join(","));
+    insertModuleCard.run(
+      m.id,
+      m.unitId,
+      m.unitName,
+      m.unitSlug,
+      m.name,
+      m.kind,
+      m.relPath,
+      m.language,
+      m.level,
+      m.role,
+      m.depth,
+      m.fileCount,
+      m.lines,
+      m.exportCount,
+      m.fanIn,
+      m.fanOut,
+      m.inTangle ? 1 : 0,
+      m.tangleId,
+      m.capabilities.join(","),
+      m.cd ?? 1,
+      m.instability ?? 0,
+      m.abstractness ?? 0,
+      m.mainSeqDistance ?? 0,
+      m.corePeriphery ?? "periphery",
+      m.relativeChurn ?? 0,
+      m.hotspotScore ?? 0,
+      m.contractionBlastRadius ?? m.fanIn,
+    );
   }
 }
 
@@ -156,6 +184,52 @@ function insertSurfacesAndExtensions(db: Database, p: PopulateParams): void {
 
   const insertMetric = db.prepare("INSERT OR REPLACE INTO metrics (extractor_id, scope_kind, scope_id, name, value_num, value_text) VALUES (?, ?, ?, ?, ?, ?)");
   for (const m of p.metrics ?? []) insertMetric.run(m.extractorId, m.scopeKind, m.scopeId, m.name, m.valueNum ?? null, m.valueText ?? null);
+
+  const insertCoChange = db.prepare("INSERT OR REPLACE INTO co_changes (file_a, file_b, co_commits, support, confidence) VALUES (?, ?, ?, ?, ?)");
+  const insertChurn = db.prepare("INSERT OR REPLACE INTO file_churn (file, commits, added_lines, deleted_lines, relative_churn, bug_fix_commits, author_count, major_author, major_owner_pct, minor_authors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  for (const fact of p.facts ?? []) {
+    if (fact.kind === "co_change") {
+      const a = String(fact.payload.fileA ?? fact.file);
+      const b = String(fact.payload.fileB ?? "");
+      if (a && b) {
+        insertCoChange.run(a, b, Number(fact.payload.coCommits ?? 0), Number(fact.payload.support ?? 0), Number(fact.payload.confidence ?? 0));
+      }
+    } else if (fact.kind === "file_churn") {
+      insertChurn.run(
+        fact.file,
+        Number(fact.payload.commits ?? 0),
+        Number(fact.payload.addedLines ?? 0),
+        Number(fact.payload.deletedLines ?? 0),
+        Number(fact.payload.relativeChurn ?? 0),
+        Number(fact.payload.bugFixCommits ?? 0),
+        Number(fact.payload.authorCount ?? 0),
+        typeof fact.payload.majorAuthor === "string" ? fact.payload.majorAuthor : null,
+        Number(fact.payload.majorOwnerPct ?? 0),
+        Number(fact.payload.minorAuthors ?? 0),
+      );
+    }
+  }
+  const insertSymImp = db.prepare("INSERT INTO symbol_imports (from_file, to_file, symbol_name, line) VALUES (?, ?, ?, ?)");
+  for (const fe of p.factEdges ?? []) {
+    if (fe.kind === "imports_symbol") {
+      const sym = typeof fe.payload?.symbol === "string" ? fe.payload.symbol : "";
+      if (sym) insertSymImp.run(fe.fromRef, fe.toRef, sym, fe.line);
+    }
+  }
+  db.exec(`
+    UPDATE module_cards SET
+      relative_churn = COALESCE((
+        SELECT ROUND(AVG(fc.relative_churn), 3) FROM file_churn fc
+        WHERE fc.file = module_cards.rel_path OR fc.file LIKE module_cards.rel_path || '/%'
+      ), relative_churn),
+      contraction_blast_radius = COALESCE((
+        SELECT COUNT(DISTINCT fi.from_file) FROM file_imports fi
+        JOIN files ff ON ff.file = fi.from_file AND ff.is_test = 0
+        WHERE (fi.to_file = module_cards.rel_path OR fi.to_file LIKE module_cards.rel_path || '/%')
+          AND fi.from_file != module_cards.rel_path AND fi.from_file NOT LIKE module_cards.rel_path || '/%'
+      ), fan_in);
+    UPDATE module_cards SET hotspot_score = ROUND((lines / 100.0 + fan_in + fan_out + in_tangle * 5.0) * (1.0 + relative_churn), 2);
+  `);
 }
 
 export function createAndPopulateIndexDb(params: PopulateParams): Database {

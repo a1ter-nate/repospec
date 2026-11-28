@@ -252,7 +252,44 @@ const INDEX_DB_DDL = `
       fan_out INTEGER NOT NULL,
       in_tangle INTEGER NOT NULL,
       tangle_id TEXT,
-      capabilities TEXT NOT NULL
+      capabilities TEXT NOT NULL,
+      cd INTEGER NOT NULL DEFAULT 1,
+      instability REAL NOT NULL DEFAULT 0,
+      abstractness REAL NOT NULL DEFAULT 0,
+      main_seq_distance REAL NOT NULL DEFAULT 0,
+      core_periphery TEXT NOT NULL DEFAULT 'periphery',
+      relative_churn REAL NOT NULL DEFAULT 0,
+      hotspot_score REAL NOT NULL DEFAULT 0,
+      contraction_blast_radius INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE co_changes (
+      file_a TEXT NOT NULL,
+      file_b TEXT NOT NULL,
+      co_commits INTEGER NOT NULL,
+      support REAL NOT NULL,
+      confidence REAL NOT NULL,
+      PRIMARY KEY (file_a, file_b)
+    );
+
+    CREATE TABLE file_churn (
+      file TEXT PRIMARY KEY,
+      commits INTEGER NOT NULL,
+      added_lines INTEGER NOT NULL,
+      deleted_lines INTEGER NOT NULL,
+      relative_churn REAL NOT NULL,
+      bug_fix_commits INTEGER NOT NULL,
+      author_count INTEGER NOT NULL,
+      major_author TEXT,
+      major_owner_pct REAL NOT NULL,
+      minor_authors INTEGER NOT NULL
+    );
+
+    CREATE TABLE symbol_imports (
+      from_file TEXT NOT NULL,
+      to_file TEXT NOT NULL,
+      symbol_name TEXT NOT NULL,
+      line INTEGER NOT NULL
     );
 
     CREATE TABLE file_symbols (
@@ -335,6 +372,10 @@ const INDEX_DB_DDL = `
     CREATE INDEX idx_facts_key ON facts(kind, key);
     CREATE INDEX idx_fact_edges_kind ON fact_edges(kind);
     CREATE INDEX idx_metrics_name ON metrics(name);
+    CREATE INDEX idx_co_changes_a ON co_changes(file_a);
+    CREATE INDEX idx_co_changes_b ON co_changes(file_b);
+    CREATE INDEX idx_symbol_imports_to ON symbol_imports(to_file, symbol_name);
+    CREATE INDEX idx_symbol_imports_from ON symbol_imports(from_file);
 
     CREATE VIEW v_prod_files AS
     SELECT

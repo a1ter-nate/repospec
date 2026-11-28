@@ -5,6 +5,7 @@ import type {
   CanonicalLayer,
   EdgeEvidenceItem,
   ExportedSymbol,
+  FactEdgeRecord,
   LoopRecord,
   StateMachineRecord,
   UnitDescriptor,
@@ -12,7 +13,7 @@ import type {
 import { classifyExternalPackage, classifyVendorPackage } from "@repospec/plugin";
 import { detectCapabilities } from "@repospec/plugin";
 import { CODE_AST_HELPERS } from "./codeAstHelpers.ts";
-import { collectTsEnvRead } from "./envReads.ts";
+import { collectTsEnvRead, collectTsSymbolImports } from "./envReads.ts";
 import { extractBunServeEndpoints } from "./httpRoutes.ts";
 
 const {
@@ -72,6 +73,7 @@ export function analyzeTsFiles(params: {
   unitDatastoreEvidence: Map<string, EdgeEvidenceItem[]>;
   unitExternalEvidence: Map<string, { label: string; category: string; evidence: EdgeEvidenceItem[] }>;
   layerExternalEvidence: Map<string, { label: string; category: string; evidence: EdgeEvidenceItem[] }>;
+  factEdges?: FactEdgeRecord[];
 }): void {
   const {
     tsFiles,
@@ -91,6 +93,7 @@ export function analyzeTsFiles(params: {
     unitDatastoreEvidence,
     unitExternalEvidence,
     layerExternalEvidence,
+    factEdges,
   } = params;
     for (const rel of tsFiles) {
       const sf = sourceFileCache.get(rel);
@@ -118,7 +121,7 @@ export function analyzeTsFiles(params: {
       const localStateEnums = new Map<string, Set<string>>();
       const localEnumMeta = new Map<string, { values: string[]; line: number }>();
 
-      const recordImportEdge = (spec: string, pos: number, typeOnly: boolean): void => {
+      const recordImportEdge = (spec: string, pos: number, typeOnly: boolean): string | null => {
         const line = sf.getLineAndCharacterOfPosition(pos).line + 1;
         const resolved = resolveTsSpecifier(rel, fm.unitDir, spec, fileSet, pkgNameToEntry);
         if (resolved) {
@@ -188,13 +191,18 @@ export function analyzeTsFiles(params: {
             }
           }
         }
+        return resolved && resolved !== rel ? resolved : null;
       };
 
       const visit = (node: ts.Node): void => {
         if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
           const clause = node.importClause;
           const typeOnly = Boolean(clause?.isTypeOnly) || isTypeOnlyImportClause(clause);
-          recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnly);
+          const target = recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnly);
+          if (target && factEdges) {
+            const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+            collectTsSymbolImports({ node, fromFile: rel, toFile: target, line, factEdges });
+          }
         }
 
         if (ts.isExportDeclaration(node)) {
@@ -202,7 +210,11 @@ export function analyzeTsFiles(params: {
           exportsCount += 1;
           if (!typeOnlyExport) runtimeExportsCount += 1;
           if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-            recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnlyExport);
+            const target = recordImportEdge(node.moduleSpecifier.text, node.getStart(sf), typeOnlyExport);
+            if (target && factEdges) {
+              const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+              collectTsSymbolImports({ node, fromFile: rel, toFile: target, line, factEdges });
+            }
           }
         }
 

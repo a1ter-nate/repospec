@@ -231,6 +231,10 @@ export const NAMED_QUERIES: Record<string, string> = {
   env_bindings: `SELECT env_name, GROUP_CONCAT(DISTINCT source_kind) AS sources, GROUP_CONCAT(DISTINCT unit) AS units, MAX(is_secret) AS is_secret FROM env_bindings GROUP BY env_name ORDER BY is_secret DESC, env_name ASC LIMIT 100;`,
   gov_rules: `SELECT id, kind, scope_prefix, symbol, text, rationale, file, line FROM gov_rules ORDER BY kind ASC, scope_prefix ASC, id ASC LIMIT 100;`,
   doc_drift: `SELECT doc_file, line, referenced_path FROM v_doc_drift ORDER BY doc_file ASC, line ASC;`,
-  modules: `SELECT unit_slug, name, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, capabilities FROM module_cards ORDER BY unit_slug ASC, level ASC, name ASC LIMIT 200;`,
+  modules: `SELECT unit_slug, name, level, role, depth, file_count, lines, export_count, fan_in, fan_out, in_tangle, cd, instability, abstractness, main_seq_distance, core_periphery, relative_churn, hotspot_score, contraction_blast_radius, capabilities FROM module_cards ORDER BY unit_slug ASC, level ASC, name ASC LIMIT 200;`,
   tangles: `SELECT unit_slug, tangle_id, name, level, fan_in, fan_out, lines FROM module_cards WHERE in_tangle = 1 ORDER BY unit_slug ASC, tangle_id ASC, name ASC;`,
+  hotspots: `SELECT unit_slug, name, rel_path, lines, fan_in, fan_out, relative_churn, hotspot_score, core_periphery, contraction_blast_radius FROM module_cards ORDER BY hotspot_score DESC, lines DESC LIMIT 50;`,
+  co_changes: `SELECT file_a, file_b, co_commits, support, confidence FROM co_changes ORDER BY confidence DESC, co_commits DESC LIMIT 100;`,
+  economics: `SELECT scope_kind, scope_id, name, value_num FROM metrics WHERE name IN ('dsm_propagation_cost_pct','dsm_core_ratio_pct','drh_decoupling_level_pct','lakos_ccd','lakos_nccd','zone_of_pain_count','pure_core_ratio_pct') ORDER BY scope_kind ASC, scope_id ASC, name ASC;`,
+  soundiness: `SELECT json_extract(payload_json, '$.category') AS category, file, line, json_extract(payload_json, '$.detail') AS detail FROM facts WHERE kind = 'soundiness' ORDER BY file ASC, line ASC LIMIT 100;`,
 };

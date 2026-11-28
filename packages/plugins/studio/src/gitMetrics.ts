@@ -16,6 +16,9 @@ export interface TimelinePoint {
   tangles: number;
   coveragePct: number;
   edges: number;
+  propagationCostPct?: number;
+  decouplingLevelPct?: number;
+  nccd?: number;
 }
 
 export interface ArchTimelineData {
@@ -129,6 +132,8 @@ export async function buildArchTimeline<T extends { spec: RepoSpecV4 }>(params: 
         if (m.inTangle && m.tangleId) tangleSet.add(m.tangleId);
       }
       const totalLoc = (spec.modules ?? []).reduce((acc, m) => acc + m.lines, 0);
+      const repoMetric = (name: string): number | undefined =>
+        spec.extensions.metrics.find((m) => m.scopeKind === "repo" && m.name === name)?.valueNum;
       points.push({
         sha: e.sha,
         date: e.date,
@@ -141,6 +146,9 @@ export async function buildArchTimeline<T extends { spec: RepoSpecV4 }>(params: 
         tangles: tangleSet.size,
         coveragePct: spec.verification.directTestCoveragePct,
         edges: spec.summary.indexedImportEdges,
+        propagationCostPct: repoMetric("dsm_propagation_cost_pct"),
+        decouplingLevelPct: repoMetric("drh_decoupling_level_pct"),
+        nccd: repoMetric("lakos_nccd"),
       });
     }
   } finally {
@@ -165,7 +173,15 @@ export async function buildArchTimeline<T extends { spec: RepoSpecV4 }>(params: 
     const tangleD = head.tangles - base.tangles;
     if (failD > 0 || tangleD > 0 || warnD >= 2 || covD <= -3) trend = "drifting";
     else if (failD < 0 || tangleD < 0 || covD >= 2) trend = "improving";
-    summary = `${base.sha} → ${head.sha} (${points.length} commits): failures ${base.failures}→${head.failures}, warnings ${base.warnings}→${head.warnings}, tangles ${base.tangles}→${head.tangles}, coverage ${base.coveragePct}%→${head.coveragePct}% (${covD >= 0 ? "+" : ""}${covD}%).`;
+    const pcPart =
+      base.propagationCostPct !== undefined && head.propagationCostPct !== undefined
+        ? `, PC% ${base.propagationCostPct}%→${head.propagationCostPct}%`
+        : "";
+    const dlPart =
+      base.decouplingLevelPct !== undefined && head.decouplingLevelPct !== undefined
+        ? `, DL% ${base.decouplingLevelPct}%→${head.decouplingLevelPct}%`
+        : "";
+    summary = `${base.sha} → ${head.sha} (${points.length} commits): failures ${base.failures}→${head.failures}, warnings ${base.warnings}→${head.warnings}, tangles ${base.tangles}→${head.tangles}, coverage ${base.coveragePct}%→${head.coveragePct}% (${covD >= 0 ? "+" : ""}${covD}%)${pcPart}${dlPart}.`;
   }
 
   return {

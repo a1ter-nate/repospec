@@ -3,6 +3,7 @@ import { NAMED_QUERIES } from "@repospec/core";
 import { diffSpecFilesEffect, SqliteIndexService, validateSpecFileEffect } from "@repospec/core/effect";
 import { buildRepoSpecJsonSchema, CliUsageError } from "@repospec/plugin";
 import {
+  buildContractionReport,
   buildFilePassport,
   buildImpactReport,
   buildPrecedentsReport,
@@ -123,8 +124,25 @@ const diffCmd = Command.make(
   (cfg) => diffSpecFilesEffect(cfg.base, cfg.head).pipe(Effect.flatMap(printJson)),
 ).pipe(Command.withDescription("Diff two canonical repospec.json specs."));
 
+const contractionCmd = Command.make(
+  "contraction",
+  {
+    target: Argument.String("path-or-unit"),
+    db: Flag.String("db"),
+  },
+  (cfg) =>
+    Effect.gen(function* () {
+      const sqlite = yield* SqliteIndexService;
+      const report = yield* sqlite.withReadonlyDb(cfg.db, (db) =>
+        Effect.sync(() => buildContractionReport(db, cfg.target)),
+      );
+      yield* printJson(report);
+    }),
+).pipe(Command.withDescription("Compute Parnas/Young contraction & cartridge deletability blast radius."));
+
 export const querySubcommands = [
   explainCmd,
+  contractionCmd,
   impactCmd,
   precedentsCmd,
   validateCmd,

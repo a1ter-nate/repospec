@@ -29,6 +29,7 @@ const checkCmd = Command.make(
     spec: Flag.optional(Flag.String("spec")).pipe(Flag.withDescription("Path to committed repospec.json for SHA-256 drift comparison")),
     allowFail: Flag.withDefault(Flag.Boolean("allow-fail"), false).pipe(Flag.withDescription("Exit 0 even when invariants or CI gates fail")),
     json: Flag.withDefault(Flag.Boolean("json"), true).pipe(Flag.withDescription("Emit machine-readable JSON output (default: true)")),
+    maxPc: Flag.optional(Flag.String("max-pc")).pipe(Flag.withDescription("Optional maximum allowed DSM Propagation Cost (PC%) ratchet threshold")),
     plugin: Flag.optional(Flag.String("plugin")).pipe(Flag.withDescription("Comma-separated plugin specifiers or paths to load")),
     disablePlugin: Flag.optional(Flag.String("disable-plugin")).pipe(Flag.withDescription("Comma-separated built-in plugin IDs or selectors to disable")),
   },
@@ -59,6 +60,23 @@ const checkCmd = Command.make(
               specPath: Option.getOrUndefined(cfg.spec),
               allowFail: cfg.allowFail,
             });
+      const maxPcRaw = Option.getOrUndefined(cfg.maxPc);
+      const maxPc = maxPcRaw !== undefined ? Number.parseFloat(maxPcRaw) : undefined;
+      if (maxPc !== undefined && Number.isFinite(maxPc)) {
+        const scanRes = yield* Effect.tryPromise({
+          try: () => runGenerateRepoSpec(cfg.repoDir, "artifact"),
+          catch: (err) => new CliUsageError({ message: err instanceof Error ? err.message : String(err) }),
+        });
+        const pcMetric = scanRes.spec.extensions.metrics.find(
+          (m) => m.scopeKind === "repo" && m.name === "dsm_propagation_cost_pct",
+        )?.valueNum;
+        if (pcMetric !== undefined && pcMetric > maxPc) {
+          yield* printJson({ ...summary, ok: false, propagationCostPct: pcMetric, maxPc });
+          return yield* Effect.fail(
+            new CliUsageError({ message: `DSM Propagation Cost ${pcMetric}% exceeds --max-pc ${maxPc}%.` }),
+          );
+        }
+      }
       yield* printJson(summary);
       if (!summary.ok) {
         return yield* Effect.fail(new CliUsageError({ message: "RepoSpec verification check failed." }));
