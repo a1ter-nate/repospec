@@ -42,9 +42,15 @@ function callNameOf(expr: ts.Expression): string {
   return "";
 }
 
-function classifyCall(fnName: string, callExpr: ts.CallExpression): { op: FlowEffectKind; lane: FlowLane } {
+function classifyCall(
+  fnName: string,
+  callExpr: ts.CallExpression,
+  awaited = false,
+): { op: FlowEffectKind; lane: FlowLane } {
   const txt = fnName || callExpr.expression.getText();
-  if (/^res\.(?:status|json|send|end)\b/.test(txt) || /\b(?:res|reply)\.(?:json|send|end)\b/.test(txt)) {
+  const isClientJsonRead =
+    (awaited || callExpr.arguments.length === 0) && /\.json\b/.test(txt);
+  if (!isClientJsonRead && (/^res\.(?:status|json|send|end)\b/.test(txt) || /\b(?:res|reply)\.(?:json|send|end)\b/.test(txt))) {
     return { op: "response_send", lane: "client" };
   }
   if (/runBusinessSpan|startSpan|withSpan/.test(txt)) {
@@ -62,17 +68,34 @@ function classifyCall(fnName: string, callExpr: ts.CallExpression): { op: FlowEf
   return { op: "call", lane: "handler" };
 }
 
-function responseStatusKind(callExpr: ts.CallExpression): "success" | "error" | null {
+function responseStatusKind(callExpr: ts.CallExpression, awaited = false): "success" | "error" | null {
+  if (awaited) return null;
   const full = callExpr.expression.getText();
   if (!/\b(?:res|response|reply)(?:\.status\([^)]*\))?\.(?:json|send|end)\b/.test(full)) {
     return null;
   }
+  if (callExpr.arguments.length === 0 && /\.json\b/.test(full)) return null;
   const statusMatch = full.match(/\.status\(\s*(\d{3})\s*\)/);
   if (statusMatch?.[1]) {
     const code = Number(statusMatch[1]);
     if (code >= 400) return "error";
   }
   return "success";
+}
+
+function collectBindingNames(name: ts.BindingName, out: string[] = []): string[] {
+  if (ts.isIdentifier(name)) { out.push(name.text); return out; }
+  for (const el of name.elements) {
+    if (ts.isBindingElement(el)) collectBindingNames(el.name, out);
+  }
+  return out;
+}
+
+function collectUsedIdents(node: ts.Node, out: Set<string> = new Set()): Set<string> {
+  if (ts.isIdentifier(node)) { out.add(node.text); return out; }
+  if (ts.isPropertyAccessExpression(node)) { collectUsedIdents(node.expression, out); return out; }
+  ts.forEachChild(node, (c) => { collectUsedIdents(c, out); });
+  return out;
 }
 
 function isPromiseAllCall(callExpr: ts.CallExpression): boolean {
@@ -92,6 +115,24 @@ function collectFunctionSteps(
   body: ts.ConciseBody,
 ): FlowStep[] {
   const ws: WalkState = { steps: [], responseSent: false, parallelSeq: 0 };
+  const taintedByStep = new Map<string, number>();
+
+  const findDependencyStep = (expr: ts.Node): number | undefined => {
+    for (const id of collectUsedIdents(expr)) {
+      const dep = taintedByStep.get(id);
+      if (dep !== undefined) return dep;
+    }
+    return undefined;
+  };
+
+  const recordBindingTaint = (parent: ts.Node | undefined, stepIdx: number): void => {
+    if (!parent) return;
+    if (ts.isVariableDeclaration(parent)) {
+      for (const n of collectBindingNames(parent.name)) taintedByStep.set(n, stepIdx);
+    } else if (ts.isBinaryExpression(parent) && ts.isIdentifier(parent.left)) {
+      taintedByStep.set(parent.left.text, stepIdx);
+    }
+  };
 
   const pushStep = (
     fn: string,
@@ -101,7 +142,8 @@ function collectFunctionSteps(
     bestEffort: boolean,
     parallelGroup?: number,
     target?: string,
-  ): void => {
+    dependsOnStep?: number,
+  ): number => {
     const step: FlowStep = {
       index: ws.steps.length,
       fn,
@@ -114,17 +156,19 @@ function collectFunctionSteps(
     };
     if (parallelGroup !== undefined) step.parallelGroup = parallelGroup;
     if (target) step.target = target;
+    if (dependsOnStep !== undefined) step.dependsOnStep = dependsOnStep;
     ws.steps.push(step);
+    return step.index;
   };
 
-  const visit = (node: ts.Node, inCatchTry: boolean, parallelGroup?: number): void => {
+  const visit = (node: ts.Node, inCatchTry: boolean, parallelGroup?: number, parent?: ts.Node): void => {
     if (ts.isFunctionLike(node) && node !== body) {
       return;
     }
 
     if (ts.isIfStatement(node)) {
       const hasEarlyExit = /\b(?:return|throw)\b/.test(node.thenStatement.getText(sf));
-      ts.forEachChild(node, (child) => visit(child, inCatchTry, parallelGroup));
+      ts.forEachChild(node, (child) => visit(child, inCatchTry, parallelGroup, node));
       if (hasEarlyExit) {
         pushStep("guard:early-return", "call", "handler", lineOf(sf, node), false, parallelGroup);
       }
@@ -133,9 +177,16 @@ function collectFunctionSteps(
 
     if (ts.isTryStatement(node)) {
       const hasSwallowCatch = Boolean(node.catchClause);
-      visit(node.tryBlock, hasSwallowCatch || inCatchTry, parallelGroup);
-      if (node.finallyBlock) visit(node.finallyBlock, inCatchTry, parallelGroup);
+      visit(node.tryBlock, hasSwallowCatch || inCatchTry, parallelGroup, node);
+      if (node.finallyBlock) visit(node.finallyBlock, inCatchTry, parallelGroup, node);
       return;
+    }
+
+    if (ts.isVariableDeclaration(node) && node.initializer && !ts.isAwaitExpression(node.initializer)) {
+      const dep = findDependencyStep(node.initializer);
+      if (dep !== undefined) {
+        for (const n of collectBindingNames(node.name)) taintedByStep.set(n, dep);
+      }
     }
 
     if (ts.isAwaitExpression(node)) {
@@ -144,37 +195,41 @@ function collectFunctionSteps(
         ws.parallelSeq += 1;
         const grp = ws.parallelSeq;
         for (const arg of inner.arguments) {
-          visit(arg, inCatchTry, grp);
+          visit(arg, inCatchTry, grp, inner);
         }
         return;
       }
       if (ts.isCallExpression(inner)) {
         const fn = callNameOf(inner.expression);
+        const depStep = findDependencyStep(inner);
         if (fn === "notify" && inner.arguments.length >= 2) {
           const labelArg = inner.arguments[0];
           const label = labelArg && ts.isStringLiteral(labelArg) ? labelArg.text : "notify";
-          pushStep(`notify(${label})`, "notify", "async_push", lineOf(sf, inner), true, parallelGroup, label);
+          const idx = pushStep(`notify(${label})`, "notify", "async_push", lineOf(sf, inner), true, parallelGroup, label, depStep);
+          recordBindingTaint(parent, idx);
           return;
         }
-        const cls = classifyCall(fn, inner);
+        const cls = classifyCall(fn, inner, true);
         if (cls.op !== "call") {
           const firstArg = inner.arguments[0];
           const target = firstArg && ts.isStringLiteral(firstArg) ? firstArg.text : undefined;
-          pushStep(fn || "await", cls.op, cls.lane, lineOf(sf, inner), inCatchTry, parallelGroup, target);
+          const idx = pushStep(fn || "await", cls.op, cls.lane, lineOf(sf, inner), inCatchTry, parallelGroup, target, depStep);
+          recordBindingTaint(parent, idx);
           if (cls.op === "span") {
             for (const arg of inner.arguments) {
               if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
-                visit(arg.body, inCatchTry, parallelGroup);
+                visit(arg.body, inCatchTry, parallelGroup, arg);
               }
             }
           }
           return;
         }
+        return;
       }
     }
 
     if (ts.isCallExpression(node)) {
-      const resKind = responseStatusKind(node);
+      const resKind = responseStatusKind(node, parent !== undefined && ts.isAwaitExpression(parent));
       if (resKind === "error") {
         return;
       }
@@ -184,7 +239,7 @@ function collectFunctionSteps(
         return;
       }
       const fn = callNameOf(node.expression);
-      const cls = classifyCall(fn, node);
+      const cls = classifyCall(fn, node, parent !== undefined && ts.isAwaitExpression(parent));
       if (cls.op === "cache_del" || cls.op === "cache_read" || cls.op === "async_enqueue") {
         pushStep(fn, cls.op, cls.lane, lineOf(sf, node), inCatchTry, parallelGroup);
         return;
@@ -195,14 +250,14 @@ function collectFunctionSteps(
         pushStep(spanName, "span", "handler", lineOf(sf, node), inCatchTry, parallelGroup, spanName);
         for (const arg of node.arguments) {
           if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
-            visit(arg.body, inCatchTry, parallelGroup);
+            visit(arg.body, inCatchTry, parallelGroup, arg);
           }
         }
         return;
       }
     }
 
-    ts.forEachChild(node, (child) => visit(child, inCatchTry, parallelGroup));
+    ts.forEachChild(node, (child) => visit(child, inCatchTry, parallelGroup, node));
   };
 
   visit(body, false);
@@ -278,7 +333,8 @@ export function detectFlowHazards(
 
   for (const s of ioSteps) {
     if (s.parallelGroup === undefined && (s.op === "notify" || s.op === "db_read")) {
-      if (runStart && runStart.op === s.op) {
+      const dependsOnRun = s.dependsOnStep !== undefined && runIndexes.includes(s.dependsOnStep);
+      if (runStart && runStart.op === s.op && !dependsOnRun) {
         runIndexes.push(s.index);
       } else {
         flushRun();

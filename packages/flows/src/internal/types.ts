@@ -53,6 +53,7 @@ export interface FlowStep {
   parallelGroup?: number;
   afterResponse: boolean;
   bestEffort: boolean;
+  dependsOnStep?: number;
   target?: string;
   latencyMsP50?: number;
   latencyMsP95?: number;

@@ -296,4 +296,58 @@ pub async fn set_packet_poll(tx: &mut Tx) {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  test("ignores client response.json() and data-dependent serial awaits, and catches file-level runtime import cycles via re-export", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "repospec-audit-round4-"));
+    const outDir = path.join(tmp, ".out");
+    try {
+      writeFile(tmp, "package.json", JSON.stringify({ name: "round4-app", private: true }));
+      writeFile(
+        tmp,
+        "src/api/syncClient.ts",
+        `export async function syncSpecHandler(url: string) {
+  const response = await fetch(url);
+  const body = await response.json();
+  const specs = await findSpecs(body);
+  const firstSpec = specs[0];
+  const content = await readFile(firstSpec);
+  return content;
+}
+`,
+      );
+      writeFile(
+        tmp,
+        "src/routes/hub-device-routes.ts",
+        `import { registerHubDevice } from "./hub-devices.ts";
+export const routePrefix = "/hub";
+export function mountHub() { return registerHubDevice(); }
+`,
+      );
+      writeFile(
+        tmp,
+        "src/routes/hub-devices.ts",
+        `export { routePrefix } from "./hub-device-routes.ts";
+export function registerHubDevice() { return "ok"; }
+`,
+      );
+
+      const res = await scanRepo(tmp, { dbPath: path.join(outDir, "spec.sqlite") });
+
+      const blockingInv = res.spec.invariants.find((i) => i.id === "ddia:blocking-noncritical-io");
+      expect(blockingInv?.evidence?.some((e) => e.file === "src/api/syncClient.ts") ?? false).toBe(false);
+
+      const serialInv = res.spec.invariants.find((i) => i.id === "ddia:serial-independent-awaits");
+      expect(serialInv?.evidence?.some((e) => e.file === "src/api/syncClient.ts") ?? false).toBe(false);
+
+      const tangleInv = res.spec.invariants.find((i) => i.id === "sql:intra-package-module-tangle");
+      expect(tangleInv?.status).toBe("warn");
+      expect(
+        tangleInv?.evidence?.some(
+          (e) => e.detail.includes("hub-device-routes.ts") && e.detail.includes("hub-devices.ts"),
+        ),
+      ).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
