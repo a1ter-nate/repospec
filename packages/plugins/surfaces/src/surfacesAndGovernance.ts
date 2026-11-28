@@ -149,6 +149,37 @@ export const surfacesAndGovernanceExtractor: ExtractorPlugin = {
         }
       }
 
+      if (/(?:^|\/)appsettings(?:\.[^/]+)?\.json$/i.test(rel)) {
+        const text = readTextSafe(path.join(ctx.rootDir, rel));
+        if (text) {
+          try {
+            const parsed = JSON.parse(text) as Record<string, unknown>;
+            const unit = resolveUnitForFile(rel, ctx.units);
+            const unitName = unit?.name ?? ctx.repoName;
+            const walkKeys = (obj: Record<string, unknown>, prefix: string): void => {
+              for (const [k, v] of Object.entries(obj)) {
+                if (k === "$schema" || k === "Logging" || k === "AllowedHosts") continue;
+                const fullKey = prefix ? `${prefix}:${k}` : k;
+                ast.envBindings.push({
+                  envName: fullKey,
+                  sourceKind: "env_example",
+                  unit: unitName,
+                  file: rel,
+                  line: 1,
+                  isSecret: isSecretEnvName(fullKey),
+                });
+                if (v && typeof v === "object" && !Array.isArray(v)) {
+                  walkKeys(v as Record<string, unknown>, fullKey);
+                }
+              }
+            };
+            walkKeys(parsed, "");
+          } catch {
+            continue;
+          }
+        }
+      }
+
       if (rel === "turbo.json") {
         const text = readTextSafe(path.join(ctx.rootDir, rel));
         if (text) {

@@ -20,10 +20,11 @@ const SOUNDINESS_PATTERNS: ReadonlyArray<{ category: string; re: RegExp; detail:
 ];
 
 const COMPETING_CONCERN_GROUPS: ReadonlyArray<{ concern: string; libraries: readonly string[] }> = [
-  { concern: "http_client", libraries: ["axios", "got", "ky", "superagent", "node-fetch", "undici", "reqwest", "ureq", "httpx", "requests"] },
+  { concern: "http_client", libraries: ["axios", "got", "ky", "superagent", "node-fetch", "undici", "reqwest", "ureq", "httpx", "requests", "restsharp", "flurl", "refit"] },
   { concern: "schema_validation", libraries: ["zod", "valibot", "yup", "joi", "ajv", "typebox", "arktype"] },
-  { concern: "logging", libraries: ["winston", "pino", "bunyan", "log4js"] },
+  { concern: "logging", libraries: ["winston", "pino", "bunyan", "log4js", "serilog", "nlog", "log4net"] },
   { concern: "date_time", libraries: ["moment", "dayjs", "luxon", "date-fns"] },
+  { concern: "json_serializer", libraries: ["newtonsoft.json", "system.text.json"] },
 ];
 
 interface ExtractedShape {
@@ -61,17 +62,23 @@ function extractExportedShapes(rel: string, unit: string, text: string): Extract
     rel.endsWith(".rs")
       ? /pub\s+struct\s+([A-Z][A-Za-z0-9_]*)\s*\{([^}]{10,2000})\}/g
       : rel.endsWith(".cs")
-        ? /public\s+(?:sealed\s+)?(?:record|class)\s+([A-Z][A-Za-z0-9_]*)\s*[({]([^})]{10,2000})[})]/g
+        ? /(?:public|internal)\s+(?:sealed\s+|readonly\s+|partial\s+)*(?:record(?:\s+(?:class|struct))?|class|struct)\s+([A-Z][A-Za-z0-9_]*)\s*[({]([^})]{10,2000})[})]/g
         : /export\s+(?:interface|type)\s+([A-Z][A-Za-z0-9_]*)\s*(?:=\s*)?\{([^}]{10,2000})\}/g;
   for (const m of text.matchAll(blockRe)) {
     const name = m[1];
     const body = m[2] ?? "";
     if (!name) continue;
     const fields = new Set<string>();
-    for (const fm of body.matchAll(/(?:^|[;\n,])\s*(?:readonly\s+|pub\s+|public\s+\S+\s+)?([a-zA-Z_][a-zA-Z0-9_]{1,40})\s*\??\s*[:=]/g)) {
-      const f = fm[1];
-      if (f && !["readonly", "public", "private", "protected", "static", "type", "interface"].includes(f)) {
-        fields.add(f.toLowerCase());
+    if (rel.endsWith(".cs")) {
+      for (const fm of body.matchAll(/\b(?:public\s+)?(?:required\s+)?(?:virtual\s+)?[A-Za-z0-9_<>,?.[\]]+\s+([A-Z][A-Za-z0-9_]{1,40})\s*(?:\{\s*get\b|,|\)|$)/gm)) {
+        if (fm[1]) fields.add(fm[1].toLowerCase());
+      }
+    } else {
+      for (const fm of body.matchAll(/(?:^|[;\n,])\s*(?:readonly\s+|pub\s+|public\s+\S+\s+)?([a-zA-Z_][a-zA-Z0-9_]{1,40})\s*\??\s*[:=]/g)) {
+        const f = fm[1];
+        if (f && !["readonly", "public", "private", "protected", "static", "type", "interface"].includes(f)) {
+          fields.add(f.toLowerCase());
+        }
       }
     }
     if (fields.size >= 4) {
@@ -190,8 +197,13 @@ function scanSingleFile(params: {
       }
     }
 
-    const impPkg = trimmed.match(/(?:from\s+["']([^."'][^"']*)["']|require\s*\(\s*["']([^."'][^"']*)["']\s*\)|use\s+([a-z0-9_]+)::|import\s+([a-z0-9_]+)\b)/);
-    const rawPkg = (impPkg?.[1] ?? impPkg?.[2] ?? impPkg?.[3] ?? impPkg?.[4] ?? "").split("/")[0] ?? "";
+    const impPkg = trimmed.match(/(?:from\s+["']([^."'][^"']*)["']|require\s*\(\s*["']([^."'][^"']*)["']\s*\)|use\s+([a-z0-9_]+)::|import\s+([a-z0-9_]+)\b|^(?:global\s+)?using\s+([A-Za-z0-9_.]+)\s*;)/);
+    const csUsing = impPkg?.[5]?.toLowerCase() ?? "";
+    const rawPkg = csUsing
+      ? csUsing.startsWith("system.text.json") || csUsing.startsWith("newtonsoft.json")
+        ? csUsing.split(".").slice(0, csUsing.startsWith("system.text.json") ? 3 : 2).join(".")
+        : csUsing.split(".")[0] ?? ""
+      : (impPkg?.[1] ?? impPkg?.[2] ?? impPkg?.[3] ?? impPkg?.[4] ?? "").split("/")[0] ?? "";
     if (!isTest && rawPkg) {
       const m = unitLibs.get(unit) ?? new Map<string, { file: string; line: number }>();
       if (!m.has(rawPkg)) m.set(rawPkg, { file: rel, line: i + 1 });
@@ -199,7 +211,7 @@ function scanSingleFile(params: {
     }
 
     const extMatch = trimmed.match(/\bclass\s+([A-Z][A-Za-z0-9_]*)\s+(?:extends|:)\s+([A-Z][A-Za-z0-9_]*)/);
-    if (!isTest && extMatch?.[1] && extMatch?.[2] && !["Error", "EventEmitter", "Component", "ControllerBase", "DbContext", "BackgroundService"].includes(extMatch[2])) {
+    if (!isTest && extMatch?.[1] && extMatch?.[2] && !["Error", "Exception", "Attribute", "EventEmitter", "Component", "ControllerBase", "Controller", "DbContext", "BackgroundService", "IHostedService", "DiagnosticAnalyzer"].includes(extMatch[2])) {
       extendsMap.set(extMatch[1], { parent: extMatch[2], file: rel, line: i + 1, unit });
     }
   }

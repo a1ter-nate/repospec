@@ -281,28 +281,38 @@ function extractRustSymbols(cleanLines: string[]): FileSymbolTuple[] {
 
 function extractCsharpSymbols(cleanLines: string[]): FileSymbolTuple[] {
   const syms: FileSymbolTuple[] = [];
-  let currentType: { name: string; vis: "pub" | "priv"; endLine: number } | null = null;
+  let currentType: { name: string; vis: "pub" | "priv"; startLine: number; endLine: number; members: number } | null = null;
+  const flushType = (): void => {
+    if (currentType && currentType.members === 0) {
+      syms.push([currentType.name, currentType.vis, "class", currentType.startLine, currentType.endLine]);
+    }
+    currentType = null;
+  };
   for (let i = 0; i < cleanLines.length; i += 1) {
     const ln = cleanLines[i] ?? "";
     const trimmed = ln.trim();
-    if (currentType && i + 1 > currentType.endLine) currentType = null;
+    if (currentType && i + 1 > currentType.endLine) flushType();
 
-    const tm = trimmed.match(/^(public|internal|private|protected)?\s*(?:sealed|abstract|static|partial|readonly)?\s*(?:class|record|struct)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+    const tm = trimmed.match(/^(?:(public|internal|private|protected|file)\s+)?(?:(?:sealed|abstract|static|partial|readonly|ref)\s+)*(?:record(?:\s+(?:class|struct))?|class|struct|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/);
     if (tm?.[2]) {
-      const vis: "pub" | "priv" = tm[1] === "private" || tm[1] === "protected" ? "priv" : "pub";
-      currentType = { name: tm[2], vis, endLine: findBraceEndLine(cleanLines, i) };
+      flushType();
+      const vis: "pub" | "priv" = tm[1] === "private" || tm[1] === "protected" || tm[1] === "file" ? "priv" : "pub";
+      const endLine = findBraceEndLine(cleanLines, i);
+      currentType = { name: tm[2], vis, startLine: i + 1, endLine, members: 0 };
       continue;
     }
 
     const mm = trimmed.match(
-      /^(public|private|protected|internal)\s+(?:(?:static|async|virtual|override|sealed|new|partial)\s+)*[A-Za-z0-9_<>,?.[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/,
+      /^(public|private|protected|internal)\s+(?:(?:static|async|virtual|override|sealed|new|partial)\s+)*[A-Za-z0-9_<>,?.[\]\s]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/,
     );
     if (mm?.[1] && mm[2] && !LANG_KEYWORDS.has(mm[2])) {
       const endLine = findBraceEndLine(cleanLines, i);
       const isPriv = mm[1] === "private" || mm[1] === "protected" || currentType?.vis === "priv";
+      if (currentType) currentType.members += 1;
       syms.push([mm[2], isPriv ? "priv" : "pub", "method", i + 1, endLine, currentType?.name]);
     }
   }
+  flushType();
   return syms;
 }
 
@@ -325,6 +335,15 @@ function collectImportedIdentifiers(rawText: string, ext: string): Map<string, s
         const name = item.trim().split(/\s+as\s+/).pop()?.trim();
         if (name && /^[A-Za-z_]\w*$/.test(name)) imported.set(name, name);
       }
+    }
+    return imported;
+  }
+  if (ext === ".cs") {
+    for (const m of rawText.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?(?:([A-Za-z_]\w*)\s*=\s*)?([A-Za-z0-9_.]+)\s*;/gm)) {
+      const alias = m[1];
+      const target = m[2] ?? "";
+      const leaf = alias ?? target.split(".").pop() ?? "";
+      if (leaf && /^[A-Za-z_]\w*$/.test(leaf)) imported.set(leaf, target);
     }
     return imported;
   }

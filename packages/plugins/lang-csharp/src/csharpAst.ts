@@ -13,11 +13,169 @@ import type {
   StateMachineRecord,
   UnitDescriptor,
 } from "@repospec/plugin";
-import { createEmptyAst } from "@repospec/plugin";
-import { classifyVendorPackage, isSecretEnvName } from "@repospec/plugin";
-import { detectCapabilities, isExcludedCodePath } from "@repospec/plugin";
-
+import { classifyVendorPackage, createEmptyAst, detectCapabilities, isExcludedCodePath } from "@repospec/plugin";
+import { extractCsharpFileArtifacts } from "./csharpExtractors.ts";
 import { classifyCsharpLayer, emitCsharpGraph, lineOf, walkCsFilesInDir } from "./csharpHelpers.ts";
+import {
+  collectCsharpDeclaredStateTypes,
+  resolveCsharpStateMachines,
+  type CsharpDeclaredStateType,
+} from "./csharpStateAndLoops.ts";
+
+interface ParsedCsFile {
+  rel: string;
+  text: string;
+  unit: UnitDescriptor | null;
+  unitName: string;
+  unitId: string;
+  ns: string | null;
+  rawLayer: string;
+  canonicalLayer: CanonicalLayer;
+  domainArea: string | null;
+  isTest: boolean;
+  symbols: string[];
+}
+
+function readTextSafe(absPath: string): string | null {
+  try {
+    return fs.existsSync(absPath) ? fs.readFileSync(absPath, "utf8") : null;
+  } catch {
+    return null;
+  }
+}
+
+function collectXmlUsingsAndPackages(
+  ctx: RepoContext,
+  csUnits: readonly UnitDescriptor[],
+): {
+  unitGlobalUsings: Map<string, Set<string>>;
+  unitPackages: Map<string, Array<{ pkg: string; file: string; line: number }>>;
+} {
+  const unitGlobalUsings = new Map<string, Set<string>>();
+  const unitPackages = new Map<string, Array<{ pkg: string; file: string; line: number }>>();
+  const addUsing = (unitName: string, ns: string): void => {
+    const set = unitGlobalUsings.get(unitName) ?? new Set<string>();
+    set.add(ns);
+    unitGlobalUsings.set(unitName, set);
+  };
+  const addPkg = (unitName: string, pkg: string, file: string, line: number): void => {
+    const list = unitPackages.get(unitName) ?? [];
+    list.push({ pkg, file, line });
+    unitPackages.set(unitName, list);
+  };
+
+  const rootProps = readTextSafe(path.join(ctx.rootDir, "Directory.Build.props"));
+  const rootUsings: string[] = [];
+  if (rootProps) {
+    for (const m of rootProps.matchAll(/<Using\s+[^>]*Include="([A-Za-z0-9_.]+)"/gi)) {
+      if (m[1]) rootUsings.push(m[1]);
+    }
+  }
+
+  for (const u of csUnits) {
+    for (const ns of rootUsings) addUsing(u.name, ns);
+    const csprojText = readTextSafe(path.resolve(ctx.rootDir, u.manifestFile));
+    if (!csprojText) continue;
+    for (const m of csprojText.matchAll(/<Using\s+[^>]*Include="([A-Za-z0-9_.]+)"/gi)) {
+      if (m[1]) addUsing(u.name, m[1]);
+    }
+    for (const m of csprojText.matchAll(/<PackageReference\s+[^>]*Include="([A-Za-z0-9_.-]+)"/gi)) {
+      if (m[1]) addPkg(u.name, m[1], u.manifestFile, lineOf(csprojText, m.index ?? 0));
+    }
+  }
+
+  return { unitGlobalUsings, unitPackages };
+}
+
+function extractCsharpFileSymbols(
+  rel: string,
+  text: string,
+  isTest: boolean,
+): { symbols: string[]; exportedSymbols: ExportedSymbol[] } {
+  const exportedSymbols: ExportedSymbol[] = [];
+  const symbols: string[] = [];
+  const seen = new Set<string>();
+  const declRe =
+    /(?:^|\n)\s*(?:(?:public|internal|private|protected|file)\s+)?(?:(?:static|sealed|abstract|partial|readonly|ref|unsafe|new)\s+)*(?:(record\s+(?:class|struct)|class|record|interface|enum|struct)\s+([A-Za-z_][A-Za-z0-9_]*)|delegate\s+[^\n;(]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\()/g;
+  for (const m of text.matchAll(declRe)) {
+    const rawKind = m[1] ?? "delegate";
+    const symName = m[2] ?? m[3];
+    if (!symName || seen.has(symName)) continue;
+    seen.add(symName);
+    symbols.push(symName);
+    if (!isTest && exportedSymbols.length < 24) {
+      exportedSymbols.push({
+        name: symName,
+        kind: rawKind === "interface" || rawKind === "enum" || rawKind === "delegate" ? "type" : "class",
+        file: rel,
+        line: lineOf(text, m.index ?? 0),
+      });
+    }
+  }
+  return { symbols, exportedSymbols };
+}
+
+function extractRoslynAnalyzerRules(
+  item: ParsedCsFile,
+  nonAnalyzerTargets: string[],
+  rules: SpecRule[],
+  ast: ReturnType<typeof createEmptyAst>,
+): void {
+  const { rel, text, unitName } = item;
+  const idMatches = Array.from(text.matchAll(/DiagnosticId\s*=\s*"([A-Z0-9_]+)"/g));
+  const titleMatch = text.match(/Title\s*=\s*"([^"]+)"/);
+  const msgMatch = text.match(/MessageFormat\s*=\s*"([^"]+)"/);
+  const descMatches = Array.from(
+    text.matchAll(/new\s+DiagnosticDescriptor\s*\(\s*(?:DiagnosticId|"([A-Z0-9_]+)")\s*,\s*(?:Title|"([^"]+)")\s*,\s*(?:MessageFormat|"([^"]+)")/g),
+  );
+  const seenDiag = new Set<string>();
+  const diagPairs: Array<{ id: string; title: string; msg: string; ln: number }> = [];
+  for (const dm of idMatches) {
+    const diagId = dm[1];
+    if (!diagId || seenDiag.has(diagId)) continue;
+    seenDiag.add(diagId);
+    diagPairs.push({
+      id: diagId,
+      title: titleMatch?.[1] ?? diagId,
+      msg: msgMatch?.[1] ?? `Roslyn diagnostic ${diagId}`,
+      ln: lineOf(text, dm.index ?? 0),
+    });
+  }
+  for (const dm of descMatches) {
+    const diagId = dm[1];
+    if (!diagId || seenDiag.has(diagId)) continue;
+    seenDiag.add(diagId);
+    diagPairs.push({
+      id: diagId,
+      title: dm[2] ?? diagId,
+      msg: dm[3] ?? `Roslyn diagnostic ${diagId}`,
+      ln: lineOf(text, dm.index ?? 0),
+    });
+  }
+  for (const d of diagPairs) {
+    const ruleId = `rule:analyzer:${d.id}`;
+    rules.push({
+      id: ruleId,
+      name: d.id,
+      category: "lint_ratchet",
+      enforcement: "static",
+      rung: "R1",
+      statement: `${d.id} (${d.title}): ${d.msg}`,
+      targets: nonAnalyzerTargets,
+      provenance: { file: rel, line: d.ln },
+    });
+    ast.govRules.push({
+      id: ruleId,
+      kind: "prohibition",
+      scopePrefix: "",
+      symbol: d.id,
+      text: `${d.title}: ${d.msg}`,
+      rationale: `Enforced by Roslyn analyzer ${unitName}`,
+      file: rel,
+      line: d.ln,
+    });
+  }
+}
 
 export const csharpAstExtractor: ExtractorPlugin = {
   id: "arch.csharp-ast.v4",
@@ -28,16 +186,16 @@ export const csharpAstExtractor: ExtractorPlugin = {
     const inTreeCs = ctx.allFiles.filter((f) => f.endsWith(".cs") && (csUnits.length > 0 || !isExcludedCodePath(f)));
     const externalCs: string[] = [];
     for (const u of csUnits) {
-      if (u.external) {
-        externalCs.push(...walkCsFilesInDir(u.absDir, ctx.rootDir));
-      }
+      if (u.external) externalCs.push(...walkCsFilesInDir(u.absDir, ctx.rootDir));
     }
     const allCsFiles = Array.from(new Set([...inTreeCs, ...externalCs]))
-      .filter((f) => csUnits.length > 0 ? !/^(?:templates|fixtures|corpus|reports)\//i.test(f) || csUnits.some((u) => f.startsWith(`${u.dir}/`)) : !isExcludedCodePath(f))
+      .filter((f) =>
+        csUnits.length > 0
+          ? !/^(?:templates|fixtures|corpus|reports)\//i.test(f) || csUnits.some((u) => f.startsWith(`${u.dir}/`))
+          : !isExcludedCodePath(f),
+      )
       .sort();
-    if (allCsFiles.length === 0) {
-      return { nodes: [], edges: [], rules: [] };
-    }
+    if (allCsFiles.length === 0) return { nodes: [], edges: [], rules: [] };
 
     const sortedUnits = [...csUnits].sort((a, b) => b.dir.length - a.dir.length);
     const ast = createEmptyAst();
@@ -47,19 +205,30 @@ export const csharpAstExtractor: ExtractorPlugin = {
     const edges: SpecEdge[] = [];
     const rules: SpecRule[] = [];
 
+    const { unitGlobalUsings, unitPackages } = collectXmlUsingsAndPackages(ctx, csUnits);
+    for (const [unitName, pkgs] of unitPackages) {
+      const unitObj = csUnits.find((u) => u.name === unitName);
+      const isTestUnit = unitObj?.kind === "test_package";
+      for (const p of pkgs) {
+        ast.pkgImports.push({
+          fromFile: p.file,
+          unit: unitName,
+          layer: isTestUnit ? "tests" : "manifest",
+          canonicalLayer: isTestUnit ? "tests" : "support",
+          pkg: p.pkg,
+          vendorCategory: classifyVendorPackage(p.pkg),
+          line: p.line,
+          typeOnly: false,
+        });
+      }
+    }
+
     const nsToFiles = new Map<string, Array<{ rel: string; symbols: string[] }>>();
-    const parsedFiles: Array<{
-      rel: string;
-      text: string;
-      unit: UnitDescriptor | null;
-      unitName: string;
-      unitId: string;
-      ns: string | null;
-      rawLayer: string;
-      canonicalLayer: CanonicalLayer;
-      isTest: boolean;
-      symbols: string[];
-    }> = [];
+    const symbolToFiles = new Map<string, Array<{ rel: string; ns: string | null }>>();
+    const knownDbSets = new Map<string, string>();
+    const unitTexts = new Map<string, string[]>();
+    const declaredStateTypes: CsharpDeclaredStateType[] = [];
+    const parsedFiles: ParsedCsFile[] = [];
 
     const unitByDir = new Map<string, UnitDescriptor>();
     for (const u of sortedUnits) {
@@ -78,38 +247,33 @@ export const csharpAstExtractor: ExtractorPlugin = {
     };
 
     for (const rel of allCsFiles) {
-      let text = "";
-      try {
-        text = fs.readFileSync(path.resolve(ctx.rootDir, rel), "utf8");
-      } catch {
-        continue;
-      }
-
+      const text = readTextSafe(path.resolve(ctx.rootDir, rel));
+      if (text === null) continue;
       const unit = resolveCsUnit(rel);
       const unitName = unit?.name ?? ctx.repoName;
       const unitId = unit?.id ?? `arch:app:${ctx.repoName}`;
-      const nsMatch = text.match(/^\s*namespace\s+([A-Za-z0-9_.]+)/m);
-      const ns = nsMatch?.[1] ?? null;
-      const { rawLayer, canonicalLayer } = classifyCsharpLayer(rel, text, unit);
+      const ns = text.match(/^\s*namespace\s+([A-Za-z0-9_.]+)/m)?.[1] ?? null;
+      const { rawLayer, canonicalLayer, domainArea } = classifyCsharpLayer(rel, text, unit);
       const isTest = canonicalLayer === "tests";
+      const { symbols, exportedSymbols } = extractCsharpFileSymbols(rel, text, isTest);
 
-      const exportedSymbols: ExportedSymbol[] = [];
-      const symbols: string[] = [];
-      for (const m of text.matchAll(
-        /\b(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(class|record|interface|enum|struct)\s+([A-Za-z0-9_]+)/g,
-      )) {
-        const rawKind = m[1];
-        const symName = m[2];
-        if (!rawKind || !symName) continue;
-        symbols.push(symName);
-        if (!isTest && exportedSymbols.length < 24) {
-          exportedSymbols.push({
-            name: symName,
-            kind: rawKind === "interface" || rawKind === "enum" ? "type" : "class",
-            file: rel,
-            line: lineOf(text, m.index ?? 0),
-          });
+      for (const gm of text.matchAll(/^\s*global\s+using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z0-9_.]+)\s*;/gm)) {
+        if (gm[1]) {
+          const set = unitGlobalUsings.get(unitName) ?? new Set<string>();
+          set.add(gm[1]);
+          unitGlobalUsings.set(unitName, set);
         }
+      }
+
+      if (!isTest) {
+        for (const dm of text.matchAll(/DbSet\s*<\s*([A-Za-z0-9_]+)\s*>\s+([A-Za-z0-9_]+)/g)) {
+          const prop = dm[2] ?? dm[1];
+          if (prop) knownDbSets.set(prop.toLowerCase(), prop);
+        }
+        const texts = unitTexts.get(unitName) ?? [];
+        texts.push(text);
+        unitTexts.set(unitName, texts);
+        declaredStateTypes.push(...collectCsharpDeclaredStateTypes(rel, text, unitName));
       }
 
       ast.files.push({
@@ -118,9 +282,9 @@ export const csharpAstExtractor: ExtractorPlugin = {
         language: "csharp",
         layer: rawLayer,
         canonicalLayer,
-        domainArea: null,
+        domainArea,
         layerSource: "path_convention",
-        domainSource: "none",
+        domainSource: domainArea ? "path_convention" : "none",
         isTest,
         isBarrel: false,
         lines: text.split("\n").length,
@@ -129,13 +293,21 @@ export const csharpAstExtractor: ExtractorPlugin = {
         capabilities: detectCapabilities(text),
       });
 
-      if (ns && !isTest) {
-        const list = nsToFiles.get(ns) ?? [];
-        list.push({ rel, symbols });
-        nsToFiles.set(ns, list);
+      if (!isTest) {
+        if (ns) {
+          const list = nsToFiles.get(ns) ?? [];
+          list.push({ rel, symbols });
+          nsToFiles.set(ns, list);
+        }
+        for (const sym of symbols) {
+          if (sym.length < 3) continue;
+          const sl = symbolToFiles.get(sym) ?? [];
+          sl.push({ rel, ns });
+          symbolToFiles.set(sym, sl);
+        }
       }
 
-      parsedFiles.push({ rel, text, unit, unitName, unitId, ns, rawLayer, canonicalLayer, isTest, symbols });
+      parsedFiles.push({ rel, text, unit, unitName, unitId, ns, rawLayer, canonicalLayer, domainArea, isTest, symbols });
     }
 
     const parsedByRel = new Map(parsedFiles.map((p) => [p.rel, p]));
@@ -146,7 +318,7 @@ export const csharpAstExtractor: ExtractorPlugin = {
     const nonAnalyzerTargets = csUnits.filter((u) => u.kind !== "analyzer").map((u) => u.id);
 
     for (const item of parsedFiles) {
-      const { rel, text, unitName, unitId, rawLayer, canonicalLayer, isTest } = item;
+      const { rel, text, unitName, unitId, rawLayer, canonicalLayer, domainArea, isTest } = item;
 
       if (!isTest) {
         const key = `${unitName}::${rawLayer}`;
@@ -170,17 +342,14 @@ export const csharpAstExtractor: ExtractorPlugin = {
           toLayer: targetItem?.rawLayer ?? "domain",
           fromCanonicalLayer: canonicalLayer,
           toCanonicalLayer: targetItem?.canonicalLayer ?? "domain",
-          fromDomain: null,
-          toDomain: null,
+          fromDomain: domainArea,
+          toDomain: targetItem?.domainArea ?? null,
           line: ln,
           typeOnly: false,
         });
       };
 
-      for (const m of text.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?([A-Za-z0-9_.]+)\s*;/gm)) {
-        const targetNs = m[1];
-        if (!targetNs) continue;
-        const ln = lineOf(text, m.index ?? 0);
+      const resolveNamespaceImport = (targetNs: string, ln: number, recordExternal: boolean): void => {
         const exactEntries = nsToFiles.get(targetNs);
         const prefixEntries =
           exactEntries && exactEntries.length > 0
@@ -190,11 +359,21 @@ export const csharpAstExtractor: ExtractorPlugin = {
                 .flatMap(([, entries]) => entries);
         if (prefixEntries.length > 0) {
           const matched = prefixEntries.filter((te) => te.rel !== rel && te.symbols.some((sym) => identTokens.has(sym)));
-          const resolved = matched.length > 0 ? matched : (exactEntries ?? []).filter((te) => te.rel !== rel);
-          for (const te of resolved) {
-            pushCsImport(te.rel, ln);
+          const resolved = matched.length > 0 ? matched : recordExternal ? (exactEntries ?? []).filter((te) => te.rel !== rel) : [];
+          for (const te of resolved) pushCsImport(te.rel, ln);
+          return;
+        }
+        const lastDot = targetNs.lastIndexOf(".");
+        if (lastDot > 0) {
+          const parentNs = targetNs.slice(0, lastDot);
+          const staticType = targetNs.slice(lastDot + 1);
+          const staticHit = (nsToFiles.get(parentNs) ?? []).filter((te) => te.rel !== rel && te.symbols.includes(staticType));
+          if (staticHit.length > 0) {
+            for (const te of staticHit) pushCsImport(te.rel, ln);
+            return;
           }
-        } else {
+        }
+        if (recordExternal) {
           ast.pkgImports.push({
             fromFile: rel,
             unit: unitName,
@@ -206,212 +385,60 @@ export const csharpAstExtractor: ExtractorPlugin = {
             typeOnly: false,
           });
         }
+      };
+
+      for (const m of text.matchAll(/^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?([A-Za-z0-9_.]+)\s*;/gm)) {
+        if (m[1]) resolveNamespaceImport(m[1], lineOf(text, m.index ?? 0), true);
+      }
+
+      const globalSet = unitGlobalUsings.get(unitName);
+      if (globalSet) {
+        for (const gNs of globalSet) resolveNamespaceImport(gNs, 1, false);
       }
 
       if (item.ns) {
         const nsParts = item.ns.split(".");
         for (let depth = nsParts.length; depth >= 1; depth -= 1) {
-          const scopeNs = nsParts.slice(0, depth).join(".");
-          const scopeEntries = nsToFiles.get(scopeNs);
+          const scopeEntries = nsToFiles.get(nsParts.slice(0, depth).join("."));
           if (!scopeEntries) continue;
           for (const te of scopeEntries) {
             if (te.rel === rel || seenTargets.has(te.rel)) continue;
-            if (te.symbols.some((sym) => sym.length >= 3 && identTokens.has(sym))) {
-              pushCsImport(te.rel, 1);
-            }
+            if (te.symbols.some((sym) => sym.length >= 3 && identTokens.has(sym))) pushCsImport(te.rel, 1);
+          }
+        }
+      }
+
+      for (const qm of text.matchAll(/\b([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)+)\b/g)) {
+        const fullRef = qm[1] ?? "";
+        const dotIdx = fullRef.lastIndexOf(".");
+        if (dotIdx <= 0) continue;
+        const symName = fullRef.slice(dotIdx + 1);
+        const qualifier = fullRef.slice(0, dotIdx);
+        const hits = symbolToFiles.get(symName);
+        if (!hits) continue;
+        for (const h of hits) {
+          if (h.ns && (h.ns === qualifier || h.ns.endsWith(`.${qualifier}`))) {
+            pushCsImport(h.rel, lineOf(text, qm.index ?? 0));
           }
         }
       }
 
       if (canonicalLayer === "analyzer" || /\[DiagnosticAnalyzer/.test(text)) {
-        const idMatches = Array.from(text.matchAll(/DiagnosticId\s*=\s*"([A-Z0-9_]+)"/g));
-        const titleMatch = text.match(/Title\s*=\s*"([^"]+)"/);
-        const msgMatch = text.match(/MessageFormat\s*=\s*"([^"]+)"/);
-        const descMatches = Array.from(
-          text.matchAll(/new\s+DiagnosticDescriptor\s*\(\s*(?:DiagnosticId|"([A-Z0-9_]+)")\s*,\s*(?:Title|"([^"]+)")\s*,\s*(?:MessageFormat|"([^"]+)")/g),
-        );
-        const seenDiag = new Set<string>();
-        const diagPairs: Array<{ id: string; title: string; msg: string; ln: number }> = [];
-        for (const dm of idMatches) {
-          const diagId = dm[1];
-          if (!diagId || seenDiag.has(diagId)) continue;
-          seenDiag.add(diagId);
-          diagPairs.push({
-            id: diagId,
-            title: titleMatch?.[1] ?? diagId,
-            msg: msgMatch?.[1] ?? `Roslyn diagnostic ${diagId}`,
-            ln: lineOf(text, dm.index ?? 0),
-          });
-        }
-        for (const dm of descMatches) {
-          const diagId = dm[1];
-          if (!diagId || seenDiag.has(diagId)) continue;
-          seenDiag.add(diagId);
-          diagPairs.push({
-            id: diagId,
-            title: dm[2] ?? diagId,
-            msg: dm[3] ?? `Roslyn diagnostic ${diagId}`,
-            ln: lineOf(text, dm.index ?? 0),
-          });
-        }
-        for (const d of diagPairs) {
-          const ruleId = `rule:analyzer:${d.id}`;
-          rules.push({
-            id: ruleId,
-            name: d.id,
-            category: "lint_ratchet",
-            enforcement: "static",
-            rung: "R1",
-            statement: `${d.id} (${d.title}): ${d.msg}`,
-            targets: nonAnalyzerTargets,
-            provenance: { file: rel, line: d.ln },
-          });
-          ast.govRules.push({
-            id: ruleId,
-            kind: "prohibition",
-            scopePrefix: "",
-            symbol: d.id,
-            text: `${d.title}: ${d.msg}`,
-            rationale: `Enforced by Roslyn analyzer ${unitName}`,
-            file: rel,
-            line: d.ln,
-          });
-        }
+        extractRoslynAnalyzerRules(item, nonAnalyzerTargets, rules, ast);
       }
 
       if (!isTest) {
-        for (const m of text.matchAll(/DbSet<([A-Za-z0-9_]+)>\s+([A-Za-z0-9_]+)/g)) {
-          const entityName = m[2] ?? m[1];
-          if (entityName) {
-            ast.declaredEntities.push({
-              datastore: "efcore",
-              entity: entityName,
-              declaredAt: rel,
-              authorizedShared: false,
-            });
-            ast.entityAccesses.push({
-              datastore: "efcore",
-              entity: entityName,
-              file: rel,
-              unit: unitName,
-              layer: rawLayer,
-              canonicalLayer,
-              domainArea: null,
-              op: "DBSET",
-              line: lineOf(text, m.index ?? 0),
-              confidence: "observed",
-            });
-          }
-        }
-
-        for (const em of text.matchAll(/(?:GetEnvironmentVariable\s*\(\s*"([A-Z][A-Z0-9_]{2,})"\s*\)|Configuration\s*\[\s*"([A-Za-z0-9_:]+)"\s*\])/g)) {
-          const envName = em[1] ?? em[2];
-          if (envName) {
-            ast.envBindings.push({
-              envName,
-              sourceKind: "code_read",
-              unit: unitName,
-              file: rel,
-              line: lineOf(text, em.index ?? 0),
-              isSecret: isSecretEnvName(envName),
-            });
-          }
-        }
-
-        const hasAuthorizeAttr = /\[Authorize\b/.test(text);
-        for (const rm of text.matchAll(/\[Http(Get|Post|Put|Patch|Delete)\s*(?:\(\s*"([^"]*)"\s*\))?\]/gi)) {
-          ast.httpEndpoints.push({
-            unit: unitName,
-            method: (rm[1] ?? "GET").toUpperCase(),
-            path: rm[2] ? (rm[2].startsWith("/") ? rm[2] : `/${rm[2]}`) : "/",
-            authGuard: hasAuthorizeAttr ? "Authorize" : null,
-            source: "ast",
-            handlerFile: rel,
-            line: lineOf(text, rm.index ?? 0),
-            operationId: null,
-          });
-        }
-        for (const rm of text.matchAll(/\.Map(Get|Post|Put|Patch|Delete)\s*\(\s*"([^"]+)"/g)) {
-          ast.httpEndpoints.push({
-            unit: unitName,
-            method: (rm[1] ?? "GET").toUpperCase(),
-            path: rm[2] ?? "/",
-            authGuard: /\.RequireAuthorization\b/.test(text) ? "RequireAuthorization" : null,
-            source: "ast",
-            handlerFile: rel,
-            line: lineOf(text, rm.index ?? 0),
-            operationId: null,
-          });
-        }
-
-        const sealedByBase = new Map<string, string[]>();
-        for (const vm of text.matchAll(/sealed\s+record\s+([A-Za-z0-9_]+)(?:\([^)]*\))?\s*:\s*([A-Za-z0-9_]+)\b/g)) {
-          const variant = vm[1];
-          const base = vm[2];
-          if (variant && base) {
-            const list = sealedByBase.get(base) ?? [];
-            list.push(variant);
-            sealedByBase.set(base, list);
-          }
-        }
-        const transitionsByBase = new Map<string, Array<{ from: string; event: string; to: string; guard?: string }>>();
-        for (const tm of text.matchAll(
-          /\(\s*([A-Za-z0-9_]+)\.(\w+)(?:\s+\w+)?\s*,\s*\w+\.(\w+)(?:\s+\w+)?\s*\)(?:\s+when\s+([^=]+?))?\s*=>[\s\S]{0,180}?(?:Accepted\(\s*)?new\s+\1\.(\w+)/g,
-        )) {
-          if (tm[1] && tm[2] && tm[3] && tm[5]) {
-            const list = transitionsByBase.get(tm[1]) ?? [];
-            list.push({ from: tm[2], event: tm[3], to: tm[5], guard: tm[4]?.trim() || undefined });
-            transitionsByBase.set(tm[1], list);
-          }
-        }
-
-        for (const m of text.matchAll(/public\s+abstract\s+record\s+([A-Za-z0-9_]+)/g)) {
-          const baseName = m[1];
-          if (!baseName) continue;
-          const variants = sealedByBase.get(baseName) ?? [];
-
-          if (variants.length >= 2 && /(?:State|Status|Phase|Stage)$/i.test(baseName)) {
-            const transitions = transitionsByBase.get(baseName) ?? [];
-            const sortedStates = Array.from(new Set(variants)).sort();
-            const ln = lineOf(text, m.index ?? 0);
-            if (transitions.length > 0) {
-              stateMachines.push({
-                id: `arch:sm:csharp:${unitName}:${baseName}`,
-                name: baseName,
-                language: "csharp",
-                unit: unitName,
-                evidence: "declared",
-                states: sortedStates,
-                transitions,
-                provenance: { file: rel, line: ln },
-              });
-            }
-            ast.stateEnums.push({
-              file: rel,
-              unit: unitName,
-              language: "csharp",
-              name: baseName,
-              valuesSignature: sortedStates.join("|"),
-              values: sortedStates,
-              line: ln,
-              hasTransitions: transitions.length > 0,
-            });
-          }
-        }
-
-        for (const m of text.matchAll(/class\s+([A-Za-z0-9_]+)\s*:\s*(?:BackgroundService|IHostedService)/g)) {
-          const cls = m[1];
-          if (cls) {
-            loops.push({
-              id: `arch:loop:csharp:${unitName}:${cls}`,
-              name: cls,
-              kind: "background_service",
-              schedule: null,
-              unit: unitName,
-              provenance: { file: rel, line: lineOf(text, m.index ?? 0) },
-            });
-          }
-        }
+        extractCsharpFileArtifacts({
+          rel,
+          text,
+          unitName,
+          rawLayer,
+          canonicalLayer,
+          domainArea,
+          knownDbSets,
+          ast,
+          loops,
+        });
       }
 
       if (isTest && /Architecture.*Tests\.cs$/i.test(rel)) {
@@ -457,15 +484,9 @@ export const csharpAstExtractor: ExtractorPlugin = {
       }
     }
 
+    resolveCsharpStateMachines(declaredStateTypes, unitTexts, ast, stateMachines);
     emitCsharpGraph({ ctx, csUnits, validUnitIds, ast, layerCounts, nodes, edges, rules });
 
-    return {
-      nodes,
-      edges,
-      rules,
-      stateMachines,
-      loops,
-      ast,
-    };
+    return { nodes, edges, rules, stateMachines, loops, ast };
   },
 };

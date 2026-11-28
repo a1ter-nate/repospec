@@ -114,25 +114,41 @@ function discoverCsharpUnits(rootDir: string, allFiles: string[], hasRootManifes
     if (!text) continue;
     const projName = text.match(/<AssemblyName>([^<]+)<\/AssemblyName>/i)?.[1]?.trim() ?? path.basename(relCsproj, ".csproj");
     const isAnalyzer = /<IsRoslynComponent>\s*true\s*<\/IsRoslynComponent>/i.test(text);
-    const isTest = /Microsoft\.NET\.Test\.Sdk|xunit|nunit|MSTest/i.test(text) || /\.Tests?$/i.test(projName);
-    const isWeb = /Sdk="Microsoft\.NET\.Sdk\.Web"/i.test(text);
-    const isExe = /<OutputType>\s*(?:Exe|WinExe)\s*<\/OutputType>/i.test(text) || isWeb;
+    const isTest = /Microsoft\.NET\.Test\.Sdk|xunit|nunit|MSTest|TUnit/i.test(text) || /\.Tests?$/i.test(projName);
+    const isWeb =
+      /Sdk="Microsoft\.NET\.Sdk\.Web"/i.test(text) ||
+      /<FrameworkReference\s+[^>]*Include="Microsoft\.AspNetCore\.App"/i.test(text);
+    const isWorker =
+      /Sdk="Microsoft\.NET\.Sdk\.Worker"/i.test(text) ||
+      /Microsoft\.Azure\.Functions\.Worker/i.test(text);
+    const isExe = /<OutputType>\s*(?:Exe|WinExe)\s*<\/OutputType>/i.test(text) || isWeb || isWorker;
     const kind: "app" | "package" | "test_package" | "analyzer" = isAnalyzer ? "analyzer" : isTest ? "test_package" : isExe ? "app" : "package";
     const archetype: UnitArchetype = isAnalyzer ? "analyzer_plugin" : isTest ? "test_suite" : isWeb ? "http_service" : isExe ? "cli_worker" : "library_crate";
+    const relDir = path.posix.dirname(relCsproj.replace(/\\/g, "/"));
+    const unitCsFiles = allFiles.filter((f) => (relDir === "." ? f.endsWith(".cs") : f.startsWith(`${relDir}/`) && f.endsWith(".cs")));
+    const hasLayeredDirs = unitCsFiles.some((f) =>
+      /(?:^|\/)(?:Controllers|Endpoints|Services|Repositories|Persistence|Infrastructure|Data)\//i.test(f),
+    );
+    const entryFile =
+      unitCsFiles.find((f) => /(?:^|\/)(?:Program|Startup)\.cs$/i.test(f)) ?? null;
+    const tfm =
+      text.match(/<TargetFramework>([^<]+)<\/TargetFramework>/i)?.[1]?.trim() ??
+      text.match(/<TargetFrameworks>([^<]+)<\/TargetFrameworks>/i)?.[1]?.split(";")[0]?.trim() ??
+      sharedTfm;
     csUnitsTemp.push({
       id: workspaceNodeId(kind, projName),
       name: projName,
       slug: projName,
-      dir: path.posix.dirname(relCsproj.replace(/\\/g, "/")),
+      dir: relDir,
       absDir: path.dirname(absCsproj),
       manifestFile: relCsproj.replace(/\\/g, "/"),
       ecosystem: "csharp",
       kind,
       archetype,
-      layerPolicy: "flat_library",
+      layerPolicy: kind !== "test_package" && kind !== "analyzer" && (isWeb || hasLayeredDirs) ? "layered_backend" : "flat_library",
       external: relCsproj.startsWith(".."),
-      entryFile: null,
-      targetFramework: text.match(/<TargetFramework>([^<]+)<\/TargetFramework>/i)?.[1]?.trim() ?? sharedTfm,
+      entryFile,
+      targetFramework: tfm,
       bins: [],
     });
   }

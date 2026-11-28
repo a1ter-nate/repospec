@@ -117,6 +117,7 @@ INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung)
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'packages/perf/tests/contract.test.ts', '@repospec/perf PBT & MBT contracts (R3 MBT)', 'R2');
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'packages/perf/tests/scanner.unit.test.ts', '@repospec/perf AST scanner & complexity advisor unit', 'R2');
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'packages/perf/tests/unit.test.ts', '@repospec/perf data structures & algorithms unit', 'R2');
+INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'packages/plugins/lang-csharp/tests/unit.test.ts', '@repospec/plugin-lang-csharp unit invariants (R2)', 'R2');
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'tests/canonicalize-and-sdk.test.ts', 'Canonicalization & SDK generation (R2 pure unit)', 'R2');
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.perf', 'tests/show-me.test.ts', 'RepoSpec /show-me minimum-attention CI diff screenshots', 'R2');
 INSERT OR REPLACE INTO feature_tests (feature_id, test_path, test_pattern, rung) VALUES ('feat.plugin-arch', 'packages/plugins/arch/tests/contract.test.ts', '@repospec/plugin-arch host boundary contract (R3 MBT)', 'R2');

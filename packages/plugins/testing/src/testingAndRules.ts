@@ -48,10 +48,10 @@ function classifyTestRung(
   ) {
     return { tier: "formal_proof", rung: "R8" };
   }
-  if (lower.includes("e2e") || lower.includes("playwright") || lower.includes("/cypress/")) {
+  if (lower.includes("e2e") || lower.includes("playwright") || lower.includes("/cypress/") || (text && /\b(?:IPage|PlaywrightTest|Reqnroll|TechTalk\.SpecFlow)\b/.test(text))) {
     return { tier: "e2e", rung: "R7" };
   }
-  if (lower.includes("/load/") || lower.includes("benchmark") || lower.includes(".bench.") || lower.includes("k6")) {
+  if (lower.includes("/load/") || lower.includes("benchmark") || lower.includes(".bench.") || lower.includes("k6") || (text && /\[Benchmark\b|BenchmarkDotNet/.test(text))) {
     return { tier: "load_perf", rung: "R6" };
   }
   if (lower.startsWith("fuzz/") || lower.includes("stryker") || lower.includes("mutation") || lower.includes("fuzz_targets")) {
@@ -62,7 +62,8 @@ function classifyTestRung(
     lower.includes("integration") ||
     lower.includes("emulator") ||
     lower.includes("migration") ||
-    /^crates\/[^/]+\/tests\/.+\.rs$/.test(relPath)
+    /^crates\/[^/]+\/tests\/.+\.rs$/.test(relPath) ||
+    (text && /\b(?:WebApplicationFactory|Testcontainers|PostgreSqlBuilder|MsSqlBuilder|RedisBuilder)\b/.test(text))
   ) {
     return { tier: "integration", rung: "R4" };
   }
@@ -74,7 +75,7 @@ function classifyTestRung(
     lower.endsWith(".test.tsx") ||
     lower.endsWith(".spec.tsx") ||
     lower.includes("mbt") ||
-    (text && /Machine<|ModelState/.test(text))
+    (text && /Machine<|ModelState|\b(?:WireMockServer|PactBuilder|Verifier\.Verify)\b/.test(text))
   ) {
     return { tier: "component_contract", rung: "R3" };
   }
@@ -159,8 +160,8 @@ export const testingAndRulesExtractor: ExtractorPlugin = {
       if (rel.endsWith(".cs")) {
         const txt = readTextSafe(path.join(ctx.rootDir, rel));
         if (
-          /Tests?\.cs$/i.test(rel) ||
-          (txt && /\[(Fact|Theory|Property|Test|TestMethod)\b/.test(txt))
+          /Tests?\.cs$|Benchmarks?\.cs$/i.test(rel) ||
+          (txt && /\[(Fact|Theory|Property|Test|TestCase|TestFixture|TestMethod|DataTestMethod|TestClass|Benchmark)\b/.test(txt))
         ) {
           addTestFile(rel, txt ?? undefined);
         }

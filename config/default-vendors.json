@@ -8,6 +8,10 @@
     "pino",
     "winston",
     "serilog",
+    "nlog",
+    "log4net",
+    "applicationinsights",
+    "microsoft.applicationinsights",
     "posthog"
   ],
   "transports": [
@@ -21,16 +25,18 @@
     "hyper",
     "restsharp",
     "flurl",
+    "refit",
+    "polly",
     "system.net.http"
   ],
   "sdks": [
     { "pattern": "^(?:@?stripe|braintree|adyen|paypal|square)", "category": "payments", "label": "Payments SDK" },
-    { "pattern": "^(?:resend|@sendgrid/|sendgrid|postmark|nodemailer|lettre|mailgun)", "category": "email", "label": "Email SDK" },
-    { "pattern": "^(?:@google-cloud/storage|@aws-sdk/client-s3|awssdk\\.s3|aws_sdk_s3|@azure/storage)", "category": "files", "label": "Object Storage" },
-    { "pattern": "^(?:@google-cloud/pubsub|@aws-sdk/client-sqs|@aws-sdk/client-sns|kafkajs|amqplib|lapin|rdkafka)", "category": "messaging", "label": "Messaging" },
+    { "pattern": "^(?:resend|@sendgrid/|sendgrid|postmark|nodemailer|lettre|mailgun|mailkit)", "category": "email", "label": "Email SDK" },
+    { "pattern": "^(?:@google-cloud/storage|@aws-sdk/client-s3|awssdk\\.s3|aws_sdk_s3|@azure/storage|azure\\.storage)", "category": "files", "label": "Object Storage" },
+    { "pattern": "^(?:@google-cloud/pubsub|@aws-sdk/client-sqs|@aws-sdk/client-sns|awssdk\\.sqs|awssdk\\.sns|azure\\.messaging|masstransit|rabbitmq\\.client|confluent\\.kafka|nservicebus|kafkajs|amqplib|lapin|rdkafka)", "category": "messaging", "label": "Messaging" },
     { "pattern": "^(?:twilio|@twilio/|telnyx|vonage)", "category": "communications", "label": "Communications" },
     { "pattern": "^(?:@googlemaps/|mapbox)", "category": "geocoding", "label": "Geocoding" },
-    { "pattern": "^(?:openai|async_openai|@anthropic-ai/|anthropic|@google/generative-ai)", "category": "ai", "label": "AI Provider" },
-    { "pattern": "^(?:@octokit/|octocrab)", "category": "scm", "label": "SCM API" }
+    { "pattern": "^(?:openai|async_openai|azure\\.ai\\.openai|@anthropic-ai/|anthropic|@google/generative-ai)", "category": "ai", "label": "AI Provider" },
+    { "pattern": "^(?:@octokit/|octokit|octocrab)", "category": "scm", "label": "SCM API" }
   ]
 }

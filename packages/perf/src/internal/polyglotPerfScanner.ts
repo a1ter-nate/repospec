@@ -40,7 +40,7 @@ interface LinePatternRule {
 }
 
 const RUST_FN_RE = /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/;
-const CSHARP_FN_RE = /^\s*(?:public|private|protected|internal|static|async|virtual|override|sealed|partial|\s)+[A-Za-z0-9_<>,?[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/;
+const CSHARP_FN_RE = /^\s*(?:public|private|protected|internal|static|async|virtual|override|sealed|partial|new|\s)+[A-Za-z0-9_<>,?[\].\s]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/;
 const PYTHON_FN_RE = /^(\s*)(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
 
 const RUST_LOOP_RE = /\b(?:for|while)\b|\bloop\s*\{|\.(?:iter|into_iter|iter_mut)\(\)\.(?:for_each|map|filter|fold)\(/;
@@ -412,6 +412,7 @@ function scanBraceLanguage(
 
   let braceDepth = 0;
   const loopEndDepths: number[] = [];
+  let pendingLoop = false;
   let activeFn: BraceBlockContext | null = null;
   let inCfgTest = false;
   let cfgTestStartDepth = -1;
@@ -426,11 +427,13 @@ function scanBraceLanguage(
     const { open, close } = countBraces(code);
     if (!inCfgTest) {
       const fnMatch = code.match(fnRe);
-      if (fnMatch?.[1] && !activeFn && !/^\s*(?:if|for|while|switch|catch|match)\b/.test(code)) {
+      if (fnMatch?.[1] && !activeFn && !/^\s*(?:if|for|foreach|while|switch|catch|match|return|new|var)\b/.test(code)) {
         activeFn = { line: lineNo, symbol: fnMatch[1], startDepth: braceDepth, loopDepthMax: 0, selfCalls: 0, branchingSelfCall: false, matchArmSelfCalls: 0, hasSort: false, hasHalving: false, hasLinearInLoop: false, hasAlloc: false };
       }
       const entersLoop = loopRe.test(code);
-      if (entersLoop && open > 0) loopEndDepths.push(braceDepth);
+      if ((entersLoop || pendingLoop) && open > 0) { loopEndDepths.push(braceDepth); pendingLoop = false; }
+      else if (entersLoop && open === 0 && !code.includes(";")) pendingLoop = true;
+      else if (pendingLoop && code.trim().length > 0) pendingLoop = false;
       const curLoopDepth = loopEndDepths.length + (entersLoop && open === 0 ? 1 : 0);
       const linearHit = applyLineRules({ code, lineNo, filePath, symbol: activeFn?.symbol ?? "<module>", inLoop: curLoopDepth >= 1, findings }, rules);
       if (activeFn && lineNo > activeFn.line) updateActiveBlock(activeFn, code, curLoopDepth, linearHit);

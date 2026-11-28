@@ -185,12 +185,14 @@ export function buildCrossDomainLinks(
       ? wf.meta.iacDirectories.filter((d): d is string => typeof d === "string")
       : [];
     const runsCargoWorkspace = /\bcargo\s+(?:test|nextest|clippy|check|build)\b[\s\S]{0,120}--workspace/.test(wfContent);
+    const runsDotnetSolution = /\bdotnet\s+(?:test|build|publish|restore)\b/.test(wfContent);
 
     for (const unit of archUnits) {
       const dir = typeof unit.meta.dir === "string" ? unit.meta.dir : "";
       const slug = typeof unit.meta.slug === "string" ? normalizeToken(unit.meta.slug) : normalizeToken(unit.label);
       const bins = Array.isArray(unit.meta.bins) ? unit.meta.bins : [];
       const isRustUnit = unit.meta.ecosystem === "rust";
+      const isCsharpUnit = unit.meta.ecosystem === "csharp";
 
       const matchedByCargo =
         isRustUnit &&
@@ -199,11 +201,17 @@ export function buildCrossDomainLinks(
           bins.some((b) => typeof b === "string" && wfContent.includes(`--bin ${b}`)) ||
           (runsCargoWorkspace && (unit.kind === "app" || unit.kind === "package")));
 
+      const matchedByDotnet =
+        isCsharpUnit &&
+        (wfContent.includes(unit.label) ||
+          (runsDotnetSolution && (unit.kind === "app" || unit.kind === "package" || unit.kind === "test_package")));
+
       const matched =
         (slug.length >= 4 && hasWholeToken(wfBase, slug)) ||
         (dir.length > 1 && wfContent.includes(`${dir}/`)) ||
         (unit.label.startsWith("@") && wfContent.includes(unit.label)) ||
-        matchedByCargo;
+        matchedByCargo ||
+        matchedByDotnet;
 
       if (matched) {
         edges.push({
@@ -220,9 +228,12 @@ export function buildCrossDomainLinks(
     for (const suite of testNodes) {
       const wsDir = typeof suite.meta.workspaceDir === "string" ? suite.meta.workspaceDir : "";
       const suiteSlug = normalizeToken(wsDir.replace(/^(?:tests|apps|packages|crates)\//, ""));
+      const sampleFiles = Array.isArray(suite.meta.sampleFiles) ? suite.meta.sampleFiles : [];
+      const isCsharpSuite = sampleFiles.some((f) => typeof f === "string" && f.endsWith(".cs"));
       const matched =
         (wsDir.length > 1 && wfContent.includes(`${wsDir}/`)) ||
-        (suiteSlug.length >= 5 && hasWholeToken(wfBase, suiteSlug));
+        (suiteSlug.length >= 5 && hasWholeToken(wfBase, suiteSlug)) ||
+        (isCsharpSuite && /\bdotnet\s+test\b/.test(wfContent));
       if (matched) {
         edges.push({
           from: wf.id,
