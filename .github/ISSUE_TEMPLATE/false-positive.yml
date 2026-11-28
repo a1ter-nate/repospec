@@ -1,0 +1,40 @@
+name: False Positive / False Negative
+description: Report an inaccurate architectural rule, DDIA flow hazard, or performance finding.
+title: "[FP] "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Generate a privacy-scrubbed report automatically with
+        `repospec report --rule <id> --file <path:line> --anonymize --reason "..."`.
+        Never paste proprietary client code, internal user paths, or secrets.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      placeholder: "e.g. sql:parnas-secret-leak or ddia:serial-independent-awaits"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: RepoSpec Version & Runtime
+      placeholder: "e.g. repospec@5.0.37 · bun@1.4.4 · darwin/arm64"
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why this finding is wrong (or what was missed)
+      placeholder: Explain the expected behavior and why the current finding is inaccurate.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal Anonymized Repro Snippet
+      placeholder: Paste the scrubbed snippet from `repospec report --anonymize`.
+      render: text
+    validations:
+      required: false

@@ -16,6 +16,7 @@ import { Argument, Command, Flag } from "effect/cli";
 import { runAggregateCommand, runDiffViewCommand, runServeCommand, runTimelineCommand } from "./cliCommands.ts";
 import { buildPluginOperations, ejectCmd, factsCmd, flowsCmd, scanCmd } from "./jellyCli.ts";
 import { querySubcommands } from "./queryCli.ts";
+import { formatReportHintFooter, reportCmd } from "./reportCli.ts";
 
 const printJson = (value: unknown): Effect.Effect<void> =>
   Effect.sync(() => {
@@ -77,7 +78,23 @@ const checkCmd = Command.make(
           );
         }
       }
-      yield* printJson(summary);
+      if (cfg.json) {
+        yield* printJson(summary);
+      } else {
+        yield* Effect.sync(() => {
+          const statusLabel = summary.ok ? "PASS" : "FAIL";
+          console.log(
+            `RepoSpec check [${statusLabel}]: ${summary.verification.invariantsPassed} pass, ${summary.verification.invariantsWarned} warn, ${summary.verification.invariantsFailed} fail`,
+          );
+          for (const inv of summary.failedInvariants) {
+            console.log(`  - [FAIL] ${inv.id}: ${inv.name} (${inv.count})`);
+          }
+          if (summary.verification.invariantsFailed > 0 || summary.verification.invariantsWarned > 0) {
+            const firstRule = summary.failedInvariants[0]?.id ?? "<id>";
+            console.log(formatReportHintFooter(firstRule, "<path:line>"));
+          }
+        });
+      }
       if (!summary.ok) {
         return yield* Effect.fail(new CliUsageError({ message: "RepoSpec verification check failed." }));
       }
@@ -443,6 +460,7 @@ export const repospecCommand = Command.make("repospec").pipe(
     checkCmd,
     diffViewCmd,
     showMeCmd,
+    reportCmd,
     ...querySubcommands,
   ]),
 );

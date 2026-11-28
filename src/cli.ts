@@ -2,11 +2,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { repospecCommand } from "@repospec/cli";
+import { formatReportHintFooter, repospecCommand } from "@repospec/cli";
 import { runGenerateRepoSpec, type GenerateResult } from "@repospec/core";
 import { RepospecLive } from "@repospec/core/effect";
 import type { StorageMode } from "@repospec/plugin";
-import { Effect, Layer } from "effect";
+import { Effect, Exit, Layer } from "effect";
 import { Command } from "effect/cli";
 
 function readPackageVersion(): string {
@@ -36,7 +36,17 @@ export function generateRepoSpec(
 
 export function runCliMain(): void {
   const cliLayer = Layer.mergeAll(BunServices.layer, RepospecLive);
-  const program = Command.run(repospecCommand, { version: readPackageVersion() }).pipe(Effect.provide(cliLayer));
+  const program = Command.run(repospecCommand, { version: readPackageVersion() }).pipe(
+    Effect.onExit((exit) =>
+      Exit.isFailure(exit) && !process.argv.includes("--json")
+        ? Effect.sync(() => {
+            const sub = process.argv.slice(2, 4).join(" ") || "<cmd>";
+            console.error(`${formatReportHintFooter(undefined, undefined, "crash")} --command "repospec ${sub}"`);
+          })
+        : Effect.void,
+    ),
+    Effect.provide(cliLayer),
+  );
   BunRuntime.runMain(program);
 }
 

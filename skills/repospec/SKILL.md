@@ -72,6 +72,18 @@ When asked to audit, simplify, or **uncomplect** a subsystem or repository (Parn
    - **Deletion List:** Zero-value pass-through wrappers, retiring interfaces (`.repospec/retiring.json`), and cartridge subsystems ranked by `deletabilityScore`.
    - **Fence Backlog:** Explicitly tag every unguarded invariant or boundary with **`No fence yet`** plus the concrete SQL rule or test rung needed to prevent backsliding.
 
+## Reporting False Positives or Tool Bugs Upstream
+
+When RepoSpec flags a false positive, misses a real issue, or crashes on a repository:
+
+1. **Never leak proprietary client code, local absolute paths, or secrets.** Always scrub snippets before sharing.
+2. **Generate a scrubbed preview first (or queue offline in NDA/multi-repo sweeps):**
+   - Single dry-run preview: `bunx repospec report --rule <id> --file <path:line> --anonymize --reason "<why it is wrong>"`
+   - Offline/multi-repo queue (Option C): append `--local` to save scrubbed entries in `.verification/tool-feedback.jsonl`, then run `bunx repospec report --flush` to inspect one deduplicated roll-up report.
+3. **Inspect the redacted output, then file upstream:**
+   - When `gh` is available and the user approves filing: re-run with `--submit` (or `--flush --submit`, which clears the queue only after GitHub issue creation succeeds).
+   - Otherwise emit a clamped pre-filled browser link with `--url` (or `--flush --url`), or save to disk with `--out <file>`.
+
 ## Hard Guardrails
 
 - Query `repospec.sqlite` instead of trusting prose `AGENTS.md` or wiki diagrams; fix or report any `v_doc_drift` hit you uncover.

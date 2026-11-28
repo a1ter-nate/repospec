@@ -1,0 +1,39 @@
+name: Bug Report / Crash
+description: Report a CLI crash, extractor error, Studio UI defect, or incorrect scan result.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Generate a privacy-scrubbed bug report with
+        `repospec report --kind bug --command "<cmd>" --reason "..."`.
+        Never paste proprietary code, absolute local paths, or secrets.
+  - type: input
+    id: version
+    attributes:
+      label: RepoSpec Version & Runtime
+      placeholder: "e.g. repospec@5.0.37 · bun@1.4.4 · darwin/arm64"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command Executed
+      placeholder: "e.g. repospec generate . --out out/"
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: What Happened & Expected Behavior
+      placeholder: Describe the crash or bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Redacted Output / Minimal Repro
+      render: text
+    validations:
+      required: false
