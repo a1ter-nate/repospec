@@ -371,13 +371,6 @@ export function renderClickClientScript(): string {
       return;
     }
 
-    const factsKindBtn = target.closest("[data-facts-kind]");
-    if (factsKindBtn) {
-      state.factsKindFilter = factsKindBtn.getAttribute("data-facts-kind") || "";
-      render();
-      return;
-    }
-
     const searchItem = target.closest("[data-search-action]");
     if (searchItem) {
       const act = searchItem.getAttribute("data-search-action");

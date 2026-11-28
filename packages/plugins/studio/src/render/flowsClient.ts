@@ -10,6 +10,26 @@ export function renderFlowsClientScript(): string {
     return "m-other";
   }
 
+  function renderFlowHazardCard(h) {
+    const ruleMap = { notify_before_commit: "ddia:notify-before-commit", invalidate_before_write: "ddia:invalidate-before-write", serial_independent_awaits: "ddia:serial-independent-awaits", blocking_noncritical_io: "ddia:blocking-noncritical-io", write_on_poll: "ddia:write-on-poll", multi_writer_unowned_field: "ddia:multi-writer-unowned-field", derived_state_sync: "ddia:derived-state-sync", io_inside_transaction: "ddia:io-inside-transaction", non_idempotent_retry: "ddia:cloud-resilience-hazards", unbounded_pagination: "ddia:cloud-resilience-hazards" };
+    const ruleId = ruleMap[h.kind] || "";
+    const inv = ruleId ? invById.get(ruleId) : null;
+    const title = h.kind === "non_idempotent_retry" ? "Retrying a write without duplicate protection" : h.kind === "unbounded_pagination" ? "Loading every row without a page limit" : (inv?.name || String(h.kind || "").replace(/_/g, " "));
+    const why = inv?.why || "Hidden timing or reliability bugs like this cause duplicate work, stale screens, or outages under real traffic.";
+    const fix = inv?.fix || "Reorder or guard this step so durable writes commit safely and independent calls do not block or duplicate.";
+    const benefit = inv?.benefit || "Prevents race conditions, speeds up responses, and keeps data consistent when retries or failures happen.";
+    const srcs = Array.isArray(inv?.sources) && inv.sources.length > 0 ? '<div class="chk-sources">' + inv.sources.map((s) => '<a class="chk-src-link" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.label) + " ↗</a>").join("") + "</div>" : "";
+    return '<div class="fx-haz-card' + (h.severity === "error" ? " is-err" : "") + '" data-flow-jump-file="' + esc(h.file) + '" data-flow-jump-line="' + h.line + '">' +
+      '<div class="fx-haz-head"><span class="fx-haz-title">' + esc(title) + '</span><span class="mono muted">:' + h.line + "</span></div>" +
+      '<div class="fx-haz-sec"><strong>What is wrong:</strong> ' + esc(h.summary) + "</div>" +
+      '<div class="fx-haz-sec"><strong>Why it matters:</strong> ' + esc(why) + "</div>" +
+      '<div class="fx-haz-sec"><strong>What change fixes it:</strong> ' + esc(fix) + "</div>" +
+      '<div class="fx-haz-sec fx-haz-good"><strong>Why this change is good:</strong> ' + esc(benefit) + "</div>" +
+      srcs +
+      (inv ? '<div class="finding-actions"><button class="tbtn" data-jump-check-id="' + esc(inv.id) + '">Open in Checks →</button></div>' : "") +
+      "</div>";
+  }
+
   function renderFlowsTab() {
     const fl = DATA.flows || { workFlows: [], dataHubs: [], stateMachines: [], asyncHandoffs: [], asyncHandoffsSvg: "", asyncCount: 0, hazards: [] };
     const sub = state.flowsSubtab || "workflows";
@@ -105,13 +125,9 @@ export function renderFlowsClientScript(): string {
           : "";
 
         const hazHtml = (wf.hazards || []).length > 0
-          ? '<div><div class="sec-title" style="margin-bottom:5px">DDIA Tradeoffs (' + wf.hazards.length + ")</div>" +
-            '<div style="display:flex;flex-direction:column;gap:6px">' +
-            wf.hazards.map((h) =>
-              '<div class="fx-haz-card' + (h.severity === "error" ? " is-err" : "") + '" data-flow-jump-file="' + esc(h.file) + '" data-flow-jump-line="' + h.line + '">' +
-              '<div class="mono" style="font-weight:600;color:' + (h.severity === "error" ? "var(--err)" : "var(--warn)") + '">' + esc(h.kind) + ' <span class="muted">:' + h.line + "</span></div>" +
-              '<div style="font-size:12px;color:var(--text-2);margin-top:2px">' + esc(h.summary) + "</div></div>",
-            ).join("") + "</div></div>"
+          ? '<div><div class="sec-title" style="margin-bottom:8px">Findings in This Flow (' + wf.hazards.length + ")</div>" +
+            '<div style="display:flex;flex-direction:column;gap:10px">' +
+            wf.hazards.map((h) => renderFlowHazardCard(h)).join("") + "</div></div>"
           : "";
 
         ctxTitle = esc(wf.name) + ' <span class="mono muted" style="font-weight:400">' + wf.serialAwaitCount + " awaits</span>";
@@ -237,7 +253,7 @@ export function renderFlowsClientScript(): string {
       (!state.flowDockCollapsed ? '<div class="fx-h-resizer" id="fx-h-resizer" title="Drag to resize · Double-click to reset"></div>' : "") +
       '<div class="fx-dock' + (state.flowDockCollapsed ? " is-collapsed" : "") + '" id="fx-dock"' + dockStyle + ">" +
       renderFlowBrowserCol(fl, sub) +
-      '<section class="fx-dock-col"><div class="fx-dock-head"><span class="drawer-title" style="font-size:13px">' + ctxTitle + "</span>" + ctxAction + '</div><div class="fx-dock-body">' + ctxHtml + "</div></section>" +
+      '<section class="fx-dock-col"><div class="fx-dock-head"><span class="drawer-title" style="font-size:var(--fs-13)">' + ctxTitle + "</span>" + ctxAction + '</div><div class="fx-dock-body">' + ctxHtml + "</div></section>" +
       '<section class="fx-dock-col is-code"><div class="fx-code-body">' + codeHtml + "</div></section>" +
       "</div>" +
       "</div>" +
@@ -429,6 +445,7 @@ export function renderFlowsClientScript(): string {
       }
       return true;
     }
+    if (target.closest("a, [data-jump-check-id]")) return false;
     const jumpEl = target.closest("[data-flow-jump-file]");
     if (jumpEl) {
       state.flowCodeFile = jumpEl.getAttribute("data-flow-jump-file");

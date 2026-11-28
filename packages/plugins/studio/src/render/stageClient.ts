@@ -26,8 +26,6 @@ export function renderStageClientScript(): string {
       (DATA.repo.commitSha ? " @" + esc(DATA.repo.commitSha.slice(0, 7)) : "") +
       "</span>";
 
-    const BUILTIN_FACT_KINDS = new Set(["work_flow", "data_lifecycle", "ddia_hazard", "async_handoff", "state_machine"]);
-    const customFacts = (DATA.extensions?.facts || []).filter((f) => !BUILTIN_FACT_KINDS.has(f.kind));
     const customTabs = DATA.customUi?.extraTabs || [];
     const flowCount = (DATA.flows?.workFlows?.length || 0) + (DATA.flows?.stateMachines?.length || 0) + (DATA.flows?.dataHubs?.length || 0);
     const hasSurfaces = DATA.entities.length > 0 || DATA.surfaces.endpoints.length > 0 || DATA.surfaces.envBindings.length > 0;
@@ -44,7 +42,6 @@ export function renderStageClientScript(): string {
       { id: "flows", label: "Flows", count: String(DATA.flows?.workFlows?.length || 0), show: flowCount > 0 },
       { id: "data", label: "Surfaces", count: "", show: hasSurfaces },
       { id: "checks", label: "Checks", badgeHtml: checkHealth, count: "", show: (DATA.invariants || []).length > 0 },
-      { id: "facts", label: "Facts", count: String(customFacts.length), show: customFacts.length > 0 },
       { id: "timeline", label: "Timeline", count: String(DATA.timeline?.commits?.length || 0), show: Boolean(DATA.timeline?.commits?.length) },
       ...customTabs.map((ct) => ({ id: "custom:" + ct.id, label: ct.label, count: "", show: true })),
     ].filter((t) => t.show);
@@ -141,25 +138,6 @@ export function renderStageClientScript(): string {
         "</div>";
     }
 
-    function renderFactsTab() {
-      const kinds = Array.from(new Set(customFacts.map((f) => f.kind))).sort();
-      const activeKind = state.factsKindFilter || "";
-      const shown = customFacts.filter((f) => !activeKind || f.kind === activeKind);
-      const pills =
-        '<button class="pill-btn' + (!activeKind ? " active" : "") + '" data-facts-kind="">All (' + customFacts.length + ")</button>" +
-        kinds.map((k) => {
-          const cnt = customFacts.filter((f) => f.kind === k).length;
-          return '<button class="pill-btn' + (activeKind === k ? " active" : "") + '" data-facts-kind="' + esc(k) + '">' + esc(k) + " (" + cnt + ")</button>";
-        }).join("");
-      const rows = shown.slice(0, 300).map((f) => {
-        const openBtn = ddIdxByPath.has(f.file)
-          ? ' <button class="tbtn" data-open-file="' + esc(f.file) + '" data-open-file-line="' + (f.line || 1) + '">Code</button>'
-          : "";
-        return '<tr><td><span class="badge">' + esc(f.kind) + '</span></td><td class="mono">' + esc(f.key) + '</td><td class="mono muted">' + esc(f.file) + ":" + (f.line || 1) + openBtn + '</td><td class="mono muted">' + esc(JSON.stringify(f.payload || {})) + "</td></tr>";
-      }).join("");
-      return '<div class="table-wrap"><div class="table-head"><div><strong>Extracted Facts (' + shown.length + ')</strong></div><div class="sub-toggles">' + pills + '</div></div><table class="data-table"><thead><tr><th>Kind</th><th>Key</th><th>Location</th><th>Payload</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
-    }
-
     let bodyHtml = "";
     if (state.tab === "diff") {
       bodyHtml = renderDiffTab();
@@ -169,8 +147,6 @@ export function renderStageClientScript(): string {
       bodyHtml = renderDataTab();
     } else if (state.tab === "flows") {
       bodyHtml = renderFlowsTab();
-    } else if (state.tab === "facts") {
-      bodyHtml = renderFactsTab();
     } else if (state.tab === "checks") {
       bodyHtml = renderChecksTab();
     } else if (state.tab.startsWith("custom:")) {

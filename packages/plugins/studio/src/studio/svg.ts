@@ -122,12 +122,12 @@ export function renderSvgClientScript(): string {
       const cnt = laneCounts.get(l.id) || 0;
       const hasCountInLabel = l.label.includes("(");
       const cntSvg = cnt > 0 && !hasCountInLabel
-        ? '<text x="' + (l.x + l.w - 12) + '" y="' + (l.y + 21) + '" text-anchor="end" font-size="11.5" font-weight="600" fill="#8c98b0" font-family="ui-monospace, monospace">' + cnt + "</text>"
+        ? '<text x="' + (l.x + l.w - 12) + '" y="' + (l.y + 22) + '" text-anchor="end" font-size="13.5" font-weight="600" fill="#8c98b0" font-family="ui-monospace, monospace">' + cnt + "</text>"
         : "";
       return (
         '<g class="lane">' +
         '<rect x="' + l.x + '" y="' + l.y + '" width="' + l.w + '" height="' + l.h + '" rx="12" fill="' + fill + '" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="4 4" />' +
-        '<text x="' + (l.x + 12) + '" y="' + (l.y + 21) + '" font-size="11.5" font-weight="600" fill="#8c98b0" letter-spacing="0.08em">' + esc(l.label.toUpperCase()) + "</text>" +
+        '<text x="' + (l.x + 12) + '" y="' + (l.y + 22) + '" font-size="13.5" font-weight="600" fill="#8c98b0" letter-spacing="0.06em">' + esc(l.label.toUpperCase()) + "</text>" +
         cntSvg +
         "</g>"
       );
@@ -165,10 +165,10 @@ export function renderSvgClientScript(): string {
         ? { x: (e.points[1].x + e.points[2].x) / 2, y: (e.points[1].y + e.points[2].y) / 2 }
         : e.points[Math.floor(e.points.length / 2)];
       const pillText = e.label || (e.weight && e.weight > 1 ? String(e.weight) : "");
-      const pw = Math.max(24, pillText.length * 7.2 + 12);
+      const pw = Math.max(28, pillText.length * 8.2 + 14);
       const pillHtml = pillText
-        ? '<g class="edge-pill"><rect x="' + (mid.x - pw / 2).toFixed(1) + '" y="' + (mid.y - 9.5).toFixed(1) + '" width="' + pw.toFixed(1) + '" height="19" rx="9.5" fill="#080b12" stroke="' + (e.violation ? "#ff8a8a" : "rgba(148,163,184,0.42)") + '" stroke-width="1" />' +
-          '<text x="' + mid.x.toFixed(1) + '" y="' + (mid.y + 3.8).toFixed(1) + '" text-anchor="middle" font-size="11" font-weight="500" fill="' + (e.violation ? "#ff9a9a" : "#e6ebf5") + '" font-family="ui-monospace, monospace" paint-order="stroke" stroke="#080b12" stroke-width="2">' + esc(pillText) + "</text></g>"
+        ? '<g class="edge-pill"><rect x="' + (mid.x - pw / 2).toFixed(1) + '" y="' + (mid.y - 11).toFixed(1) + '" width="' + pw.toFixed(1) + '" height="22" rx="11" fill="#080b12" stroke="' + (e.violation ? "#ff8a8a" : "rgba(148,163,184,0.42)") + '" stroke-width="1" />' +
+          '<text x="' + mid.x.toFixed(1) + '" y="' + (mid.y + 4.3).toFixed(1) + '" text-anchor="middle" font-size="12.5" font-weight="500" fill="' + (e.violation ? "#ff9a9a" : "#e6ebf5") + '" font-family="ui-monospace, monospace" paint-order="stroke" stroke="#080b12" stroke-width="2">' + esc(pillText) + "</text></g>"
         : "";
       const cls =
         "svg-edge-group" +
@@ -227,18 +227,18 @@ export function renderSvgClientScript(): string {
         : "";
       const stepNum = traceOrder.get(n.id);
       const traceBadge = stepNum
-        ? '<circle cx="' + (leftX + 6) + '" cy="' + (topY + 6) + '" r="9.5" fill="#4f46e5" />' +
-          '<text x="' + (leftX + 6) + '" y="' + (topY + 9.8) + '" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff">' + stepNum + "</text>"
+        ? '<circle cx="' + (leftX + 6) + '" cy="' + (topY + 6) + '" r="11" fill="#4f46e5" />' +
+          '<text x="' + (leftX + 6) + '" y="' + (topY + 10.2) + '" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">' + stepNum + "</text>"
         : "";
       const findingPill = totalFindings > 0
-        ? '<circle cx="' + (leftX + n.w - 6) + '" cy="' + (topY + 6) + '" r="9.5" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
-          '<text x="' + (leftX + n.w - 6) + '" y="' + (topY + 9.8) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
+        ? '<circle cx="' + (leftX + n.w - 6) + '" cy="' + (topY + 6) + '" r="11" fill="' + (hasError ? "#ef4444" : "#f59e0b") + '" />' +
+          '<text x="' + (leftX + n.w - 6) + '" y="' + (topY + 10.2) + '" text-anchor="middle" font-size="11.5" font-weight="700" fill="#ffffff">' + (totalFindings > 99 ? "99+" : totalFindings) + "</text>"
         : statusDot;
       const drillHint = n.expandable ? (n.kind === "file" ? " (Double-click or press Enter for callstack & code)" : " (Double-click or press Enter to drill in)") : "";
       const nodeTip = n.label + (cleanSub ? " — " + cleanSub : "") + drillHint + (totalFindings > 0 ? " · " + totalFindings + " active finding" + (totalFindings === 1 ? "" : "s") : "");
       const lensBadge = lens
-        ? '<rect x="' + (leftX + n.w - 38) + '" y="' + (topY - 7) + '" width="36" height="16" rx="8" fill="' + lens.badgeBg + '" />' +
-          '<text x="' + (leftX + n.w - 20) + '" y="' + (topY + 4.5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#080b12">' + esc(lens.badge) + "</text>"
+        ? '<rect x="' + (leftX + n.w - 42) + '" y="' + (topY - 8) + '" width="42" height="18" rx="9" fill="' + lens.badgeBg + '" />' +
+          '<text x="' + (leftX + n.w - 21) + '" y="' + (topY + 5) + '" text-anchor="middle" font-size="11.5" font-weight="700" fill="#080b12">' + esc(lens.badge) + "</text>"
         : "";
       const shapeSvg = lens
         ? renderShapeSvg(n, stroke, hasError, hasWarn).replace(/fill="[^"]+"/, 'fill="' + lens.fill + '"')
@@ -248,8 +248,8 @@ export function renderSvgClientScript(): string {
         "<title>" + esc(nodeTip) + "</title>" +
         shapeSvg +
         iconTileSvg +
-        '<text x="' + textX + '" y="' + (n.y - (subStr ? 4 : -4.5)) + '" text-anchor="start" font-size="13.5" font-weight="600" fill="#e6ebf5" font-family="ui-sans-serif, system-ui, sans-serif">' + esc(titleStr) + "</text>" +
-        (subStr ? '<text x="' + textX + '" y="' + (n.y + 13.5) + '" text-anchor="start" font-size="11.5" fill="#8793ab" font-family="ui-monospace, monospace">' + esc(subStr) + "</text>" : "") +
+        '<text x="' + textX + '" y="' + (n.y - (subStr ? 4 : -5)) + '" text-anchor="start" font-size="15" font-weight="600" fill="#e6ebf5" font-family="ui-sans-serif, system-ui, sans-serif">' + esc(titleStr) + "</text>" +
+        (subStr ? '<text x="' + textX + '" y="' + (n.y + 15) + '" text-anchor="start" font-size="12.8" fill="#8793ab" font-family="ui-monospace, monospace">' + esc(subStr) + "</text>" : "") +
         drillChev +
         (lensBadge || findingPill) +
         traceBadge +
@@ -258,10 +258,10 @@ export function renderSvgClientScript(): string {
     }).join("");
 
     const hasMinimap = !INLINE && diag.nodes.length >= 10;
-    const vbX = -68;
-    const vbY = -66;
-    const vbW = diag.width + (hasMinimap ? 136 : 104);
-    const vbH = diag.height + (hasMinimap ? 152 : 132);
+    const vbX = -44;
+    const vbY = -44;
+    const vbW = diag.width + (hasMinimap ? 92 : 76);
+    const vbH = diag.height + (hasMinimap ? 104 : 88);
     const animCls = state.justNavigated ? ' class="canvas-anim"' : "";
     return (
       '<svg id="diagram-svg"' + animCls + ' viewBox="' + vbX + " " + vbY + " " + vbW + " " + vbH + '" preserveAspectRatio="xMidYMid meet">' +
