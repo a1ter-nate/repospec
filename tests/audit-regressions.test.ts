@@ -313,6 +313,30 @@ pub async fn set_packet_poll(tx: &mut Tx) {
   const content = await readFile(firstSpec);
   return content;
 }
+export async function chainedDependentReads(reader: any) {
+  const listedIds = (await reader.query("profiles")).docs.map((doc: any) => doc.id);
+  const loaded = await loadHolders(reader, [...new Set([...listedIds])]);
+  const items = await reader.docs(loaded.holders.map((h: any) => h.uid));
+  return items;
+}
+export async function fallbackOrRead(reader: any, id: string) {
+  return (await reader.getPrimary(id)) || (await reader.getFallback(id));
+}
+export async function conditionalTernaryRead(reader: any, id: string, flag: boolean) {
+  return flag ? await reader.getAlpha(id) : await reader.getBeta(id);
+}
+export async function guardedFallbackRead(reader: any, id: string) {
+  let device = await reader.getDevice(id);
+  if (!device) {
+    device = await reader.getProvisionedDevice(id);
+  }
+  return device;
+}
+export async function trulyIndependentReads(reader: any, aId: string, bId: string) {
+  const a = await reader.getAccount(aId);
+  const b = await reader.getSettings(bId);
+  return { a, b };
+}
 `,
       );
       writeFile(
@@ -337,7 +361,13 @@ export function registerHubDevice() { return "ok"; }
       expect(blockingInv?.evidence?.some((e) => e.file === "src/api/syncClient.ts") ?? false).toBe(false);
 
       const serialInv = res.spec.invariants.find((i) => i.id === "ddia:serial-independent-awaits");
-      expect(serialInv?.evidence?.some((e) => e.file === "src/api/syncClient.ts") ?? false).toBe(false);
+      const serialSubjects = (serialInv?.evidence ?? []).map((e) => e.subject);
+      expect(serialSubjects.some((s) => s.includes("syncSpecHandler"))).toBe(false);
+      expect(serialSubjects.some((s) => s.includes("chainedDependentReads"))).toBe(false);
+      expect(serialSubjects.some((s) => s.includes("fallbackOrRead"))).toBe(false);
+      expect(serialSubjects.some((s) => s.includes("conditionalTernaryRead"))).toBe(false);
+      expect(serialSubjects.some((s) => s.includes("guardedFallbackRead"))).toBe(false);
+      expect(serialSubjects.some((s) => s.includes("trulyIndependentReads"))).toBe(true);
 
       const tangleInv = res.spec.invariants.find((i) => i.id === "sql:intra-package-module-tangle");
       expect(tangleInv?.status).toBe("warn");
